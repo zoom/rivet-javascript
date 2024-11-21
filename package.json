@@ -1,0 +1,40 @@
+{
+  "type": "module",
+  "name": "@zoom/rivet",
+  "author": "Zoom Developers <developers@zoom.us> (https://developers.zoom.us)",
+  "packageManager": "pnpm@9.9.0",
+  "version": "0.0.1",
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "require": "./index.cjs",
+      "types": "./index.d.ts"
+    },
+    "./chatbot": {
+      "import": "./chatbot/chatbot.mjs",
+      "require": "./chatbot/chatbot.cjs",
+      "types": "./chatbot/chatbot.d.ts"
+    },
+    "./teamchat": {
+      "import": "./teamchat/teamchat.mjs",
+      "require": "./teamchat/teamchat.cjs",
+      "types": "./teamchat/teamchat.d.ts"
+    },
+    "./users": {
+      "import": "./users/users.mjs",
+      "require": "./users/users.cjs",
+      "types": "./users/users.d.ts"
+    },
+    "./videosdk": {
+      "import": "./videosdk/videosdk.mjs",
+      "require": "./videosdk/videosdk.cjs",
+      "types": "./videosdk/videosdk.d.ts"
+    }
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dayjs": "^1.11.13",
+    "form-data": "^4.0.1",
+    "jose": "^5.9.4"
+  }
+}
