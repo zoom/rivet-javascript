@@ -427,6 +427,8 @@ class JwtStateStore {
 const DEFAULT_INSTALL_PATH = "/zoom/oauth/install";
 const DEFAULT_CALLBACK_PATH = "/zoom/oauth/callback";
 const OAUTH_AUTHORIZE_PATH = "/oauth/authorize";
+const hasInstallerOptions = (obj) => typeof obj.installerOptions.redirectUri !== "undefined" &&
+    typeof obj.installerOptions.stateStore !== "undefined";
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
  * is initiated server-side, but requires manual authorization from a user, by redirecting the user to Zoom.
@@ -743,83 +745,6 @@ class HttpReceiver {
     }
 }
 
-/** @internal */
-const TWO_HOURS_IN_SECONDS = 60 * 60 * 2;
-class JwtAuth extends Auth {
-    async generateToken() {
-        const encodedSecret = new TextEncoder().encode(this.clientSecret);
-        const issuedTime = dayjs();
-        const expirationTime = issuedTime.add(TWO_HOURS_IN_SECONDS, "seconds");
-        return {
-            token: await new jose.SignJWT()
-                .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-                .setExpirationTime(expirationTime.toDate())
-                .setIssuedAt(issuedTime.toDate())
-                .setIssuer(this.clientId)
-                .sign(encodedSecret),
-            expirationTimeIso: expirationTime.toISOString()
-        };
-    }
-    async getToken() {
-        const { tokenStore } = this;
-        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
-        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
-            return currentToken.token;
-        }
-        const jwtToken = await this.generateToken();
-        await Promise.resolve(tokenStore.storeToken(jwtToken));
-        return jwtToken.token;
-    }
-}
-
-// Utility functions for determining if client options include custom receiver, or, if not,
-// a webhooks secret token, as one of those is required!
-const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
-const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
-const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
-const DEFAULT_HTTP_RECEIVER_PORT = 8080;
-const DEFAULT_LOGLEVEL = exports.LogLevel.ERROR;
-class ProductClient {
-    auth;
-    endpoints;
-    webEventConsumer;
-    receiver;
-    constructor(options) {
-        this.auth = this.initAuth(options);
-        this.endpoints = this.initEndpoints(this.auth, options);
-        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
-        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
-        if (!isReceiverDisabled(options)) {
-            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
-            if (!hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
-                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
-            }
-            this.receiver = (hasExplicitReceiver(options) ?
-                options.receiver
-                : this.initDefaultReceiver(options));
-            this.receiver.init({
-                eventEmitter: this.webEventConsumer,
-                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
-            });
-        }
-    }
-    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
-        return new HttpReceiver({
-            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
-            webhooksSecretToken,
-            logLevel: logLevel ?? DEFAULT_LOGLEVEL
-        });
-    }
-    async start() {
-        if (!this.receiver) {
-            throw new ReceiverInconsistentStateError("Receiver not constructed. Was disableReceiver set to true?");
-        }
-        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
-        // may or may not return a promise. This is not required when implementing `Receiver`.
-        return (await Promise.resolve(this.receiver.start()));
-    }
-}
-
 const type = "module";
 const name = "@zoom/rivet";
 const author = "Zoom Developers <developers@zoom.us> (https://developers.zoom.us)";
@@ -976,85 +901,279 @@ class WebEndpoints {
     }
 }
 
-class VideoSdkEndpoints extends WebEndpoints {
-    byosStorage = {
-        updateBringYourOwnStorageSettings: this.buildEndpoint({ method: "PATCH", urlPathBuilder: () => `/videosdk/settings/storage` }),
-        listStorageLocation: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: () => `/videosdk/settings/storage/location`
+class AccountsEndpoints extends WebEndpoints {
+    accounts = {
+        getLockedSettings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ accountId }) => `/accounts/${accountId}/lock_settings` }),
+        updateLockedSettings: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ accountId }) => `/accounts/${accountId}/lock_settings` }),
+        getAccountsManagedDomains: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ accountId }) => `/accounts/${accountId}/managed_domains` }),
+        updateAccountOwner: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ accountId }) => `/accounts/${accountId}/owner` }),
+        getAccountSettings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ accountId }) => `/accounts/${accountId}/settings` }),
+        updateAccountSettings: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ accountId }) => `/accounts/${accountId}/settings` }),
+        getAccountsWebinarRegistrationSettings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ accountId }) => `/accounts/${accountId}/settings/registration` }),
+        updateAccountsWebinarRegistrationSettings: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ accountId }) => `/accounts/${accountId}/settings/registration` }),
+        uploadVirtualBackgroundFiles: this.buildEndpoint({
+            method: "POST",
+            urlPathBuilder: ({ accountId }) => `/accounts/${accountId}/settings/virtual_backgrounds`,
+            requestMimeType: "multipart/form-data"
         }),
-        addStorageLocation: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/videosdk/settings/storage/location` }),
-        storageLocationDetail: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: ({ storageLocationId }) => `/videosdk/settings/storage/location/${storageLocationId}`
-        }),
-        deleteStorageLocationDetail: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ storageLocationId }) => `/videosdk/settings/storage/location/${storageLocationId}`
-        }),
-        changeStorageLocationDetail: this.buildEndpoint({
-            method: "PATCH",
-            urlPathBuilder: ({ storageLocationId }) => `/videosdk/settings/storage/location/${storageLocationId}`
-        })
+        deleteVirtualBackgroundFiles: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ accountId }) => `/accounts/${accountId}/settings/virtual_backgrounds` }),
+        getAccountsTrustedDomains: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ accountId }) => `/accounts/${accountId}/trusted_domains` })
     };
-    cloudRecording = {
-        listRecordingsOfAccount: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/recordings` }),
-        listSessionsRecordings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/recordings` }),
-        deleteSessionsRecordings: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/recordings` }),
-        recoverSessionsRecordings: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/recordings/status` }),
-        deleteSessionsRecordingFile: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ sessionId, recordingId }) => `/videosdk/sessions/${sessionId}/recordings/${recordingId}`
-        }),
-        recoverSingleRecording: this.buildEndpoint({
-            method: "PUT",
-            urlPathBuilder: ({ sessionId, recordingId }) => `/videosdk/sessions/${sessionId}/recordings/${recordingId}/status`
-        })
-    };
-    sessions = {
-        listSessions: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/sessions` }),
-        createSession: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/videosdk/sessions` }),
-        getSessionDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}` }),
-        deleteSession: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}`
-        }),
-        useInSessionEventsControls: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/events` }),
-        getSessionLiveStreamDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/livestream` }),
-        updateSessionLiveStream: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/livestream` }),
-        updateSessionLivestreamStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/livestream/status` }),
-        updateSessionStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/status` }),
-        listSessionUsers: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/users` }),
-        listSessionUsersQoS: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/users/qos` }),
-        getSharingRecordingDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/users/sharing` }),
-        getSessionUserQoS: this.buildEndpoint({
+    dashboards = {
+        getChatMetrics: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/metrics/chat` }),
+        listZoomMeetingsClientFeedback: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/metrics/client/feedback` }),
+        getZoomMeetingsClientFeedback: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ feedbackId }) => `/metrics/client/feedback/${feedbackId}` }),
+        listClientMeetingSatisfaction: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/metrics/client/satisfaction` }),
+        listClientVersions: this.buildEndpoint({
             method: "GET",
-            urlPathBuilder: ({ sessionId, userId }) => `/videosdk/sessions/${sessionId}/users/${userId}/qos`
-        })
+            urlPathBuilder: () => `/metrics/client_versions`
+        }),
+        getCRCPortUsage: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/metrics/crc` }),
+        getTopZoomRoomsWithIssues: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/metrics/issues/zoomrooms` }),
+        getIssuesOfZoomRooms: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ zoomroomId }) => `/metrics/issues/zoomrooms/${zoomroomId}` }),
+        listMeetings: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/metrics/meetings` }),
+        getMeetingDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/metrics/meetings/${meetingId}` }),
+        listMeetingParticipants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/metrics/meetings/${meetingId}/participants` }),
+        listMeetingParticipantsQoS: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/metrics/meetings/${meetingId}/participants/qos` }),
+        getPostMeetingFeedback: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/metrics/meetings/${meetingId}/participants/satisfaction` }),
+        getMeetingSharingRecordingDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/metrics/meetings/${meetingId}/participants/sharing` }),
+        getMeetingParticipantQoS: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: ({ meetingId, participantId }) => `/metrics/meetings/${meetingId}/participants/${participantId}/qos`
+        }),
+        getMeetingQualityScores: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/metrics/quality` }),
+        listWebinars: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/metrics/webinars` }),
+        getWebinarDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/metrics/webinars/${webinarId}` }),
+        getWebinarParticipants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/metrics/webinars/${webinarId}/participants` }),
+        listWebinarParticipantQoS: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/metrics/webinars/${webinarId}/participants/qos` }),
+        getPostWebinarFeedback: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/metrics/webinars/${webinarId}/participants/satisfaction` }),
+        getWebinarSharingRecordingDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/metrics/webinars/${webinarId}/participants/sharing` }),
+        getWebinarParticipantQoS: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: ({ webinarId, participantId }) => `/metrics/webinars/${webinarId}/participants/${participantId}/qos`
+        }),
+        listZoomRooms: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/metrics/zoomrooms` }),
+        getTopIssuesOfZoomRooms: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/metrics/zoomrooms/issues` }),
+        getZoomRoomsDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ zoomroomId }) => `/metrics/zoomrooms/${zoomroomId}` })
     };
-    videoSDKReports = {
-        getCloudRecordingUsageReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/report/cloud_recording` }),
-        getDailyUsageReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/report/daily` }),
-        getOperationLogsReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/report/operationlogs` }),
-        getTelephoneReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/report/telephone` })
+    informationBarriers = {
+        listInformationBarrierPolicies: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/information_barriers/policies` }),
+        createInformationBarrierPolicy: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/information_barriers/policies` }),
+        getInformationBarrierPolicyByID: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ policyId }) => `/information_barriers/policies/${policyId}` }),
+        removeInformationBarrierPolicy: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ policyId }) => `/information_barriers/policies/${policyId}` }),
+        updateInformationBarriersPolicy: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ policyId }) => `/information_barriers/policies/${policyId}` })
+    };
+    roles = {
+        listRoles: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: () => `/roles`
+        }),
+        createRole: this.buildEndpoint({
+            method: "POST",
+            urlPathBuilder: () => `/roles`
+        }),
+        getRoleInformation: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ roleId }) => `/roles/${roleId}` }),
+        deleteRole: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ roleId }) => `/roles/${roleId}`
+        }),
+        updateRoleInformation: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ roleId }) => `/roles/${roleId}` }),
+        listMembersInRole: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ roleId }) => `/roles/${roleId}/members` }),
+        assignRole: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ roleId }) => `/roles/${roleId}/members` }),
+        unassignRole: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ roleId, memberId }) => `/roles/${roleId}/members/${memberId}`
+        })
     };
 }
 
-class VideoSdkEventProcessor extends EventManager {
+class AccountsEventProcessor extends EventManager {
 }
 
-class VideoSdkClient extends ProductClient {
-    initAuth({ clientId, clientSecret, tokenStore }) {
-        return new JwtAuth({ clientId, clientSecret, tokenStore });
+class OAuth extends InteractiveAuth {
+    assertResponseAccessToken(data) {
+        if (typeof data.access_token !== "string" ||
+            typeof data.refresh_token !== "string" ||
+            typeof data.expires_in !== "number" ||
+            typeof data.scope !== "string") {
+            throw new OAuthTokenRawResponseError(`Failed to match raw response (${JSON.stringify(data)}) to expected shape.`);
+        }
+    }
+    async fetchAccessToken(code) {
+        try {
+            const response = await this.makeOAuthTokenRequest("authorization_code", {
+                code,
+                redirect_uri: this.getFullRedirectUri()
+            });
+            this.assertResponseAccessToken(response.data);
+            return this.mapOAuthToken(response.data);
+        }
+        catch (err) {
+            throw new OAuthTokenFetchFailedError("Failed to fetch OAuth token.", { cause: err });
+        }
+    }
+    async getToken() {
+        const { tokenStore } = this;
+        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
+        // If we have no OAuth token, app most likely has not been previously authorized.
+        if (!currentToken) {
+            throw new OAuthTokenDoesNotExistError("Failed to find OAuth token. Authorize this app first.");
+        }
+        // If the OAuth token hasn't already expired (and isn't within the delta), return it.
+        if (!this.isAlmostExpired(currentToken.expirationTimeIso)) {
+            return currentToken.accessToken;
+        }
+        // Since the token has expired, refresh, store, and return it.
+        const refreshedToken = await this.refreshAccessToken(currentToken.refreshToken);
+        await Promise.resolve(tokenStore.storeToken(refreshedToken));
+        return refreshedToken.accessToken;
+    }
+    async initRedirectCode(code) {
+        const { tokenStore } = this;
+        const accessToken = await this.fetchAccessToken(code);
+        await Promise.resolve(tokenStore.storeToken(accessToken));
+    }
+    mapOAuthToken({ access_token, expires_in, refresh_token, scope }) {
+        return {
+            accessToken: access_token,
+            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
+            refreshToken: refresh_token,
+            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
+        };
+    }
+    async refreshAccessToken(refreshToken) {
+        try {
+            const response = await this.makeOAuthTokenRequest("refresh_token", {
+                refresh_token: refreshToken
+            });
+            this.assertResponseAccessToken(response.data);
+            return this.mapOAuthToken(response.data);
+        }
+        catch (err) {
+            throw new OAuthTokenRefreshFailedError("Failed to refresh OAuth token.", { cause: err });
+        }
+    }
+}
+
+// Utility functions for determining if client options include custom receiver, or, if not,
+// a webhooks secret token, as one of those is required!
+const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
+const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
+const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
+const DEFAULT_HTTP_RECEIVER_PORT = 8080;
+const DEFAULT_LOGLEVEL = exports.LogLevel.ERROR;
+class ProductClient {
+    auth;
+    endpoints;
+    webEventConsumer;
+    receiver;
+    constructor(options) {
+        this.auth = this.initAuth(options);
+        this.endpoints = this.initEndpoints(this.auth, options);
+        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
+        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
+        if (!isReceiverDisabled(options)) {
+            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
+            if (!hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
+                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
+            }
+            this.receiver = (hasExplicitReceiver(options) ?
+                options.receiver
+                : this.initDefaultReceiver(options));
+            this.receiver.init({
+                eventEmitter: this.webEventConsumer,
+                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
+            });
+        }
+    }
+    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
+        return new HttpReceiver({
+            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
+            webhooksSecretToken,
+            logLevel: logLevel ?? DEFAULT_LOGLEVEL
+        });
+    }
+    async start() {
+        if (!this.receiver) {
+            throw new ReceiverInconsistentStateError("Receiver not constructed. Was disableReceiver set to true?");
+        }
+        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
+        // may or may not return a promise. This is not required when implementing `Receiver`.
+        return (await Promise.resolve(this.receiver.start()));
+    }
+}
+
+class AccountsOAuthClient extends ProductClient {
+    initAuth({ clientId, clientSecret, tokenStore, ...restOptions }) {
+        const oAuth = new OAuth({ clientId, clientSecret, tokenStore });
+        if (hasInstallerOptions(restOptions)) {
+            oAuth.setInstallerOptions(restOptions.installerOptions);
+        }
+        return oAuth;
     }
     initEndpoints(auth, options) {
-        return new VideoSdkEndpoints({ auth, doubleEncodeUrl: true, ...options });
+        return new AccountsEndpoints({ auth, ...options });
     }
     initEventProcessor(endpoints) {
-        return new VideoSdkEventProcessor(endpoints);
+        return new AccountsEventProcessor(endpoints);
     }
 }
 
+class S2SAuth extends Auth {
+    accountId;
+    constructor({ accountId, ...restOptions }) {
+        super(restOptions);
+        this.accountId = accountId;
+    }
+    assertRawToken(obj) {
+        if (typeof obj.access_token !== "string" ||
+            typeof obj.expires_in !== "number" ||
+            typeof obj.scope !== "string") {
+            throw new S2SRawResponseError(`Failed to match raw response ${JSON.stringify(obj)} to expected shape.`);
+        }
+    }
+    async fetchAccessToken() {
+        const response = await this.makeOAuthTokenRequest("account_credentials", {
+            account_id: this.accountId
+        });
+        this.assertRawToken(response.data);
+        return this.mapAccessToken(response.data);
+    }
+    async getToken() {
+        const { tokenStore } = this;
+        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
+        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
+            return currentToken.accessToken;
+        }
+        const token = await this.fetchAccessToken();
+        await Promise.resolve(tokenStore.storeToken(token));
+        return token.accessToken;
+    }
+    mapAccessToken({ access_token, expires_in, scope }) {
+        return {
+            accessToken: access_token,
+            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
+            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
+        };
+    }
+}
+
+class AccountsS2SAuthClient extends ProductClient {
+    initAuth({ clientId, clientSecret, tokenStore, accountId }) {
+        return new S2SAuth({ clientId, clientSecret, tokenStore, accountId });
+    }
+    initEndpoints(auth, options) {
+        return new AccountsEndpoints({ auth, ...options });
+    }
+    initEventProcessor(endpoints) {
+        return new AccountsEventProcessor(endpoints);
+    }
+}
+
+exports.AccountsEndpoints = AccountsEndpoints;
+exports.AccountsEventProcessor = AccountsEventProcessor;
+exports.AccountsOAuthClient = AccountsOAuthClient;
+exports.AccountsS2SAuthClient = AccountsS2SAuthClient;
 exports.ApiResponseError = ApiResponseError;
 exports.AwsLambdaReceiver = AwsLambdaReceiver;
 exports.AwsReceiverRequestError = AwsReceiverRequestError;
@@ -1075,8 +1194,5 @@ exports.ProductClientConstructionError = ProductClientConstructionError;
 exports.ReceiverInconsistentStateError = ReceiverInconsistentStateError;
 exports.ReceiverOAuthFlowError = ReceiverOAuthFlowError;
 exports.S2SRawResponseError = S2SRawResponseError;
-exports.VideoSdkClient = VideoSdkClient;
-exports.VideoSdkEndpoints = VideoSdkEndpoints;
-exports.VideoSdkEventProcessor = VideoSdkEventProcessor;
 exports.isCoreError = isCoreError;
 exports.isStateStore = isStateStore;

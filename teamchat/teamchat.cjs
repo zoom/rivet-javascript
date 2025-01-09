@@ -39,6 +39,7 @@ const coreErrors = {
     ApiResponseError: "zoom_rivet_api_response_error",
     AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error",
     ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error",
+    S2SRawResponseError: "zoom_rivet_s2s_raw_response_error",
     CommonHttpRequestError: "zoom_rivet_common_http_request_error",
     ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error",
     ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error",
@@ -57,6 +58,7 @@ const { createError: createCoreError, isError: isCoreError } = createRivetErrors
 const ApiResponseError = createCoreError("ApiResponseError");
 const AwsReceiverRequestError = createCoreError("AwsReceiverRequestError");
 const ClientCredentialsRawResponseError = createCoreError("ClientCredentialsRawResponseError");
+const S2SRawResponseError = createCoreError("S2SRawResponseError");
 const CommonHttpRequestError = createCoreError("CommonHttpRequestError");
 const ReceiverInconsistentStateError = createCoreError("ReceiverInconsistentStateError");
 const ReceiverOAuthFlowError = createCoreError("ReceiverOAuthFlowError");
@@ -70,6 +72,65 @@ const OAuthTokenRawResponseError = createCoreError("OAuthTokenRawResponseError")
 const OAuthTokenRefreshFailedError = createCoreError("OAuthTokenRefreshFailedError");
 const OAuthStateVerificationFailedError = createCoreError("OAuthStateVerificationFailedError");
 const ProductClientConstructionError = createCoreError("ProductClientConstructionError");
+
+exports.LogLevel = void 0;
+(function (LogLevel) {
+    LogLevel["ERROR"] = "error";
+    LogLevel["WARN"] = "warn";
+    LogLevel["INFO"] = "info";
+    LogLevel["DEBUG"] = "debug";
+})(exports.LogLevel || (exports.LogLevel = {}));
+class ConsoleLogger {
+    level;
+    name;
+    static labels = (() => {
+        const entries = Object.entries(exports.LogLevel);
+        const map = entries.map(([key, value]) => [value, `[${key}] `]);
+        return new Map(map);
+    })();
+    static severity = {
+        [exports.LogLevel.ERROR]: 400,
+        [exports.LogLevel.WARN]: 300,
+        [exports.LogLevel.INFO]: 200,
+        [exports.LogLevel.DEBUG]: 100
+    };
+    constructor() {
+        this.level = exports.LogLevel.INFO;
+        this.name = "";
+    }
+    getLevel() {
+        return this.level;
+    }
+    setLevel(level) {
+        this.level = level;
+    }
+    setName(name) {
+        this.name = name;
+    }
+    debug(...msg) {
+        if (ConsoleLogger.isMoreOrEqualSevere(exports.LogLevel.DEBUG, this.level)) {
+            console.debug(ConsoleLogger.labels.get(exports.LogLevel.DEBUG), this.name, ...msg);
+        }
+    }
+    info(...msg) {
+        if (ConsoleLogger.isMoreOrEqualSevere(exports.LogLevel.INFO, this.level)) {
+            console.info(ConsoleLogger.labels.get(exports.LogLevel.INFO), this.name, ...msg);
+        }
+    }
+    warn(...msg) {
+        if (ConsoleLogger.isMoreOrEqualSevere(exports.LogLevel.WARN, this.level)) {
+            console.warn(ConsoleLogger.labels.get(exports.LogLevel.WARN), this.name, ...msg);
+        }
+    }
+    error(...msg) {
+        if (ConsoleLogger.isMoreOrEqualSevere(exports.LogLevel.ERROR, this.level)) {
+            console.error(ConsoleLogger.labels.get(exports.LogLevel.ERROR), this.name, ...msg);
+        }
+    }
+    static isMoreOrEqualSevere(a, b) {
+        return ConsoleLogger.severity[a] >= ConsoleLogger.severity[b];
+    }
+}
 
 class EventManager {
     endpoints;
@@ -414,65 +475,6 @@ class InteractiveAuth extends Auth {
     }
 }
 
-var LogLevel;
-(function (LogLevel) {
-    LogLevel["ERROR"] = "error";
-    LogLevel["WARN"] = "warn";
-    LogLevel["INFO"] = "info";
-    LogLevel["DEBUG"] = "debug";
-})(LogLevel || (LogLevel = {}));
-class ConsoleLogger {
-    level;
-    name;
-    static labels = (() => {
-        const entries = Object.entries(LogLevel);
-        const map = entries.map(([key, value]) => [value, `[${key}] `]);
-        return new Map(map);
-    })();
-    static severity = {
-        [LogLevel.ERROR]: 400,
-        [LogLevel.WARN]: 300,
-        [LogLevel.INFO]: 200,
-        [LogLevel.DEBUG]: 100
-    };
-    constructor() {
-        this.level = LogLevel.INFO;
-        this.name = "";
-    }
-    getLevel() {
-        return this.level;
-    }
-    setLevel(level) {
-        this.level = level;
-    }
-    setName(name) {
-        this.name = name;
-    }
-    debug(...msg) {
-        if (ConsoleLogger.isMoreOrEqualSevere(LogLevel.DEBUG, this.level)) {
-            console.debug(ConsoleLogger.labels.get(LogLevel.DEBUG), this.name, ...msg);
-        }
-    }
-    info(...msg) {
-        if (ConsoleLogger.isMoreOrEqualSevere(LogLevel.INFO, this.level)) {
-            console.info(ConsoleLogger.labels.get(LogLevel.INFO), this.name, ...msg);
-        }
-    }
-    warn(...msg) {
-        if (ConsoleLogger.isMoreOrEqualSevere(LogLevel.WARN, this.level)) {
-            console.warn(ConsoleLogger.labels.get(LogLevel.WARN), this.name, ...msg);
-        }
-    }
-    error(...msg) {
-        if (ConsoleLogger.isMoreOrEqualSevere(LogLevel.ERROR, this.level)) {
-            console.error(ConsoleLogger.labels.get(LogLevel.ERROR), this.name, ...msg);
-        }
-    }
-    static isMoreOrEqualSevere(a, b) {
-        return ConsoleLogger.severity[a] >= ConsoleLogger.severity[b];
-    }
-}
-
 const mergeDefaultOptions = (options, defaultOptions) => ({ ...defaultOptions, ...options });
 
 const withDefaultTemplate = (cardContent, buttonContent) => `
@@ -588,7 +590,7 @@ class HttpReceiver {
             options.logger ??
                 (() => {
                     const defaultLogger = new ConsoleLogger();
-                    defaultLogger.setLevel(LogLevel.ERROR);
+                    defaultLogger.setLevel(options.logLevel ?? exports.LogLevel.ERROR);
                     return defaultLogger;
                 })();
     }
@@ -814,6 +816,7 @@ const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
 const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
 const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
 const DEFAULT_HTTP_RECEIVER_PORT = 8080;
+const DEFAULT_LOGLEVEL = exports.LogLevel.ERROR;
 class ProductClient {
     auth;
     endpoints;
@@ -838,8 +841,12 @@ class ProductClient {
             });
         }
     }
-    initDefaultReceiver({ port, webhooksSecretToken }) {
-        return new HttpReceiver({ port: port ?? DEFAULT_HTTP_RECEIVER_PORT, webhooksSecretToken });
+    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
+        return new HttpReceiver({
+            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
+            webhooksSecretToken,
+            logLevel: logLevel ?? DEFAULT_LOGLEVEL
+        });
     }
     async start() {
         if (!this.receiver) {
@@ -855,7 +862,7 @@ const type = "module";
 const name = "@zoom/rivet";
 const author = "Zoom Developers <developers@zoom.us> (https://developers.zoom.us)";
 const packageManager = "pnpm@9.9.0";
-const version = "0.0.1";
+const version = "0.2.1";
 const scripts = {
   test: "vitest",
   "test:coverage": "vitest --coverage",
@@ -972,10 +979,11 @@ class WebEndpoints {
             typeof obj.message !== "undefined");
     }
     async makeRequest(method, baseUrlOverride, url, requestContentType, bodyArgs, queryArgs) {
-        const { auth, baseUrl, hasCustomBaseUrl, timeout } = this.options;
+        const { auth, baseUrl, doubleEncodeUrl, hasCustomBaseUrl, timeout } = this.options;
         const bearerToken = await Promise.resolve(auth.getToken());
+        const urlToSend = doubleEncodeUrl ? encodeURIComponent(encodeURIComponent(url)) : url;
         const response = await axios({
-            url,
+            url: urlToSend,
             method,
             baseURL: hasCustomBaseUrl ? baseUrl : (baseUrlOverride ?? baseUrl),
             headers: this.getHeaders(bearerToken, requestContentType),
@@ -1264,11 +1272,63 @@ class TeamChatClient extends ProductClient {
     }
 }
 
+class S2SAuth extends Auth {
+    accountId;
+    constructor({ accountId, ...restOptions }) {
+        super(restOptions);
+        this.accountId = accountId;
+    }
+    assertRawToken(obj) {
+        if (typeof obj.access_token !== "string" ||
+            typeof obj.expires_in !== "number" ||
+            typeof obj.scope !== "string") {
+            throw new S2SRawResponseError(`Failed to match raw response ${JSON.stringify(obj)} to expected shape.`);
+        }
+    }
+    async fetchAccessToken() {
+        const response = await this.makeOAuthTokenRequest("account_credentials", {
+            account_id: this.accountId
+        });
+        this.assertRawToken(response.data);
+        return this.mapAccessToken(response.data);
+    }
+    async getToken() {
+        const { tokenStore } = this;
+        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
+        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
+            return currentToken.accessToken;
+        }
+        const token = await this.fetchAccessToken();
+        await Promise.resolve(tokenStore.storeToken(token));
+        return token.accessToken;
+    }
+    mapAccessToken({ access_token, expires_in, scope }) {
+        return {
+            accessToken: access_token,
+            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
+            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
+        };
+    }
+}
+
+class TeamChatS2SAuthClient extends ProductClient {
+    initAuth({ clientId, clientSecret, tokenStore, accountId }) {
+        return new S2SAuth({ clientId, clientSecret, tokenStore, accountId });
+    }
+    initEndpoints(auth, options) {
+        return new TeamChatEndpoints({ auth, ...options });
+    }
+    initEventProcessor(endpoints) {
+        return new TeamChatEventProcessor(endpoints);
+    }
+}
+
 exports.ApiResponseError = ApiResponseError;
 exports.AwsLambdaReceiver = AwsLambdaReceiver;
 exports.AwsReceiverRequestError = AwsReceiverRequestError;
 exports.ClientCredentialsRawResponseError = ClientCredentialsRawResponseError;
 exports.CommonHttpRequestError = CommonHttpRequestError;
+exports.ConsoleLogger = ConsoleLogger;
 exports.HTTPReceiverConstructionError = HTTPReceiverConstructionError;
 exports.HTTPReceiverPortNotNumberError = HTTPReceiverPortNotNumberError;
 exports.HTTPReceiverRequestError = HTTPReceiverRequestError;
@@ -1282,8 +1342,10 @@ exports.OAuthTokenRefreshFailedError = OAuthTokenRefreshFailedError;
 exports.ProductClientConstructionError = ProductClientConstructionError;
 exports.ReceiverInconsistentStateError = ReceiverInconsistentStateError;
 exports.ReceiverOAuthFlowError = ReceiverOAuthFlowError;
+exports.S2SRawResponseError = S2SRawResponseError;
 exports.TeamChatClient = TeamChatClient;
 exports.TeamChatEndpoints = TeamChatEndpoints;
 exports.TeamChatEventProcessor = TeamChatEventProcessor;
+exports.TeamChatS2SAuthClient = TeamChatS2SAuthClient;
 exports.isCoreError = isCoreError;
 exports.isStateStore = isStateStore;

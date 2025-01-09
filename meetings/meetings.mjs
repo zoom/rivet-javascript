@@ -743,119 +743,6 @@ class HttpReceiver {
     }
 }
 
-class OAuth extends InteractiveAuth {
-    assertResponseAccessToken(data) {
-        if (typeof data.access_token !== "string" ||
-            typeof data.refresh_token !== "string" ||
-            typeof data.expires_in !== "number" ||
-            typeof data.scope !== "string") {
-            throw new OAuthTokenRawResponseError(`Failed to match raw response (${JSON.stringify(data)}) to expected shape.`);
-        }
-    }
-    async fetchAccessToken(code) {
-        try {
-            const response = await this.makeOAuthTokenRequest("authorization_code", {
-                code,
-                redirect_uri: this.getFullRedirectUri()
-            });
-            this.assertResponseAccessToken(response.data);
-            return this.mapOAuthToken(response.data);
-        }
-        catch (err) {
-            throw new OAuthTokenFetchFailedError("Failed to fetch OAuth token.", { cause: err });
-        }
-    }
-    async getToken() {
-        const { tokenStore } = this;
-        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
-        // If we have no OAuth token, app most likely has not been previously authorized.
-        if (!currentToken) {
-            throw new OAuthTokenDoesNotExistError("Failed to find OAuth token. Authorize this app first.");
-        }
-        // If the OAuth token hasn't already expired (and isn't within the delta), return it.
-        if (!this.isAlmostExpired(currentToken.expirationTimeIso)) {
-            return currentToken.accessToken;
-        }
-        // Since the token has expired, refresh, store, and return it.
-        const refreshedToken = await this.refreshAccessToken(currentToken.refreshToken);
-        await Promise.resolve(tokenStore.storeToken(refreshedToken));
-        return refreshedToken.accessToken;
-    }
-    async initRedirectCode(code) {
-        const { tokenStore } = this;
-        const accessToken = await this.fetchAccessToken(code);
-        await Promise.resolve(tokenStore.storeToken(accessToken));
-    }
-    mapOAuthToken({ access_token, expires_in, refresh_token, scope }) {
-        return {
-            accessToken: access_token,
-            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
-            refreshToken: refresh_token,
-            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
-        };
-    }
-    async refreshAccessToken(refreshToken) {
-        try {
-            const response = await this.makeOAuthTokenRequest("refresh_token", {
-                refresh_token: refreshToken
-            });
-            this.assertResponseAccessToken(response.data);
-            return this.mapOAuthToken(response.data);
-        }
-        catch (err) {
-            throw new OAuthTokenRefreshFailedError("Failed to refresh OAuth token.", { cause: err });
-        }
-    }
-}
-
-// Utility functions for determining if client options include custom receiver, or, if not,
-// a webhooks secret token, as one of those is required!
-const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
-const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
-const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
-const DEFAULT_HTTP_RECEIVER_PORT = 8080;
-const DEFAULT_LOGLEVEL = LogLevel.ERROR;
-class ProductClient {
-    auth;
-    endpoints;
-    webEventConsumer;
-    receiver;
-    constructor(options) {
-        this.auth = this.initAuth(options);
-        this.endpoints = this.initEndpoints(this.auth, options);
-        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
-        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
-        if (!isReceiverDisabled(options)) {
-            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
-            if (!hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
-                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
-            }
-            this.receiver = (hasExplicitReceiver(options) ?
-                options.receiver
-                : this.initDefaultReceiver(options));
-            this.receiver.init({
-                eventEmitter: this.webEventConsumer,
-                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
-            });
-        }
-    }
-    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
-        return new HttpReceiver({
-            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
-            webhooksSecretToken,
-            logLevel: logLevel ?? DEFAULT_LOGLEVEL
-        });
-    }
-    async start() {
-        if (!this.receiver) {
-            throw new ReceiverInconsistentStateError("Receiver not constructed. Was disableReceiver set to true?");
-        }
-        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
-        // may or may not return a promise. This is not required when implementing `Receiver`.
-        return (await Promise.resolve(this.receiver.start()));
-    }
-}
-
 const type = "module";
 const name = "@zoom/rivet";
 const author = "Zoom Developers <developers@zoom.us> (https://developers.zoom.us)";
@@ -1012,249 +899,439 @@ class WebEndpoints {
     }
 }
 
-class TeamChatEndpoints extends WebEndpoints {
-    chatChannels = {
-        performOperationsOnChannels: this.buildEndpoint({ method: "PATCH", urlPathBuilder: () => `/chat/channels/events` }),
-        getChannel: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}` }),
-        deleteChannel: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}`
-        }),
-        updateChannel: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}` }),
-        listChannelMembers: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}/members` }),
-        inviteChannelMembers: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}/members` }),
-        batchRemoveMembersFromChannel: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}/members` }),
-        listChannelMembersGroups: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}/members/groups` }),
-        inviteChannelMembersGroups: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}/members/groups` }),
-        removeMemberGroup: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ channelId, groupId }) => `/chat/channels/${channelId}/members/groups/${groupId}`
-        }),
-        joinChannel: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}/members/me` }),
-        leaveChannel: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}/members/me`
-        }),
-        removeMember: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ channelId, identifier }) => `/chat/channels/${channelId}/members/${identifier}`
-        }),
-        listUsersChannels: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/chat/users/${userId}/channels` }),
-        createChannel: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/chat/users/${userId}/channels` })
+class MeetingsEndpoints extends WebEndpoints {
+    archiving = {
+        listArchivedFiles: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/archive_files` }),
+        getArchivedFileStatistics: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/archive_files/statistics` }),
+        updateArchivedFilesAutoDeleteStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ fileId }) => `/archive_files/${fileId}` }),
+        getMeetingsArchivedFiles: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingUUID }) => `/past_meetings/${meetingUUID}/archive_files` }),
+        deleteMeetingsArchivedFiles: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ meetingUUID }) => `/past_meetings/${meetingUUID}/archive_files` })
     };
-    chatChannelsAccountLevel = {
-        batchDeleteChannels: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ userId }) => `/chat/users/${userId}/channels` }),
-        listAccountsPublicChannels: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/chat/channels` }),
-        searchUsersOrAccountsChannels: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/chat/channels/search` }),
-        getRetentionPolicyOfChannel: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}/retention` }),
-        updateRetentionPolicyOfChannel: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}/retention` }),
-        getChannel: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ channelId, userId }) => `/chat/users/${userId}/channels/${channelId}` }),
-        deleteChannel: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ channelId, userId }) => `/chat/users/${userId}/channels/${channelId}`
-        }),
-        updateChannel: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ channelId, userId }) => `/chat/users/${userId}/channels/${channelId}` }),
-        listChannelAdministrators: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: ({ userId, channelId }) => `/chat/users/${userId}/channels/${channelId}/admins`
-        }),
-        promoteChannelMembersToAdministrators: this.buildEndpoint({
-            method: "POST",
-            urlPathBuilder: ({ userId, channelId }) => `/chat/users/${userId}/channels/${channelId}/admins`
-        }),
-        batchDemoteChannelAdministrators: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ userId, channelId }) => `/chat/users/${userId}/channels/${channelId}/admins`
-        }),
-        listChannelMembers: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: ({ channelId, userId }) => `/chat/users/${userId}/channels/${channelId}/members`
-        }),
-        inviteChannelMembers: this.buildEndpoint({
-            method: "POST",
-            urlPathBuilder: ({ channelId, userId }) => `/chat/users/${userId}/channels/${channelId}/members`
-        }),
-        removeMember: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ channelId, identifier, userId }) => `/chat/users/${userId}/channels/${channelId}/members/${identifier}`
-        })
-    };
-    chatEmoji = {
-        listCustomEmojis: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/chat/emoji` }),
-        addCustomEmoji: this.buildEndpoint({
-            method: "POST",
-            baseUrlOverride: "https://fileapi.zoom.us/v2",
-            urlPathBuilder: () => `/chat/emoji/files`,
-            requestMimeType: "multipart/form-data"
-        }),
-        deleteCustomEmoji: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ fileId }) => `/chat/emoji/${fileId}`
-        })
-    };
-    chatFiles = {
-        getFileInfo: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: ({ fileId }) => `/chat/files/${fileId}`
-        }),
-        deleteChatFile: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ fileId }) => `/chat/files/${fileId}`
-        }),
-        uploadChatFile: this.buildEndpoint({
-            method: "POST",
-            baseUrlOverride: "https://file.zoom.us/v2",
-            urlPathBuilder: ({ userId }) => `/chat/users/${userId}/files`,
-            requestMimeType: "multipart/form-data"
-        }),
-        sendChatFile: this.buildEndpoint({
-            method: "POST",
-            baseUrlOverride: "https://file.zoom.us/v2",
-            urlPathBuilder: ({ userId }) => `/chat/users/${userId}/messages/files`,
-            requestMimeType: "multipart/form-data"
-        })
-    };
-    chatMessages = {
-        performOperationsOnMessageOfChannel: this.buildEndpoint({ method: "PATCH", urlPathBuilder: () => `/chat/channel/message/events` }),
-        listPinnedHistoryMessagesOfChannel: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ channelId }) => `/chat/channels/${channelId}/pinned` }),
-        listBookmarks: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/chat/messages/bookmarks` }),
-        addOrRemoveBookmark: this.buildEndpoint({ method: "PATCH", urlPathBuilder: () => `/chat/messages/bookmarks` }),
-        listScheduledMessages: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/chat/messages/schedule` }),
-        deleteScheduledMessage: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ draftId }) => `/chat/messages/schedule/${draftId}` }),
-        listUsersChatMessages: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/chat/users/${userId}/messages` }),
-        sendChatMessage: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/chat/users/${userId}/messages` }),
-        getMessage: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId, messageId }) => `/chat/users/${userId}/messages/${messageId}` }),
-        updateMessage: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ userId, messageId }) => `/chat/users/${userId}/messages/${messageId}` }),
-        deleteMessage: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ userId, messageId }) => `/chat/users/${userId}/messages/${messageId}` }),
-        reactToChatMessage: this.buildEndpoint({
+    cloudRecording = {
+        getMeetingRecordings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings` }),
+        deleteMeetingOrWebinarRecordings: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings` }),
+        getMeetingOrWebinarRecordingsAnalyticsDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/analytics_details` }),
+        getMeetingOrWebinarRecordingsAnalyticsSummary: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/analytics_summary` }),
+        listRecordingRegistrants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants` }),
+        createRecordingRegistrant: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants` }),
+        getRegistrationQuestions: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants/questions` }),
+        updateRegistrationQuestions: this.buildEndpoint({
             method: "PATCH",
-            urlPathBuilder: ({ userId, messageId }) => `/chat/users/${userId}/messages/${messageId}/emoji_reactions`
+            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants/questions`
         }),
-        markMessageReadOrUnread: this.buildEndpoint({
-            method: "PATCH",
-            urlPathBuilder: ({ userId, messageId }) => `/chat/users/${userId}/messages/${messageId}/status`
+        updateRegistrantsStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants/status` }),
+        getMeetingRecordingSettings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/settings` }),
+        updateMeetingRecordingSettings: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/settings` }),
+        deleteRecordingFileForMeetingOrWebinar: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId, recordingId }) => `/meetings/${meetingId}/recordings/${recordingId}`
         }),
-        retrieveThread: this.buildEndpoint({
+        recoverSingleRecording: this.buildEndpoint({
+            method: "PUT",
+            urlPathBuilder: ({ meetingId, recordingId }) => `/meetings/${meetingId}/recordings/${recordingId}/status`
+        }),
+        recoverMeetingRecordings: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingUUID }) => `/meetings/${meetingUUID}/recordings/status` }),
+        listAllRecordings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/recordings` })
+    };
+    devices = {
+        listDevices: this.buildEndpoint({
             method: "GET",
-            urlPathBuilder: ({ userId, messageId }) => `/chat/users/${userId}/messages/${messageId}/thread`
-        })
-    };
-    chatMigration = {
-        migrateChannelMembers: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ channelId }) => `/chat/migration/channels/${channelId}/members` }),
-        migrateChatMessageReactions: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/chat/migration/emoji_reactions` }),
-        migrateChatMessages: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/chat/migration/messages` }),
-        migrateChatChannel: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ identifier }) => `/chat/migration/users/${identifier}/channels` }),
-        migrateConversationOrChannelOperations: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ identifier }) => `/chat/migration/users/${identifier}/events` })
-    };
-    chatReminder = {
-        createReminderMessage: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ messageId }) => `/chat/messages/${messageId}/reminder` }),
-        deleteReminderForMessage: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ messageId }) => `/chat/messages/${messageId}/reminder` }),
-        listReminders: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/chat/reminder` })
-    };
-    chatSessions = {
-        starOrUnstarChannelOrContactUser: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ userId }) => `/chat/users/${userId}/events` }),
-        listUsersChatSessions: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/chat/users/${userId}/sessions` })
-    };
-    contacts = {
-        listUsersContacts: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/chat/users/me/contacts` }),
-        getUsersContactDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ identifier }) => `/chat/users/me/contacts/${identifier}` }),
-        searchCompanyContacts: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/contacts` })
-    };
-    iMChat = {
-        sendIMMessages: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/im/users/me/chat/messages` })
-    };
-    iMGroups = {
-        listIMDirectoryGroups: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: () => `/im/groups`
+            urlPathBuilder: () => `/devices`
         }),
-        createIMDirectoryGroup: this.buildEndpoint({
+        addNewDevice: this.buildEndpoint({
             method: "POST",
-            urlPathBuilder: () => `/im/groups`
+            urlPathBuilder: () => `/devices`
         }),
-        retrieveIMDirectoryGroup: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ groupId }) => `/im/groups/${groupId}` }),
-        deleteIMDirectoryGroup: this.buildEndpoint({
+        getZDMGroupInfo: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/devices/groups` }),
+        assignDeviceToUserOrCommonarea: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/devices/zpa/assignment` }),
+        upgradeZpaOsApp: this.buildEndpoint({
+            method: "POST",
+            urlPathBuilder: () => `/devices/zpa/upgrade`
+        }),
+        deleteZPADeviceByVendorAndMacAddress: this.buildEndpoint({
             method: "DELETE",
-            urlPathBuilder: ({ groupId }) => `/im/groups/${groupId}`
+            urlPathBuilder: ({ vendor, macAddress }) => `/devices/zpa/vendors/${vendor}/mac_addresses/${macAddress}`
         }),
-        updateIMDirectoryGroup: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ groupId }) => `/im/groups/${groupId}` }),
-        listIMDirectoryGroupMembers: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ groupId }) => `/im/groups/${groupId}/members` }),
-        addIMDirectoryGroupMembers: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ groupId }) => `/im/groups/${groupId}/members` }),
-        deleteIMDirectoryGroupMember: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ groupId, memberId }) => `/im/groups/${groupId}/members/${memberId}` })
+        getZPAVersionInfo: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ zdmGroupId }) => `/devices/zpa/zdm_groups/${zdmGroupId}/versions` }),
+        getDeviceDetail: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}` }),
+        deleteDevice: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}`
+        }),
+        changeDevice: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}`
+        }),
+        changeDeviceAssociation: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}/assignment` })
     };
-    legalHold = {
-        listLegalHoldMatters: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/chat/legalhold/matters` }),
-        addLegalHoldMatter: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/chat/legalhold/matters` }),
-        deleteLegalHoldMatters: this.buildEndpoint({
+    h323Devices = {
+        listHSIPDevices: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/h323/devices` }),
+        createHSIPDevice: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/h323/devices` }),
+        deleteHSIPDevice: this.buildEndpoint({
             method: "DELETE",
-            urlPathBuilder: ({ matterId }) => `/chat/legalhold/matters/${matterId}`
+            urlPathBuilder: ({ deviceId }) => `/h323/devices/${deviceId}`
         }),
-        updateLegalHoldMatter: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ matterId }) => `/chat/legalhold/matters/${matterId}` }),
-        listLegalHoldFilesByGivenMatter: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ matterId }) => `/chat/legalhold/matters/${matterId}/files` }),
-        downloadLegalHoldFilesForGivenMatter: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ matterId }) => `/chat/legalhold/matters/${matterId}/files/download` })
+        updateHSIPDevice: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ deviceId }) => `/h323/devices/${deviceId}` })
+    };
+    meetings = {
+        deleteLiveMeetingMessage: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId, messageId }) => `/live_meetings/${meetingId}/chat/messages/${messageId}`
+        }),
+        updateLiveMeetingMessage: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ meetingId, messageId }) => `/live_meetings/${meetingId}/chat/messages/${messageId}`
+        }),
+        useInMeetingControls: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/live_meetings/${meetingId}/events` }),
+        listMeetingSummariesOfAccount: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/meetings/meeting_summaries` }),
+        getMeeting: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}` }),
+        deleteMeeting: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}`
+        }),
+        updateMeeting: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}` }),
+        performBatchPollCreation: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/batch_polls` }),
+        performBatchRegistration: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/batch_registrants` }),
+        getMeetingInvitation: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/invitation` }),
+        createMeetingsInviteLinks: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/invite_links` }),
+        getMeetingsJoinTokenForLiveStreaming: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/jointoken/live_streaming` }),
+        getMeetingsArchiveTokenForLocalArchiving: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/jointoken/local_archiving` }),
+        getMeetingsJoinTokenForLocalRecording: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/jointoken/local_recording` }),
+        getLivestreamDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/livestream` }),
+        updateLivestream: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/livestream` }),
+        updateLivestreamStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/livestream/status` }),
+        getMeetingSummary: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/meeting_summary` }),
+        addMeetingApp: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/open_apps` }),
+        deleteMeetingApp: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/open_apps`
+        }),
+        listMeetingPolls: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/polls` }),
+        createMeetingPoll: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/polls` }),
+        getMeetingPoll: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId, pollId }) => `/meetings/${meetingId}/polls/${pollId}` }),
+        updateMeetingPoll: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId, pollId }) => `/meetings/${meetingId}/polls/${pollId}` }),
+        deleteMeetingPoll: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId, pollId }) => `/meetings/${meetingId}/polls/${pollId}`
+        }),
+        listMeetingRegistrants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants` }),
+        addMeetingRegistrant: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants` }),
+        listRegistrationQuestions: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants/questions` }),
+        updateRegistrationQuestions: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants/questions` }),
+        updateRegistrantsStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants/status` }),
+        getMeetingRegistrant: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: ({ meetingId, registrantId }) => `/meetings/${meetingId}/registrants/${registrantId}`
+        }),
+        deleteMeetingRegistrant: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId, registrantId }) => `/meetings/${meetingId}/registrants/${registrantId}`
+        }),
+        getMeetingSIPURIWithPasscode: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/sip_dialing` }),
+        updateMeetingStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/status` }),
+        getMeetingSurvey: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/survey` }),
+        deleteMeetingSurvey: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/survey`
+        }),
+        updateMeetingSurvey: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/survey` }),
+        getMeetingsToken: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/token` }),
+        getPastMeetingDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}` }),
+        listPastMeetingInstances: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/instances` }),
+        getPastMeetingParticipants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/participants` }),
+        listPastMeetingsPollResults: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/polls` }),
+        listPastMeetingsQA: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/qa` }),
+        listMeetingTemplates: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/meeting_templates` }),
+        createMeetingTemplateFromExistingMeeting: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/meeting_templates` }),
+        listMeetings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/meetings` }),
+        createMeeting: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/meetings` }),
+        listUpcomingMeetings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/upcoming_meetings` })
+    };
+    pAC = {
+        listUsersPACAccounts: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/pac` })
     };
     reports = {
-        getChatSessionsReports: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/chat/sessions` }),
-        getChatMessagesReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/report/chat/sessions/${sessionId}` })
-    };
-    sharedSpaces = {
-        listSharedSpaces: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/chat/spaces` }),
-        createSharedSpace: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/chat/spaces` }),
-        getSharedSpace: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ spaceId }) => `/chat/spaces/${spaceId}` }),
-        deleteSharedSpace: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ spaceId }) => `/chat/spaces/${spaceId}`
+        getSignInSignOutActivityReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/activities` }),
+        getBillingReports: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: () => `/report/billing`
         }),
-        updateSharedSpaceSettings: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ spaceId }) => `/chat/spaces/${spaceId}` }),
-        promoteSharedSpaceMembersToAdministrators: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ spaceId }) => `/chat/spaces/${spaceId}/admins` }),
-        demoteSharedSpaceAdministratorsToMembers: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ spaceId }) => `/chat/spaces/${spaceId}/admins` }),
-        listSharedSpaceChannels: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ spaceId }) => `/chat/spaces/${spaceId}/channels` }),
-        moveSharedSpaceChannels: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ spaceId }) => `/chat/spaces/${spaceId}/channels` }),
-        listSharedSpaceMembers: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ spaceId }) => `/chat/spaces/${spaceId}/members` }),
-        addMembersToSharedSpace: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ spaceId }) => `/chat/spaces/${spaceId}/members` }),
-        removeMembersFromSharedSpace: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ spaceId }) => `/chat/spaces/${spaceId}/members` }),
-        transferSharedSpaceOwnership: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ spaceId }) => `/chat/spaces/${spaceId}/owner` })
+        getBillingInvoiceReports: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/billing/invoices` }),
+        getCloudRecordingUsageReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/cloud_recording` }),
+        getDailyUsageReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/daily` }),
+        getMeetingActivitiesReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/meeting_activities` }),
+        getMeetingDetailReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}` }),
+        getMeetingParticipantReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/participants` }),
+        getMeetingPollReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/polls` }),
+        getMeetingQAReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/qa` }),
+        getMeetingSurveyReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/survey` }),
+        getOperationLogsReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/operationlogs` }),
+        getTelephoneReports: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/telephone` }),
+        getUpcomingEventsReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/upcoming_events` }),
+        getActiveOrInactiveHostReports: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/users` }),
+        getMeetingReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/report/users/${userId}/meetings` }),
+        getWebinarDetailReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}` }),
+        getWebinarParticipantReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/participants` }),
+        getWebinarPollReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/polls` }),
+        getWebinarQAReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/qa` }),
+        getWebinarSurveyReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/survey` })
+    };
+    sIPPhone = {
+        listSIPPhones: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/sip_phones` }),
+        enableSIPPhone: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/sip_phones` }),
+        deleteSIPPhone: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ phoneId }) => `/sip_phones/${phoneId}`
+        }),
+        updateSIPPhone: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ phoneId }) => `/sip_phones/${phoneId}`
+        })
+    };
+    tSP = {
+        getAccountsTSPInformation: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: () => `/tsp`
+        }),
+        updateAccountsTSPInformation: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: () => `/tsp`
+        }),
+        listUsersTSPAccounts: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/tsp` }),
+        addUsersTSPAccount: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/tsp` }),
+        setGlobalDialInURLForTSPUser: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ userId }) => `/users/${userId}/tsp/settings` }),
+        getUsersTSPAccount: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId, tspId }) => `/users/${userId}/tsp/${tspId}` }),
+        deleteUsersTSPAccount: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ userId, tspId }) => `/users/${userId}/tsp/${tspId}`
+        }),
+        updateTSPAccount: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ userId, tspId }) => `/users/${userId}/tsp/${tspId}`
+        })
+    };
+    trackingField = {
+        listTrackingFields: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: () => `/tracking_fields`
+        }),
+        createTrackingField: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/tracking_fields` }),
+        getTrackingField: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ fieldId }) => `/tracking_fields/${fieldId}` }),
+        deleteTrackingField: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ fieldId }) => `/tracking_fields/${fieldId}`
+        }),
+        updateTrackingField: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ fieldId }) => `/tracking_fields/${fieldId}` })
+    };
+    webinars = {
+        deleteLiveWebinarMessage: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId, messageId }) => `/live_webinars/${webinarId}/chat/messages/${messageId}`
+        }),
+        getWebinarAbsentees: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/absentees` }),
+        listPastWebinarInstances: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/instances` }),
+        listWebinarParticipants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/participants` }),
+        listPastWebinarPollResults: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/polls` }),
+        listQAsOfPastWebinar: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/qa` }),
+        listWebinarTemplates: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/webinar_templates` }),
+        createWebinarTemplate: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/webinar_templates` }),
+        listWebinars: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/webinars` }),
+        createWebinar: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/webinars` }),
+        getWebinar: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}` }),
+        deleteWebinar: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}`
+        }),
+        updateWebinar: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}` }),
+        performBatchRegistration: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/batch_registrants` }),
+        getWebinarsSessionBranding: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding` }),
+        createWebinarsBrandingNameTag: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/name_tags` }),
+        deleteWebinarsBrandingNameTag: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/name_tags` }),
+        updateWebinarsBrandingNameTag: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ webinarId, nameTagId }) => `/webinars/${webinarId}/branding/name_tags/${nameTagId}`
+        }),
+        uploadWebinarsBrandingVirtualBackground: this.buildEndpoint({
+            method: "POST",
+            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/virtual_backgrounds`,
+            requestMimeType: "multipart/form-data"
+        }),
+        deleteWebinarsBrandingVirtualBackgrounds: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/virtual_backgrounds` }),
+        setWebinarsDefaultBrandingVirtualBackground: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/virtual_backgrounds` }),
+        uploadWebinarsBrandingWallpaper: this.buildEndpoint({
+            method: "POST",
+            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/wallpaper`,
+            requestMimeType: "multipart/form-data"
+        }),
+        deleteWebinarsBrandingWallpaper: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/wallpaper` }),
+        createWebinarsInviteLinks: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/invite_links` }),
+        getWebinarsJoinTokenForLiveStreaming: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/jointoken/live_streaming` }),
+        getWebinarsArchiveTokenForLocalArchiving: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/jointoken/local_archiving` }),
+        getWebinarsJoinTokenForLocalRecording: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/jointoken/local_recording` }),
+        getLiveStreamDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/livestream` }),
+        updateLiveStream: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/livestream` }),
+        updateLiveStreamStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/livestream/status` }),
+        listPanelists: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/panelists` }),
+        addPanelists: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/panelists` }),
+        removeAllPanelists: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/panelists`
+        }),
+        removePanelist: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId, panelistId }) => `/webinars/${webinarId}/panelists/${panelistId}`
+        }),
+        listWebinarsPolls: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/polls` }),
+        createWebinarsPoll: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/polls` }),
+        getWebinarPoll: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId, pollId }) => `/webinars/${webinarId}/polls/${pollId}` }),
+        updateWebinarPoll: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ webinarId, pollId }) => `/webinars/${webinarId}/polls/${pollId}` }),
+        deleteWebinarPoll: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId, pollId }) => `/webinars/${webinarId}/polls/${pollId}`
+        }),
+        listWebinarRegistrants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants` }),
+        addWebinarRegistrant: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants` }),
+        listRegistrationQuestions: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants/questions` }),
+        updateRegistrationQuestions: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants/questions` }),
+        updateRegistrantsStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants/status` }),
+        getWebinarRegistrant: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: ({ webinarId, registrantId }) => `/webinars/${webinarId}/registrants/${registrantId}`
+        }),
+        deleteWebinarRegistrant: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId, registrantId }) => `/webinars/${webinarId}/registrants/${registrantId}`
+        }),
+        getWebinarSIPURIWithPasscode: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/sip_dialing` }),
+        updateWebinarStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/status` }),
+        getWebinarSurvey: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/survey` }),
+        deleteWebinarSurvey: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/survey`
+        }),
+        updateWebinarSurvey: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/survey` }),
+        getWebinarsToken: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/token` }),
+        getWebinarTrackingSources: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/tracking_sources` })
     };
 }
 
-function compareCandidate(pattern, candidate) {
-    if (!candidate) {
-        return false;
-    }
-    if (typeof pattern === "string") {
-        if (pattern === "*") {
-            return true;
+class MeetingsEventProcessor extends EventManager {
+}
+
+class OAuth extends InteractiveAuth {
+    assertResponseAccessToken(data) {
+        if (typeof data.access_token !== "string" ||
+            typeof data.refresh_token !== "string" ||
+            typeof data.expires_in !== "number" ||
+            typeof data.scope !== "string") {
+            throw new OAuthTokenRawResponseError(`Failed to match raw response (${JSON.stringify(data)}) to expected shape.`);
         }
-        return pattern.includes(candidate);
     }
-    else if (pattern instanceof RegExp) {
-        return pattern.test(candidate);
+    async fetchAccessToken(code) {
+        try {
+            const response = await this.makeOAuthTokenRequest("authorization_code", {
+                code,
+                redirect_uri: this.getFullRedirectUri()
+            });
+            this.assertResponseAccessToken(response.data);
+            return this.mapOAuthToken(response.data);
+        }
+        catch (err) {
+            throw new OAuthTokenFetchFailedError("Failed to fetch OAuth token.", { cause: err });
+        }
     }
-    else {
-        throw new Error("Pattern must be a string or regular expression");
+    async getToken() {
+        const { tokenStore } = this;
+        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
+        // If we have no OAuth token, app most likely has not been previously authorized.
+        if (!currentToken) {
+            throw new OAuthTokenDoesNotExistError("Failed to find OAuth token. Authorize this app first.");
+        }
+        // If the OAuth token hasn't already expired (and isn't within the delta), return it.
+        if (!this.isAlmostExpired(currentToken.expirationTimeIso)) {
+            return currentToken.accessToken;
+        }
+        // Since the token has expired, refresh, store, and return it.
+        const refreshedToken = await this.refreshAccessToken(currentToken.refreshToken);
+        await Promise.resolve(tokenStore.storeToken(refreshedToken));
+        return refreshedToken.accessToken;
+    }
+    async initRedirectCode(code) {
+        const { tokenStore } = this;
+        const accessToken = await this.fetchAccessToken(code);
+        await Promise.resolve(tokenStore.storeToken(accessToken));
+    }
+    mapOAuthToken({ access_token, expires_in, refresh_token, scope }) {
+        return {
+            accessToken: access_token,
+            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
+            refreshToken: refresh_token,
+            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
+        };
+    }
+    async refreshAccessToken(refreshToken) {
+        try {
+            const response = await this.makeOAuthTokenRequest("refresh_token", {
+                refresh_token: refreshToken
+            });
+            this.assertResponseAccessToken(response.data);
+            return this.mapOAuthToken(response.data);
+        }
+        catch (err) {
+            throw new OAuthTokenRefreshFailedError("Failed to refresh OAuth token.", { cause: err });
+        }
     }
 }
 
-class TeamChatEventProcessor extends EventManager {
-    onChannelMessagePosted(contents, listener) {
-        this.filteredEvent("team_chat.channel_message_posted", ({ payload }) => compareCandidate(contents, payload.object.message), async (payload) => {
-            await listener({
-                reply: async (msg) => await this.endpoints.chatMessages.sendChatMessage({
-                    path: {
-                        userId: payload.payload.operator_id
-                    },
-                    body: {
-                        message: msg,
-                        to_channel: payload.payload.object.channel_id
-                    }
-                }),
-                ...payload
+// Utility functions for determining if client options include custom receiver, or, if not,
+// a webhooks secret token, as one of those is required!
+const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
+const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
+const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
+const DEFAULT_HTTP_RECEIVER_PORT = 8080;
+const DEFAULT_LOGLEVEL = LogLevel.ERROR;
+class ProductClient {
+    auth;
+    endpoints;
+    webEventConsumer;
+    receiver;
+    constructor(options) {
+        this.auth = this.initAuth(options);
+        this.endpoints = this.initEndpoints(this.auth, options);
+        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
+        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
+        if (!isReceiverDisabled(options)) {
+            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
+            if (!hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
+                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
+            }
+            this.receiver = (hasExplicitReceiver(options) ?
+                options.receiver
+                : this.initDefaultReceiver(options));
+            this.receiver.init({
+                eventEmitter: this.webEventConsumer,
+                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
             });
+        }
+    }
+    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
+        return new HttpReceiver({
+            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
+            webhooksSecretToken,
+            logLevel: logLevel ?? DEFAULT_LOGLEVEL
         });
     }
+    async start() {
+        if (!this.receiver) {
+            throw new ReceiverInconsistentStateError("Receiver not constructed. Was disableReceiver set to true?");
+        }
+        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
+        // may or may not return a promise. This is not required when implementing `Receiver`.
+        return (await Promise.resolve(this.receiver.start()));
+    }
 }
 
-class TeamChatClient extends ProductClient {
+class MeetingsOAuthClient extends ProductClient {
     initAuth({ clientId, clientSecret, tokenStore, ...restOptions }) {
         const oAuth = new OAuth({ clientId, clientSecret, tokenStore });
         if (hasInstallerOptions(restOptions)) {
@@ -1263,10 +1340,10 @@ class TeamChatClient extends ProductClient {
         return oAuth;
     }
     initEndpoints(auth, options) {
-        return new TeamChatEndpoints({ auth, ...options });
+        return new MeetingsEndpoints({ auth, ...options });
     }
     initEventProcessor(endpoints) {
-        return new TeamChatEventProcessor(endpoints);
+        return new MeetingsEventProcessor(endpoints);
     }
 }
 
@@ -1309,16 +1386,16 @@ class S2SAuth extends Auth {
     }
 }
 
-class TeamChatS2SAuthClient extends ProductClient {
+class MeetingsS2SAuthClient extends ProductClient {
     initAuth({ clientId, clientSecret, tokenStore, accountId }) {
         return new S2SAuth({ clientId, clientSecret, tokenStore, accountId });
     }
     initEndpoints(auth, options) {
-        return new TeamChatEndpoints({ auth, ...options });
+        return new MeetingsEndpoints({ auth, ...options });
     }
     initEventProcessor(endpoints) {
-        return new TeamChatEventProcessor(endpoints);
+        return new MeetingsEventProcessor(endpoints);
     }
 }
 
-export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, LogLevel, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, ReceiverInconsistentStateError, ReceiverOAuthFlowError, S2SRawResponseError, StatusCode, TeamChatClient, TeamChatEndpoints, TeamChatEventProcessor, TeamChatS2SAuthClient, isCoreError, isStateStore };
+export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, LogLevel, MeetingsEndpoints, MeetingsEventProcessor, MeetingsOAuthClient, MeetingsS2SAuthClient, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, ReceiverInconsistentStateError, ReceiverOAuthFlowError, S2SRawResponseError, StatusCode, isCoreError, isStateStore };

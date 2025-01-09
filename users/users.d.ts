@@ -46,10 +46,11 @@ interface RivetError<ErrorCode extends string = string> extends Error {
     readonly errorCode: ErrorCode;
 }
 
-declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
+declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
     readonly ApiResponseError: "zoom_rivet_api_response_error";
     readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
     readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
+    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
     readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
     readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
     readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
@@ -67,6 +68,7 @@ declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestEr
 declare const ApiResponseError: Constructor<Error>;
 declare const AwsReceiverRequestError: Constructor<Error>;
 declare const ClientCredentialsRawResponseError: Constructor<Error>;
+declare const S2SRawResponseError: Constructor<Error>;
 declare const CommonHttpRequestError: Constructor<Error>;
 declare const ReceiverInconsistentStateError: Constructor<Error>;
 declare const ReceiverOAuthFlowError: Constructor<Error>;
@@ -124,6 +126,21 @@ interface Logger {
      */
     setName(name: string): void;
 }
+declare class ConsoleLogger implements Logger {
+    private level;
+    private name;
+    private static labels;
+    private static severity;
+    constructor();
+    getLevel(): LogLevel;
+    setLevel(level: LogLevel): void;
+    setName(name: string): void;
+    debug(...msg: unknown[]): void;
+    info(...msg: unknown[]): void;
+    warn(...msg: unknown[]): void;
+    error(...msg: unknown[]): void;
+    private static isMoreOrEqualSevere;
+}
 
 interface AuthOptions<Token> {
     clientId: string;
@@ -131,7 +148,7 @@ interface AuthOptions<Token> {
     tokenStore?: TokenStore<Token> | undefined;
     logger?: Logger;
 }
-type OAuthGrantType = "authorization_code" | "client_credentials" | "refresh_token";
+type OAuthGrantType = "authorization_code" | "client_credentials" | "refresh_token" | "account_credentials";
 interface BaseOAuthRequest {
     grant_type: OAuthGrantType;
 }
@@ -144,7 +161,11 @@ interface OAuthRefreshTokenRequest extends BaseOAuthRequest {
     grant_type: "refresh_token";
     refresh_token: string;
 }
-type OAuthRequest = OAuthAuthorizationCodeRequest | OAuthRefreshTokenRequest;
+interface S2SAuthTokenRequest extends BaseOAuthRequest {
+    grant_type: "account_credentials";
+    account_id: string;
+}
+type OAuthRequest = OAuthAuthorizationCodeRequest | OAuthRefreshTokenRequest | S2SAuthTokenRequest;
 /**
  * {@link Auth} is the base implementation of authentication for Zoom's APIs.
  *
@@ -164,6 +185,23 @@ declare abstract class Auth<Token = unknown> {
     protected makeOAuthTokenRequest<T extends OAuthGrantType>(grantType: T, payload?: Omit<Extract<OAuthRequest, {
         grant_type: T;
     }>, "grant_type">): Promise<AxiosResponse>;
+}
+
+interface S2SAuthToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    scopes: string[];
+}
+interface S2SAuthOptions {
+    accountId: string;
+}
+declare class S2SAuth extends Auth<S2SAuthToken> {
+    private accountId;
+    constructor({ accountId, ...restOptions }: AuthOptions<S2SAuthToken> & S2SAuthOptions);
+    private assertRawToken;
+    private fetchAccessToken;
+    getToken(): Promise<string>;
+    private mapAccessToken;
 }
 
 interface Event<Type extends string> {
@@ -192,6 +230,7 @@ interface HttpReceiverOptions extends Partial<SecureServerOptions> {
     port?: number | string | undefined;
     webhooksSecretToken: string;
     logger?: Logger;
+    logLevel?: LogLevel;
 }
 type SecureServerOptions = {
     [K in (typeof secureServerOptionKeys)[number]]: ServerOptions[K];
@@ -228,6 +267,7 @@ interface BuildEndpointOptions<PathSchema> {
 interface WebEndpointOptions {
     auth: Auth;
     baseUrl?: string | undefined;
+    doubleEncodeUrl?: boolean | undefined;
     timeout?: number | undefined;
 }
 type EndpointArguments<PathSchema extends StringIndexed | NoParams, BodySchema extends StringIndexed | NoParams, QuerySchema extends StringIndexed | NoParams> = (PathSchema extends NoParams ? object : AllPropsOptional<PathSchema, "t", "f"> extends "t" ? {
@@ -257,9 +297,10 @@ declare class WebEndpoints {
     private makeRequest;
 }
 
-type CommonClientOptions<A extends Auth, R extends Receiver> = AuthOptions<ExtractAuthTokenType<A>> & ExtractInstallerOptions<A, R> & {
+type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A> & ExtractInstallerOptions<A, R> & {
     disableReceiver?: boolean | undefined;
     logger?: Logger | undefined;
+    logLevel?: LogLevel | undefined;
 };
 interface ClientReceiverOptions<R extends Receiver> {
     receiver: R;
@@ -270,6 +311,7 @@ type ExtractInstallerOptions<A extends Auth, R extends Receiver> = A extends Int
 ] extends [true] ? WideInstallerOptions : object : object;
 type ExtractAuthTokenType<A> = A extends Auth<infer T> ? T : never;
 type GenericClientOptions = CommonClientOptions<any, any>;
+type GetAuthOptions<A extends Auth> = AuthOptions<ExtractAuthTokenType<A>> & (A extends S2SAuth ? S2SAuthOptions : object);
 type IsReceiverDisabled<O extends Pick<GenericClientOptions, "disableReceiver">> = [
     O["disableReceiver"]
 ] extends [true] ? true : false;
@@ -5023,4 +5065,11 @@ declare class UsersOAuthClient<ReceiverType extends Receiver = HttpReceiver, Opt
     protected initEventProcessor(endpoints: UsersEndpoints): UsersEventProcessor;
 }
 
-export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommonHttpRequestError, type ContactGroupsAddContactGroupMembersPathParams, type ContactGroupsAddContactGroupMembersRequestBody, type ContactGroupsAddContactGroupMembersResponse, type ContactGroupsCreateContactGroupRequestBody, type ContactGroupsCreateContactGroupResponse, type ContactGroupsDeleteContactGroupPathParams, type ContactGroupsGetContactGroupPathParams, type ContactGroupsGetContactGroupResponse, type ContactGroupsListContactGroupMembersPathParams, type ContactGroupsListContactGroupMembersQueryParams, type ContactGroupsListContactGroupMembersResponse, type ContactGroupsListContactGroupsQueryParams, type ContactGroupsListContactGroupsResponse, type ContactGroupsRemoveMembersInContactGroupPathParams, type ContactGroupsRemoveMembersInContactGroupQueryParams, type ContactGroupsUpdateContactGroupPathParams, type ContactGroupsUpdateContactGroupRequestBody, type GroupAdminAddedEvent, type GroupAdminDeletedEvent, type GroupCreatedEvent, type GroupDeletedEvent, type GroupLockSettingsUpdatedEvent, type GroupMemberAddedEvent, type GroupMemberDeletedEvent, type GroupSettingsUpdatedEvent, type GroupUpdatedEvent, type GroupsAddGroupAdminsPathParams, type GroupsAddGroupAdminsRequestBody, type GroupsAddGroupMembersPathParams, type GroupsAddGroupMembersRequestBody, type GroupsCreateGroupRequestBody, type GroupsDeleteGroupAdminPathParams, type GroupsDeleteGroupMemberPathParams, type GroupsDeleteGroupPathParams, type GroupsDeleteVirtualBackgroundFilesPathParams, type GroupsDeleteVirtualBackgroundFilesQueryParams, type GroupsGetGroupPathParams, type GroupsGetGroupResponse, type GroupsGetGroupsSettingsPathParams, type GroupsGetGroupsSettingsQueryParams, type GroupsGetGroupsSettingsResponse, type GroupsGetGroupsWebinarRegistrationSettingsPathParams, type GroupsGetGroupsWebinarRegistrationSettingsQueryParams, type GroupsGetGroupsWebinarRegistrationSettingsResponse, type GroupsGetLockedSettingsPathParams, type GroupsGetLockedSettingsQueryParams, type GroupsGetLockedSettingsResponse, type GroupsListGroupAdminsPathParams, type GroupsListGroupAdminsQueryParams, type GroupsListGroupAdminsResponse, type GroupsListGroupChannelsPathParams, type GroupsListGroupChannelsResponse, type GroupsListGroupMembersPathParams, type GroupsListGroupMembersQueryParams, type GroupsListGroupMembersResponse, type GroupsListGroupsResponse, type GroupsUpdateGroupMemberPathParams, type GroupsUpdateGroupMemberRequestBody, type GroupsUpdateGroupPathParams, type GroupsUpdateGroupRequestBody, type GroupsUpdateGroupsSettingsPathParams, type GroupsUpdateGroupsSettingsQueryParams, type GroupsUpdateGroupsSettingsRequestBody, type GroupsUpdateGroupsSettingsResponse, type GroupsUpdateGroupsWebinarRegistrationSettingsPathParams, type GroupsUpdateGroupsWebinarRegistrationSettingsQueryParams, type GroupsUpdateGroupsWebinarRegistrationSettingsRequestBody, type GroupsUpdateLockedSettingsPathParams, type GroupsUpdateLockedSettingsQueryParams, type GroupsUpdateLockedSettingsRequestBody, type GroupsUploadVirtualBackgroundFilesPathParams, type GroupsUploadVirtualBackgroundFilesRequestBody, type GroupsUploadVirtualBackgroundFilesResponse, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, type StateStore, StatusCode, type TokenStore, type UserActivatedEvent, type UserCreatedEvent, type UserDeactivatedEvent, type UserDeletedEvent, type UserDisassociatedEvent, type UserInvitationAcceptedEvent, type UserPersonalNotesUpdatedEvent, type UserPresenceStatusUpdatedEvent, type UserSettingsUpdatedEvent, type UserSignedInEvent, type UserSignedOutEvent, type UserUpdatedEvent, type UsersAddAssistantsPathParams, type UsersAddAssistantsRequestBody, type UsersAddAssistantsResponse, type UsersBulkUpdateFeaturesForUserRequestBody, type UsersBulkUpdateFeaturesForUserResponse, type UsersCheckUserEmailQueryParams, type UsersCheckUserEmailResponse, type UsersCheckUsersPMRoomQueryParams, type UsersCheckUsersPMRoomResponse, type UsersCreateUsersRequestBody, type UsersCreateUsersResponse, type UsersDeleteSchedulerPathParams, type UsersDeleteUserAssistantPathParams, type UsersDeleteUserAssistantsPathParams, type UsersDeleteUserPathParams, type UsersDeleteUserQueryParams, type UsersDeleteUserSchedulersPathParams, type UsersDeleteUsersProfilePicturePathParams, type UsersDeleteVirtualBackgroundFilesPathParams, type UsersDeleteVirtualBackgroundFilesQueryParams, UsersEndpoints, UsersEventProcessor, type UsersGetCollaborationDeviceDetailPathParams, type UsersGetCollaborationDeviceDetailResponse, type UsersGetMeetingTemplateDetailPathParams, type UsersGetMeetingTemplateDetailResponse, type UsersGetUserPathParams, type UsersGetUserPermissionsPathParams, type UsersGetUserPermissionsResponse, type UsersGetUserPresenceStatusPathParams, type UsersGetUserPresenceStatusResponse, type UsersGetUserQueryParams, type UsersGetUserResponse, type UsersGetUserSettingsPathParams, type UsersGetUserSettingsQueryParams, type UsersGetUserSettingsResponse, type UsersGetUserSummaryResponse, type UsersGetUsersTokenPathParams, type UsersGetUsersTokenQueryParams, type UsersGetUsersTokenResponse, type UsersGetUsersZAKResponse, type UsersListUserAssistantsPathParams, type UsersListUserAssistantsResponse, type UsersListUserSchedulersPathParams, type UsersListUserSchedulersResponse, type UsersListUsersCollaborationDevicesPathParams, type UsersListUsersCollaborationDevicesResponse, type UsersListUsersQueryParams, type UsersListUsersResponse, UsersOAuthClient, type UsersOAuthOptions, type UsersRevokeUsersSSOTokenPathParams, type UsersUpdateUserPathParams, type UsersUpdateUserQueryParams, type UsersUpdateUserRequestBody, type UsersUpdateUserSettingsPathParams, type UsersUpdateUserSettingsQueryParams, type UsersUpdateUserSettingsRequestBody, type UsersUpdateUserStatusPathParams, type UsersUpdateUserStatusRequestBody, type UsersUpdateUsersEmailPathParams, type UsersUpdateUsersEmailRequestBody, type UsersUpdateUsersPasswordPathParams, type UsersUpdateUsersPasswordRequestBody, type UsersUpdateUsersPresenceStatusPathParams, type UsersUpdateUsersPresenceStatusRequestBody, type UsersUploadUsersProfilePicturePathParams, type UsersUploadUsersProfilePictureRequestBody, type UsersUploadUsersProfilePictureResponse, type UsersUploadVirtualBackgroundFilesPathParams, type UsersUploadVirtualBackgroundFilesRequestBody, type UsersUploadVirtualBackgroundFilesResponse, isCoreError, isStateStore };
+type UsersS2SAuthOptions<R extends Receiver> = CommonClientOptions<S2SAuth, R>;
+declare class UsersS2SAuthClient<ReceiverType extends Receiver = HttpReceiver, OptionsType extends CommonClientOptions<S2SAuth, ReceiverType> = UsersS2SAuthOptions<ReceiverType>> extends ProductClient<S2SAuth, UsersEndpoints, UsersEventProcessor, OptionsType, ReceiverType> {
+    protected initAuth({ clientId, clientSecret, tokenStore, accountId }: OptionsType): S2SAuth;
+    protected initEndpoints(auth: S2SAuth, options: OptionsType): UsersEndpoints;
+    protected initEventProcessor(endpoints: UsersEndpoints): UsersEventProcessor;
+}
+
+export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommonHttpRequestError, ConsoleLogger, type ContactGroupsAddContactGroupMembersPathParams, type ContactGroupsAddContactGroupMembersRequestBody, type ContactGroupsAddContactGroupMembersResponse, type ContactGroupsCreateContactGroupRequestBody, type ContactGroupsCreateContactGroupResponse, type ContactGroupsDeleteContactGroupPathParams, type ContactGroupsGetContactGroupPathParams, type ContactGroupsGetContactGroupResponse, type ContactGroupsListContactGroupMembersPathParams, type ContactGroupsListContactGroupMembersQueryParams, type ContactGroupsListContactGroupMembersResponse, type ContactGroupsListContactGroupsQueryParams, type ContactGroupsListContactGroupsResponse, type ContactGroupsRemoveMembersInContactGroupPathParams, type ContactGroupsRemoveMembersInContactGroupQueryParams, type ContactGroupsUpdateContactGroupPathParams, type ContactGroupsUpdateContactGroupRequestBody, type GroupAdminAddedEvent, type GroupAdminDeletedEvent, type GroupCreatedEvent, type GroupDeletedEvent, type GroupLockSettingsUpdatedEvent, type GroupMemberAddedEvent, type GroupMemberDeletedEvent, type GroupSettingsUpdatedEvent, type GroupUpdatedEvent, type GroupsAddGroupAdminsPathParams, type GroupsAddGroupAdminsRequestBody, type GroupsAddGroupMembersPathParams, type GroupsAddGroupMembersRequestBody, type GroupsCreateGroupRequestBody, type GroupsDeleteGroupAdminPathParams, type GroupsDeleteGroupMemberPathParams, type GroupsDeleteGroupPathParams, type GroupsDeleteVirtualBackgroundFilesPathParams, type GroupsDeleteVirtualBackgroundFilesQueryParams, type GroupsGetGroupPathParams, type GroupsGetGroupResponse, type GroupsGetGroupsSettingsPathParams, type GroupsGetGroupsSettingsQueryParams, type GroupsGetGroupsSettingsResponse, type GroupsGetGroupsWebinarRegistrationSettingsPathParams, type GroupsGetGroupsWebinarRegistrationSettingsQueryParams, type GroupsGetGroupsWebinarRegistrationSettingsResponse, type GroupsGetLockedSettingsPathParams, type GroupsGetLockedSettingsQueryParams, type GroupsGetLockedSettingsResponse, type GroupsListGroupAdminsPathParams, type GroupsListGroupAdminsQueryParams, type GroupsListGroupAdminsResponse, type GroupsListGroupChannelsPathParams, type GroupsListGroupChannelsResponse, type GroupsListGroupMembersPathParams, type GroupsListGroupMembersQueryParams, type GroupsListGroupMembersResponse, type GroupsListGroupsResponse, type GroupsUpdateGroupMemberPathParams, type GroupsUpdateGroupMemberRequestBody, type GroupsUpdateGroupPathParams, type GroupsUpdateGroupRequestBody, type GroupsUpdateGroupsSettingsPathParams, type GroupsUpdateGroupsSettingsQueryParams, type GroupsUpdateGroupsSettingsRequestBody, type GroupsUpdateGroupsSettingsResponse, type GroupsUpdateGroupsWebinarRegistrationSettingsPathParams, type GroupsUpdateGroupsWebinarRegistrationSettingsQueryParams, type GroupsUpdateGroupsWebinarRegistrationSettingsRequestBody, type GroupsUpdateLockedSettingsPathParams, type GroupsUpdateLockedSettingsQueryParams, type GroupsUpdateLockedSettingsRequestBody, type GroupsUploadVirtualBackgroundFilesPathParams, type GroupsUploadVirtualBackgroundFilesRequestBody, type GroupsUploadVirtualBackgroundFilesResponse, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, LogLevel, type Logger, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, S2SRawResponseError, type StateStore, StatusCode, type TokenStore, type UserActivatedEvent, type UserCreatedEvent, type UserDeactivatedEvent, type UserDeletedEvent, type UserDisassociatedEvent, type UserInvitationAcceptedEvent, type UserPersonalNotesUpdatedEvent, type UserPresenceStatusUpdatedEvent, type UserSettingsUpdatedEvent, type UserSignedInEvent, type UserSignedOutEvent, type UserUpdatedEvent, type UsersAddAssistantsPathParams, type UsersAddAssistantsRequestBody, type UsersAddAssistantsResponse, type UsersBulkUpdateFeaturesForUserRequestBody, type UsersBulkUpdateFeaturesForUserResponse, type UsersCheckUserEmailQueryParams, type UsersCheckUserEmailResponse, type UsersCheckUsersPMRoomQueryParams, type UsersCheckUsersPMRoomResponse, type UsersCreateUsersRequestBody, type UsersCreateUsersResponse, type UsersDeleteSchedulerPathParams, type UsersDeleteUserAssistantPathParams, type UsersDeleteUserAssistantsPathParams, type UsersDeleteUserPathParams, type UsersDeleteUserQueryParams, type UsersDeleteUserSchedulersPathParams, type UsersDeleteUsersProfilePicturePathParams, type UsersDeleteVirtualBackgroundFilesPathParams, type UsersDeleteVirtualBackgroundFilesQueryParams, UsersEndpoints, UsersEventProcessor, type UsersGetCollaborationDeviceDetailPathParams, type UsersGetCollaborationDeviceDetailResponse, type UsersGetMeetingTemplateDetailPathParams, type UsersGetMeetingTemplateDetailResponse, type UsersGetUserPathParams, type UsersGetUserPermissionsPathParams, type UsersGetUserPermissionsResponse, type UsersGetUserPresenceStatusPathParams, type UsersGetUserPresenceStatusResponse, type UsersGetUserQueryParams, type UsersGetUserResponse, type UsersGetUserSettingsPathParams, type UsersGetUserSettingsQueryParams, type UsersGetUserSettingsResponse, type UsersGetUserSummaryResponse, type UsersGetUsersTokenPathParams, type UsersGetUsersTokenQueryParams, type UsersGetUsersTokenResponse, type UsersGetUsersZAKResponse, type UsersListUserAssistantsPathParams, type UsersListUserAssistantsResponse, type UsersListUserSchedulersPathParams, type UsersListUserSchedulersResponse, type UsersListUsersCollaborationDevicesPathParams, type UsersListUsersCollaborationDevicesResponse, type UsersListUsersQueryParams, type UsersListUsersResponse, UsersOAuthClient, type UsersOAuthOptions, type UsersRevokeUsersSSOTokenPathParams, UsersS2SAuthClient, type UsersS2SAuthOptions, type UsersUpdateUserPathParams, type UsersUpdateUserQueryParams, type UsersUpdateUserRequestBody, type UsersUpdateUserSettingsPathParams, type UsersUpdateUserSettingsQueryParams, type UsersUpdateUserSettingsRequestBody, type UsersUpdateUserStatusPathParams, type UsersUpdateUserStatusRequestBody, type UsersUpdateUsersEmailPathParams, type UsersUpdateUsersEmailRequestBody, type UsersUpdateUsersPasswordPathParams, type UsersUpdateUsersPasswordRequestBody, type UsersUpdateUsersPresenceStatusPathParams, type UsersUpdateUsersPresenceStatusRequestBody, type UsersUploadUsersProfilePicturePathParams, type UsersUploadUsersProfilePictureRequestBody, type UsersUploadUsersProfilePictureResponse, type UsersUploadVirtualBackgroundFilesPathParams, type UsersUploadVirtualBackgroundFilesRequestBody, type UsersUploadVirtualBackgroundFilesResponse, isCoreError, isStateStore };
