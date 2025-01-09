@@ -46,10 +46,11 @@ interface RivetError<ErrorCode extends string = string> extends Error {
     readonly errorCode: ErrorCode;
 }
 
-declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
+declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
     readonly ApiResponseError: "zoom_rivet_api_response_error";
     readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
     readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
+    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
     readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
     readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
     readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
@@ -67,6 +68,7 @@ declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestEr
 declare const ApiResponseError: Constructor<Error>;
 declare const AwsReceiverRequestError: Constructor<Error>;
 declare const ClientCredentialsRawResponseError: Constructor<Error>;
+declare const S2SRawResponseError: Constructor<Error>;
 declare const CommonHttpRequestError: Constructor<Error>;
 declare const ReceiverInconsistentStateError: Constructor<Error>;
 declare const ReceiverOAuthFlowError: Constructor<Error>;
@@ -124,6 +126,21 @@ interface Logger {
      */
     setName(name: string): void;
 }
+declare class ConsoleLogger implements Logger {
+    private level;
+    private name;
+    private static labels;
+    private static severity;
+    constructor();
+    getLevel(): LogLevel;
+    setLevel(level: LogLevel): void;
+    setName(name: string): void;
+    debug(...msg: unknown[]): void;
+    info(...msg: unknown[]): void;
+    warn(...msg: unknown[]): void;
+    error(...msg: unknown[]): void;
+    private static isMoreOrEqualSevere;
+}
 
 interface AuthOptions<Token> {
     clientId: string;
@@ -131,7 +148,7 @@ interface AuthOptions<Token> {
     tokenStore?: TokenStore<Token> | undefined;
     logger?: Logger;
 }
-type OAuthGrantType = "authorization_code" | "client_credentials" | "refresh_token";
+type OAuthGrantType = "authorization_code" | "client_credentials" | "refresh_token" | "account_credentials";
 interface BaseOAuthRequest {
     grant_type: OAuthGrantType;
 }
@@ -144,7 +161,11 @@ interface OAuthRefreshTokenRequest extends BaseOAuthRequest {
     grant_type: "refresh_token";
     refresh_token: string;
 }
-type OAuthRequest = OAuthAuthorizationCodeRequest | OAuthRefreshTokenRequest;
+interface S2SAuthTokenRequest extends BaseOAuthRequest {
+    grant_type: "account_credentials";
+    account_id: string;
+}
+type OAuthRequest = OAuthAuthorizationCodeRequest | OAuthRefreshTokenRequest | S2SAuthTokenRequest;
 /**
  * {@link Auth} is the base implementation of authentication for Zoom's APIs.
  *
@@ -164,6 +185,23 @@ declare abstract class Auth<Token = unknown> {
     protected makeOAuthTokenRequest<T extends OAuthGrantType>(grantType: T, payload?: Omit<Extract<OAuthRequest, {
         grant_type: T;
     }>, "grant_type">): Promise<AxiosResponse>;
+}
+
+interface S2SAuthToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    scopes: string[];
+}
+interface S2SAuthOptions {
+    accountId: string;
+}
+declare class S2SAuth extends Auth<S2SAuthToken> {
+    private accountId;
+    constructor({ accountId, ...restOptions }: AuthOptions<S2SAuthToken> & S2SAuthOptions);
+    private assertRawToken;
+    private fetchAccessToken;
+    getToken(): Promise<string>;
+    private mapAccessToken;
 }
 
 interface Event<Type extends string> {
@@ -192,6 +230,7 @@ interface HttpReceiverOptions extends Partial<SecureServerOptions> {
     port?: number | string | undefined;
     webhooksSecretToken: string;
     logger?: Logger;
+    logLevel?: LogLevel;
 }
 type SecureServerOptions = {
     [K in (typeof secureServerOptionKeys)[number]]: ServerOptions[K];
@@ -228,6 +267,7 @@ interface BuildEndpointOptions<PathSchema> {
 interface WebEndpointOptions {
     auth: Auth;
     baseUrl?: string | undefined;
+    doubleEncodeUrl?: boolean | undefined;
     timeout?: number | undefined;
 }
 type EndpointArguments<PathSchema extends StringIndexed | NoParams, BodySchema extends StringIndexed | NoParams, QuerySchema extends StringIndexed | NoParams> = (PathSchema extends NoParams ? object : AllPropsOptional<PathSchema, "t", "f"> extends "t" ? {
@@ -257,9 +297,10 @@ declare class WebEndpoints {
     private makeRequest;
 }
 
-type CommonClientOptions<A extends Auth, R extends Receiver> = AuthOptions<ExtractAuthTokenType<A>> & ExtractInstallerOptions<A, R> & {
+type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A> & ExtractInstallerOptions<A, R> & {
     disableReceiver?: boolean | undefined;
     logger?: Logger | undefined;
+    logLevel?: LogLevel | undefined;
 };
 interface ClientReceiverOptions<R extends Receiver> {
     receiver: R;
@@ -270,6 +311,7 @@ type ExtractInstallerOptions<A extends Auth, R extends Receiver> = A extends Int
 ] extends [true] ? WideInstallerOptions : object : object;
 type ExtractAuthTokenType<A> = A extends Auth<infer T> ? T : never;
 type GenericClientOptions = CommonClientOptions<any, any>;
+type GetAuthOptions<A extends Auth> = AuthOptions<ExtractAuthTokenType<A>> & (A extends S2SAuth ? S2SAuthOptions : object);
 type IsReceiverDisabled<O extends Pick<GenericClientOptions, "disableReceiver">> = [
     O["disableReceiver"]
 ] extends [true] ? true : false;
@@ -1843,4 +1885,4 @@ declare class VideoSdkClient<ReceiverType extends Receiver = HttpReceiver, Optio
     protected initEventProcessor(endpoints: VideoSdkEndpoints): VideoSdkEventProcessor;
 }
 
-export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, type ByosStorageAddStorageLocationRequestBody, type ByosStorageAddStorageLocationResponse, type ByosStorageChangeStorageLocationDetailPathParams, type ByosStorageChangeStorageLocationDetailRequestBody, type ByosStorageDeleteStorageLocationDetailPathParams, type ByosStorageListStorageLocationResponse, type ByosStorageStorageLocationDetailPathParams, type ByosStorageStorageLocationDetailResponse, type ByosStorageUpdateBringYourOwnStorageSettingsRequestBody, ClientCredentialsRawResponseError, type CloudRecordingDeleteSessionsRecordingFilePathParams, type CloudRecordingDeleteSessionsRecordingFileQueryParams, type CloudRecordingDeleteSessionsRecordingsPathParams, type CloudRecordingDeleteSessionsRecordingsQueryParams, type CloudRecordingListRecordingsOfAccountQueryParams, type CloudRecordingListRecordingsOfAccountResponse, type CloudRecordingListSessionsRecordingsPathParams, type CloudRecordingListSessionsRecordingsQueryParams, type CloudRecordingListSessionsRecordingsResponse, type CloudRecordingRecoverSessionsRecordingsPathParams, type CloudRecordingRecoverSessionsRecordingsRequestBody, type CloudRecordingRecoverSingleRecordingPathParams, type CloudRecordingRecoverSingleRecordingRequestBody, CommonHttpRequestError, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, type SessionAlertEvent, type SessionEndedEvent, type SessionLiveStreamingStartedEvent, type SessionLiveStreamingStoppedEvent, type SessionRecordingCompletedEvent, type SessionRecordingDeletedEvent, type SessionRecordingPausedEvent, type SessionRecordingRecoveredEvent, type SessionRecordingResumedEvent, type SessionRecordingStartedEvent, type SessionRecordingStoppedEvent, type SessionRecordingTranscriptCompletedEvent, type SessionRecordingTranscriptFailedEvent, type SessionRecordingTrashedEvent, type SessionSharingEndedEvent, type SessionSharingStartedEvent, type SessionStartedEvent, type SessionUserJoinedEvent, type SessionUserLeftEvent, type SessionUserPhoneCalloutAcceptedEvent, type SessionUserPhoneCalloutMissedEvent, type SessionUserPhoneCalloutRejectedEvent, type SessionUserPhoneCalloutRingingEvent, type SessionUserRoomSystemCalloutAcceptedEvent, type SessionUserRoomSystemCalloutFailedEvent, type SessionUserRoomSystemCalloutMissedEvent, type SessionUserRoomSystemCalloutRejectedEvent, type SessionUserRoomSystemCalloutRingingEvent, type SessionsCreateSessionRequestBody, type SessionsCreateSessionResponse, type SessionsDeleteSessionPathParams, type SessionsGetSessionDetailsPathParams, type SessionsGetSessionDetailsQueryParams, type SessionsGetSessionDetailsResponse, type SessionsGetSessionLiveStreamDetailsPathParams, type SessionsGetSessionLiveStreamDetailsResponse, type SessionsGetSessionUserQoSPathParams, type SessionsGetSessionUserQoSQueryParams, type SessionsGetSessionUserQoSResponse, type SessionsGetSharingRecordingDetailsPathParams, type SessionsGetSharingRecordingDetailsQueryParams, type SessionsGetSharingRecordingDetailsResponse, type SessionsListSessionUsersPathParams, type SessionsListSessionUsersQoSPathParams, type SessionsListSessionUsersQoSQueryParams, type SessionsListSessionUsersQoSResponse, type SessionsListSessionUsersQueryParams, type SessionsListSessionUsersResponse, type SessionsListSessionsQueryParams, type SessionsListSessionsResponse, type SessionsUpdateSessionLiveStreamPathParams, type SessionsUpdateSessionLiveStreamRequestBody, type SessionsUpdateSessionLivestreamStatusPathParams, type SessionsUpdateSessionLivestreamStatusRequestBody, type SessionsUpdateSessionStatusPathParams, type SessionsUpdateSessionStatusRequestBody, type SessionsUseInSessionEventsControlsPathParams, type SessionsUseInSessionEventsControlsRequestBody, type StateStore, StatusCode, type TokenStore, type VideoSDKReportsGetCloudRecordingUsageReportQueryParams, type VideoSDKReportsGetCloudRecordingUsageReportResponse, type VideoSDKReportsGetDailyUsageReportQueryParams, type VideoSDKReportsGetDailyUsageReportResponse, type VideoSDKReportsGetOperationLogsReportQueryParams, type VideoSDKReportsGetOperationLogsReportResponse, type VideoSDKReportsGetTelephoneReportQueryParams, type VideoSDKReportsGetTelephoneReportResponse, VideoSdkClient, VideoSdkEndpoints, VideoSdkEventProcessor, type VideoSdkOptions, isCoreError, isStateStore };
+export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, type ByosStorageAddStorageLocationRequestBody, type ByosStorageAddStorageLocationResponse, type ByosStorageChangeStorageLocationDetailPathParams, type ByosStorageChangeStorageLocationDetailRequestBody, type ByosStorageDeleteStorageLocationDetailPathParams, type ByosStorageListStorageLocationResponse, type ByosStorageStorageLocationDetailPathParams, type ByosStorageStorageLocationDetailResponse, type ByosStorageUpdateBringYourOwnStorageSettingsRequestBody, ClientCredentialsRawResponseError, type CloudRecordingDeleteSessionsRecordingFilePathParams, type CloudRecordingDeleteSessionsRecordingFileQueryParams, type CloudRecordingDeleteSessionsRecordingsPathParams, type CloudRecordingDeleteSessionsRecordingsQueryParams, type CloudRecordingListRecordingsOfAccountQueryParams, type CloudRecordingListRecordingsOfAccountResponse, type CloudRecordingListSessionsRecordingsPathParams, type CloudRecordingListSessionsRecordingsQueryParams, type CloudRecordingListSessionsRecordingsResponse, type CloudRecordingRecoverSessionsRecordingsPathParams, type CloudRecordingRecoverSessionsRecordingsRequestBody, type CloudRecordingRecoverSingleRecordingPathParams, type CloudRecordingRecoverSingleRecordingRequestBody, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, LogLevel, type Logger, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, S2SRawResponseError, type SessionAlertEvent, type SessionEndedEvent, type SessionLiveStreamingStartedEvent, type SessionLiveStreamingStoppedEvent, type SessionRecordingCompletedEvent, type SessionRecordingDeletedEvent, type SessionRecordingPausedEvent, type SessionRecordingRecoveredEvent, type SessionRecordingResumedEvent, type SessionRecordingStartedEvent, type SessionRecordingStoppedEvent, type SessionRecordingTranscriptCompletedEvent, type SessionRecordingTranscriptFailedEvent, type SessionRecordingTrashedEvent, type SessionSharingEndedEvent, type SessionSharingStartedEvent, type SessionStartedEvent, type SessionUserJoinedEvent, type SessionUserLeftEvent, type SessionUserPhoneCalloutAcceptedEvent, type SessionUserPhoneCalloutMissedEvent, type SessionUserPhoneCalloutRejectedEvent, type SessionUserPhoneCalloutRingingEvent, type SessionUserRoomSystemCalloutAcceptedEvent, type SessionUserRoomSystemCalloutFailedEvent, type SessionUserRoomSystemCalloutMissedEvent, type SessionUserRoomSystemCalloutRejectedEvent, type SessionUserRoomSystemCalloutRingingEvent, type SessionsCreateSessionRequestBody, type SessionsCreateSessionResponse, type SessionsDeleteSessionPathParams, type SessionsGetSessionDetailsPathParams, type SessionsGetSessionDetailsQueryParams, type SessionsGetSessionDetailsResponse, type SessionsGetSessionLiveStreamDetailsPathParams, type SessionsGetSessionLiveStreamDetailsResponse, type SessionsGetSessionUserQoSPathParams, type SessionsGetSessionUserQoSQueryParams, type SessionsGetSessionUserQoSResponse, type SessionsGetSharingRecordingDetailsPathParams, type SessionsGetSharingRecordingDetailsQueryParams, type SessionsGetSharingRecordingDetailsResponse, type SessionsListSessionUsersPathParams, type SessionsListSessionUsersQoSPathParams, type SessionsListSessionUsersQoSQueryParams, type SessionsListSessionUsersQoSResponse, type SessionsListSessionUsersQueryParams, type SessionsListSessionUsersResponse, type SessionsListSessionsQueryParams, type SessionsListSessionsResponse, type SessionsUpdateSessionLiveStreamPathParams, type SessionsUpdateSessionLiveStreamRequestBody, type SessionsUpdateSessionLivestreamStatusPathParams, type SessionsUpdateSessionLivestreamStatusRequestBody, type SessionsUpdateSessionStatusPathParams, type SessionsUpdateSessionStatusRequestBody, type SessionsUseInSessionEventsControlsPathParams, type SessionsUseInSessionEventsControlsRequestBody, type StateStore, StatusCode, type TokenStore, type VideoSDKReportsGetCloudRecordingUsageReportQueryParams, type VideoSDKReportsGetCloudRecordingUsageReportResponse, type VideoSDKReportsGetDailyUsageReportQueryParams, type VideoSDKReportsGetDailyUsageReportResponse, type VideoSDKReportsGetOperationLogsReportQueryParams, type VideoSDKReportsGetOperationLogsReportResponse, type VideoSDKReportsGetTelephoneReportQueryParams, type VideoSDKReportsGetTelephoneReportResponse, VideoSdkClient, VideoSdkEndpoints, VideoSdkEventProcessor, type VideoSdkOptions, isCoreError, isStateStore };

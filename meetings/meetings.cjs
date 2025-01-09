@@ -427,6 +427,8 @@ class JwtStateStore {
 const DEFAULT_INSTALL_PATH = "/zoom/oauth/install";
 const DEFAULT_CALLBACK_PATH = "/zoom/oauth/callback";
 const OAUTH_AUTHORIZE_PATH = "/oauth/authorize";
+const hasInstallerOptions = (obj) => typeof obj.installerOptions.redirectUri !== "undefined" &&
+    typeof obj.installerOptions.stateStore !== "undefined";
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
  * is initiated server-side, but requires manual authorization from a user, by redirecting the user to Zoom.
@@ -743,83 +745,6 @@ class HttpReceiver {
     }
 }
 
-/** @internal */
-const TWO_HOURS_IN_SECONDS = 60 * 60 * 2;
-class JwtAuth extends Auth {
-    async generateToken() {
-        const encodedSecret = new TextEncoder().encode(this.clientSecret);
-        const issuedTime = dayjs();
-        const expirationTime = issuedTime.add(TWO_HOURS_IN_SECONDS, "seconds");
-        return {
-            token: await new jose.SignJWT()
-                .setProtectedHeader({ alg: "HS256", typ: "JWT" })
-                .setExpirationTime(expirationTime.toDate())
-                .setIssuedAt(issuedTime.toDate())
-                .setIssuer(this.clientId)
-                .sign(encodedSecret),
-            expirationTimeIso: expirationTime.toISOString()
-        };
-    }
-    async getToken() {
-        const { tokenStore } = this;
-        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
-        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
-            return currentToken.token;
-        }
-        const jwtToken = await this.generateToken();
-        await Promise.resolve(tokenStore.storeToken(jwtToken));
-        return jwtToken.token;
-    }
-}
-
-// Utility functions for determining if client options include custom receiver, or, if not,
-// a webhooks secret token, as one of those is required!
-const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
-const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
-const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
-const DEFAULT_HTTP_RECEIVER_PORT = 8080;
-const DEFAULT_LOGLEVEL = exports.LogLevel.ERROR;
-class ProductClient {
-    auth;
-    endpoints;
-    webEventConsumer;
-    receiver;
-    constructor(options) {
-        this.auth = this.initAuth(options);
-        this.endpoints = this.initEndpoints(this.auth, options);
-        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
-        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
-        if (!isReceiverDisabled(options)) {
-            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
-            if (!hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
-                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
-            }
-            this.receiver = (hasExplicitReceiver(options) ?
-                options.receiver
-                : this.initDefaultReceiver(options));
-            this.receiver.init({
-                eventEmitter: this.webEventConsumer,
-                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
-            });
-        }
-    }
-    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
-        return new HttpReceiver({
-            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
-            webhooksSecretToken,
-            logLevel: logLevel ?? DEFAULT_LOGLEVEL
-        });
-    }
-    async start() {
-        if (!this.receiver) {
-            throw new ReceiverInconsistentStateError("Receiver not constructed. Was disableReceiver set to true?");
-        }
-        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
-        // may or may not return a promise. This is not required when implementing `Receiver`.
-        return (await Promise.resolve(this.receiver.start()));
-    }
-}
-
 const type = "module";
 const name = "@zoom/rivet";
 const author = "Zoom Developers <developers@zoom.us> (https://developers.zoom.us)";
@@ -976,82 +901,502 @@ class WebEndpoints {
     }
 }
 
-class VideoSdkEndpoints extends WebEndpoints {
-    byosStorage = {
-        updateBringYourOwnStorageSettings: this.buildEndpoint({ method: "PATCH", urlPathBuilder: () => `/videosdk/settings/storage` }),
-        listStorageLocation: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: () => `/videosdk/settings/storage/location`
-        }),
-        addStorageLocation: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/videosdk/settings/storage/location` }),
-        storageLocationDetail: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: ({ storageLocationId }) => `/videosdk/settings/storage/location/${storageLocationId}`
-        }),
-        deleteStorageLocationDetail: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ storageLocationId }) => `/videosdk/settings/storage/location/${storageLocationId}`
-        }),
-        changeStorageLocationDetail: this.buildEndpoint({
-            method: "PATCH",
-            urlPathBuilder: ({ storageLocationId }) => `/videosdk/settings/storage/location/${storageLocationId}`
-        })
+class MeetingsEndpoints extends WebEndpoints {
+    archiving = {
+        listArchivedFiles: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/archive_files` }),
+        getArchivedFileStatistics: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/archive_files/statistics` }),
+        updateArchivedFilesAutoDeleteStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ fileId }) => `/archive_files/${fileId}` }),
+        getMeetingsArchivedFiles: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingUUID }) => `/past_meetings/${meetingUUID}/archive_files` }),
+        deleteMeetingsArchivedFiles: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ meetingUUID }) => `/past_meetings/${meetingUUID}/archive_files` })
     };
     cloudRecording = {
-        listRecordingsOfAccount: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/recordings` }),
-        listSessionsRecordings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/recordings` }),
-        deleteSessionsRecordings: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/recordings` }),
-        recoverSessionsRecordings: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/recordings/status` }),
-        deleteSessionsRecordingFile: this.buildEndpoint({
+        getMeetingRecordings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings` }),
+        deleteMeetingOrWebinarRecordings: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings` }),
+        getMeetingOrWebinarRecordingsAnalyticsDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/analytics_details` }),
+        getMeetingOrWebinarRecordingsAnalyticsSummary: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/analytics_summary` }),
+        listRecordingRegistrants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants` }),
+        createRecordingRegistrant: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants` }),
+        getRegistrationQuestions: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants/questions` }),
+        updateRegistrationQuestions: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants/questions`
+        }),
+        updateRegistrantsStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants/status` }),
+        getMeetingRecordingSettings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/settings` }),
+        updateMeetingRecordingSettings: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/settings` }),
+        deleteRecordingFileForMeetingOrWebinar: this.buildEndpoint({
             method: "DELETE",
-            urlPathBuilder: ({ sessionId, recordingId }) => `/videosdk/sessions/${sessionId}/recordings/${recordingId}`
+            urlPathBuilder: ({ meetingId, recordingId }) => `/meetings/${meetingId}/recordings/${recordingId}`
         }),
         recoverSingleRecording: this.buildEndpoint({
             method: "PUT",
-            urlPathBuilder: ({ sessionId, recordingId }) => `/videosdk/sessions/${sessionId}/recordings/${recordingId}/status`
-        })
-    };
-    sessions = {
-        listSessions: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/sessions` }),
-        createSession: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/videosdk/sessions` }),
-        getSessionDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}` }),
-        deleteSession: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}`
+            urlPathBuilder: ({ meetingId, recordingId }) => `/meetings/${meetingId}/recordings/${recordingId}/status`
         }),
-        useInSessionEventsControls: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/events` }),
-        getSessionLiveStreamDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/livestream` }),
-        updateSessionLiveStream: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/livestream` }),
-        updateSessionLivestreamStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/livestream/status` }),
-        updateSessionStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/status` }),
-        listSessionUsers: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/users` }),
-        listSessionUsersQoS: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/users/qos` }),
-        getSharingRecordingDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/videosdk/sessions/${sessionId}/users/sharing` }),
-        getSessionUserQoS: this.buildEndpoint({
+        recoverMeetingRecordings: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingUUID }) => `/meetings/${meetingUUID}/recordings/status` }),
+        listAllRecordings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/recordings` })
+    };
+    devices = {
+        listDevices: this.buildEndpoint({
             method: "GET",
-            urlPathBuilder: ({ sessionId, userId }) => `/videosdk/sessions/${sessionId}/users/${userId}/qos`
+            urlPathBuilder: () => `/devices`
+        }),
+        addNewDevice: this.buildEndpoint({
+            method: "POST",
+            urlPathBuilder: () => `/devices`
+        }),
+        getZDMGroupInfo: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/devices/groups` }),
+        assignDeviceToUserOrCommonarea: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/devices/zpa/assignment` }),
+        upgradeZpaOsApp: this.buildEndpoint({
+            method: "POST",
+            urlPathBuilder: () => `/devices/zpa/upgrade`
+        }),
+        deleteZPADeviceByVendorAndMacAddress: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ vendor, macAddress }) => `/devices/zpa/vendors/${vendor}/mac_addresses/${macAddress}`
+        }),
+        getZPAVersionInfo: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ zdmGroupId }) => `/devices/zpa/zdm_groups/${zdmGroupId}/versions` }),
+        getDeviceDetail: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}` }),
+        deleteDevice: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}`
+        }),
+        changeDevice: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}`
+        }),
+        changeDeviceAssociation: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}/assignment` })
+    };
+    h323Devices = {
+        listHSIPDevices: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/h323/devices` }),
+        createHSIPDevice: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/h323/devices` }),
+        deleteHSIPDevice: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ deviceId }) => `/h323/devices/${deviceId}`
+        }),
+        updateHSIPDevice: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ deviceId }) => `/h323/devices/${deviceId}` })
+    };
+    meetings = {
+        deleteLiveMeetingMessage: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId, messageId }) => `/live_meetings/${meetingId}/chat/messages/${messageId}`
+        }),
+        updateLiveMeetingMessage: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ meetingId, messageId }) => `/live_meetings/${meetingId}/chat/messages/${messageId}`
+        }),
+        useInMeetingControls: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/live_meetings/${meetingId}/events` }),
+        listMeetingSummariesOfAccount: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/meetings/meeting_summaries` }),
+        getMeeting: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}` }),
+        deleteMeeting: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}`
+        }),
+        updateMeeting: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}` }),
+        performBatchPollCreation: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/batch_polls` }),
+        performBatchRegistration: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/batch_registrants` }),
+        getMeetingInvitation: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/invitation` }),
+        createMeetingsInviteLinks: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/invite_links` }),
+        getMeetingsJoinTokenForLiveStreaming: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/jointoken/live_streaming` }),
+        getMeetingsArchiveTokenForLocalArchiving: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/jointoken/local_archiving` }),
+        getMeetingsJoinTokenForLocalRecording: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/jointoken/local_recording` }),
+        getLivestreamDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/livestream` }),
+        updateLivestream: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/livestream` }),
+        updateLivestreamStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/livestream/status` }),
+        getMeetingSummary: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/meeting_summary` }),
+        addMeetingApp: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/open_apps` }),
+        deleteMeetingApp: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/open_apps`
+        }),
+        listMeetingPolls: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/polls` }),
+        createMeetingPoll: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/polls` }),
+        getMeetingPoll: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId, pollId }) => `/meetings/${meetingId}/polls/${pollId}` }),
+        updateMeetingPoll: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId, pollId }) => `/meetings/${meetingId}/polls/${pollId}` }),
+        deleteMeetingPoll: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId, pollId }) => `/meetings/${meetingId}/polls/${pollId}`
+        }),
+        listMeetingRegistrants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants` }),
+        addMeetingRegistrant: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants` }),
+        listRegistrationQuestions: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants/questions` }),
+        updateRegistrationQuestions: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants/questions` }),
+        updateRegistrantsStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants/status` }),
+        getMeetingRegistrant: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: ({ meetingId, registrantId }) => `/meetings/${meetingId}/registrants/${registrantId}`
+        }),
+        deleteMeetingRegistrant: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId, registrantId }) => `/meetings/${meetingId}/registrants/${registrantId}`
+        }),
+        getMeetingSIPURIWithPasscode: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/sip_dialing` }),
+        updateMeetingStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/status` }),
+        getMeetingSurvey: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/survey` }),
+        deleteMeetingSurvey: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/survey`
+        }),
+        updateMeetingSurvey: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/survey` }),
+        getMeetingsToken: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/token` }),
+        getPastMeetingDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}` }),
+        listPastMeetingInstances: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/instances` }),
+        getPastMeetingParticipants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/participants` }),
+        listPastMeetingsPollResults: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/polls` }),
+        listPastMeetingsQA: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/qa` }),
+        listMeetingTemplates: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/meeting_templates` }),
+        createMeetingTemplateFromExistingMeeting: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/meeting_templates` }),
+        listMeetings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/meetings` }),
+        createMeeting: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/meetings` }),
+        listUpcomingMeetings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/upcoming_meetings` })
+    };
+    pAC = {
+        listUsersPACAccounts: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/pac` })
+    };
+    reports = {
+        getSignInSignOutActivityReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/activities` }),
+        getBillingReports: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: () => `/report/billing`
+        }),
+        getBillingInvoiceReports: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/billing/invoices` }),
+        getCloudRecordingUsageReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/cloud_recording` }),
+        getDailyUsageReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/daily` }),
+        getMeetingActivitiesReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/meeting_activities` }),
+        getMeetingDetailReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}` }),
+        getMeetingParticipantReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/participants` }),
+        getMeetingPollReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/polls` }),
+        getMeetingQAReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/qa` }),
+        getMeetingSurveyReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/survey` }),
+        getOperationLogsReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/operationlogs` }),
+        getTelephoneReports: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/telephone` }),
+        getUpcomingEventsReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/upcoming_events` }),
+        getActiveOrInactiveHostReports: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/users` }),
+        getMeetingReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/report/users/${userId}/meetings` }),
+        getWebinarDetailReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}` }),
+        getWebinarParticipantReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/participants` }),
+        getWebinarPollReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/polls` }),
+        getWebinarQAReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/qa` }),
+        getWebinarSurveyReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/survey` })
+    };
+    sIPPhone = {
+        listSIPPhones: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/sip_phones` }),
+        enableSIPPhone: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/sip_phones` }),
+        deleteSIPPhone: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ phoneId }) => `/sip_phones/${phoneId}`
+        }),
+        updateSIPPhone: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ phoneId }) => `/sip_phones/${phoneId}`
         })
     };
-    videoSDKReports = {
-        getCloudRecordingUsageReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/report/cloud_recording` }),
-        getDailyUsageReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/report/daily` }),
-        getOperationLogsReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/report/operationlogs` }),
-        getTelephoneReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/videosdk/report/telephone` })
+    tSP = {
+        getAccountsTSPInformation: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: () => `/tsp`
+        }),
+        updateAccountsTSPInformation: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: () => `/tsp`
+        }),
+        listUsersTSPAccounts: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/tsp` }),
+        addUsersTSPAccount: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/tsp` }),
+        setGlobalDialInURLForTSPUser: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ userId }) => `/users/${userId}/tsp/settings` }),
+        getUsersTSPAccount: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId, tspId }) => `/users/${userId}/tsp/${tspId}` }),
+        deleteUsersTSPAccount: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ userId, tspId }) => `/users/${userId}/tsp/${tspId}`
+        }),
+        updateTSPAccount: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ userId, tspId }) => `/users/${userId}/tsp/${tspId}`
+        })
+    };
+    trackingField = {
+        listTrackingFields: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: () => `/tracking_fields`
+        }),
+        createTrackingField: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/tracking_fields` }),
+        getTrackingField: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ fieldId }) => `/tracking_fields/${fieldId}` }),
+        deleteTrackingField: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ fieldId }) => `/tracking_fields/${fieldId}`
+        }),
+        updateTrackingField: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ fieldId }) => `/tracking_fields/${fieldId}` })
+    };
+    webinars = {
+        deleteLiveWebinarMessage: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId, messageId }) => `/live_webinars/${webinarId}/chat/messages/${messageId}`
+        }),
+        getWebinarAbsentees: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/absentees` }),
+        listPastWebinarInstances: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/instances` }),
+        listWebinarParticipants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/participants` }),
+        listPastWebinarPollResults: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/polls` }),
+        listQAsOfPastWebinar: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/qa` }),
+        listWebinarTemplates: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/webinar_templates` }),
+        createWebinarTemplate: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/webinar_templates` }),
+        listWebinars: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/webinars` }),
+        createWebinar: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/webinars` }),
+        getWebinar: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}` }),
+        deleteWebinar: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}`
+        }),
+        updateWebinar: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}` }),
+        performBatchRegistration: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/batch_registrants` }),
+        getWebinarsSessionBranding: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding` }),
+        createWebinarsBrandingNameTag: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/name_tags` }),
+        deleteWebinarsBrandingNameTag: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/name_tags` }),
+        updateWebinarsBrandingNameTag: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ webinarId, nameTagId }) => `/webinars/${webinarId}/branding/name_tags/${nameTagId}`
+        }),
+        uploadWebinarsBrandingVirtualBackground: this.buildEndpoint({
+            method: "POST",
+            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/virtual_backgrounds`,
+            requestMimeType: "multipart/form-data"
+        }),
+        deleteWebinarsBrandingVirtualBackgrounds: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/virtual_backgrounds` }),
+        setWebinarsDefaultBrandingVirtualBackground: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/virtual_backgrounds` }),
+        uploadWebinarsBrandingWallpaper: this.buildEndpoint({
+            method: "POST",
+            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/wallpaper`,
+            requestMimeType: "multipart/form-data"
+        }),
+        deleteWebinarsBrandingWallpaper: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/wallpaper` }),
+        createWebinarsInviteLinks: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/invite_links` }),
+        getWebinarsJoinTokenForLiveStreaming: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/jointoken/live_streaming` }),
+        getWebinarsArchiveTokenForLocalArchiving: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/jointoken/local_archiving` }),
+        getWebinarsJoinTokenForLocalRecording: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/jointoken/local_recording` }),
+        getLiveStreamDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/livestream` }),
+        updateLiveStream: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/livestream` }),
+        updateLiveStreamStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/livestream/status` }),
+        listPanelists: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/panelists` }),
+        addPanelists: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/panelists` }),
+        removeAllPanelists: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/panelists`
+        }),
+        removePanelist: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId, panelistId }) => `/webinars/${webinarId}/panelists/${panelistId}`
+        }),
+        listWebinarsPolls: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/polls` }),
+        createWebinarsPoll: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/polls` }),
+        getWebinarPoll: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId, pollId }) => `/webinars/${webinarId}/polls/${pollId}` }),
+        updateWebinarPoll: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ webinarId, pollId }) => `/webinars/${webinarId}/polls/${pollId}` }),
+        deleteWebinarPoll: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId, pollId }) => `/webinars/${webinarId}/polls/${pollId}`
+        }),
+        listWebinarRegistrants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants` }),
+        addWebinarRegistrant: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants` }),
+        listRegistrationQuestions: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants/questions` }),
+        updateRegistrationQuestions: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants/questions` }),
+        updateRegistrantsStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants/status` }),
+        getWebinarRegistrant: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: ({ webinarId, registrantId }) => `/webinars/${webinarId}/registrants/${registrantId}`
+        }),
+        deleteWebinarRegistrant: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId, registrantId }) => `/webinars/${webinarId}/registrants/${registrantId}`
+        }),
+        getWebinarSIPURIWithPasscode: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/sip_dialing` }),
+        updateWebinarStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/status` }),
+        getWebinarSurvey: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/survey` }),
+        deleteWebinarSurvey: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/survey`
+        }),
+        updateWebinarSurvey: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/survey` }),
+        getWebinarsToken: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/token` }),
+        getWebinarTrackingSources: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/tracking_sources` })
     };
 }
 
-class VideoSdkEventProcessor extends EventManager {
+class MeetingsEventProcessor extends EventManager {
 }
 
-class VideoSdkClient extends ProductClient {
-    initAuth({ clientId, clientSecret, tokenStore }) {
-        return new JwtAuth({ clientId, clientSecret, tokenStore });
+class OAuth extends InteractiveAuth {
+    assertResponseAccessToken(data) {
+        if (typeof data.access_token !== "string" ||
+            typeof data.refresh_token !== "string" ||
+            typeof data.expires_in !== "number" ||
+            typeof data.scope !== "string") {
+            throw new OAuthTokenRawResponseError(`Failed to match raw response (${JSON.stringify(data)}) to expected shape.`);
+        }
+    }
+    async fetchAccessToken(code) {
+        try {
+            const response = await this.makeOAuthTokenRequest("authorization_code", {
+                code,
+                redirect_uri: this.getFullRedirectUri()
+            });
+            this.assertResponseAccessToken(response.data);
+            return this.mapOAuthToken(response.data);
+        }
+        catch (err) {
+            throw new OAuthTokenFetchFailedError("Failed to fetch OAuth token.", { cause: err });
+        }
+    }
+    async getToken() {
+        const { tokenStore } = this;
+        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
+        // If we have no OAuth token, app most likely has not been previously authorized.
+        if (!currentToken) {
+            throw new OAuthTokenDoesNotExistError("Failed to find OAuth token. Authorize this app first.");
+        }
+        // If the OAuth token hasn't already expired (and isn't within the delta), return it.
+        if (!this.isAlmostExpired(currentToken.expirationTimeIso)) {
+            return currentToken.accessToken;
+        }
+        // Since the token has expired, refresh, store, and return it.
+        const refreshedToken = await this.refreshAccessToken(currentToken.refreshToken);
+        await Promise.resolve(tokenStore.storeToken(refreshedToken));
+        return refreshedToken.accessToken;
+    }
+    async initRedirectCode(code) {
+        const { tokenStore } = this;
+        const accessToken = await this.fetchAccessToken(code);
+        await Promise.resolve(tokenStore.storeToken(accessToken));
+    }
+    mapOAuthToken({ access_token, expires_in, refresh_token, scope }) {
+        return {
+            accessToken: access_token,
+            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
+            refreshToken: refresh_token,
+            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
+        };
+    }
+    async refreshAccessToken(refreshToken) {
+        try {
+            const response = await this.makeOAuthTokenRequest("refresh_token", {
+                refresh_token: refreshToken
+            });
+            this.assertResponseAccessToken(response.data);
+            return this.mapOAuthToken(response.data);
+        }
+        catch (err) {
+            throw new OAuthTokenRefreshFailedError("Failed to refresh OAuth token.", { cause: err });
+        }
+    }
+}
+
+// Utility functions for determining if client options include custom receiver, or, if not,
+// a webhooks secret token, as one of those is required!
+const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
+const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
+const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
+const DEFAULT_HTTP_RECEIVER_PORT = 8080;
+const DEFAULT_LOGLEVEL = exports.LogLevel.ERROR;
+class ProductClient {
+    auth;
+    endpoints;
+    webEventConsumer;
+    receiver;
+    constructor(options) {
+        this.auth = this.initAuth(options);
+        this.endpoints = this.initEndpoints(this.auth, options);
+        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
+        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
+        if (!isReceiverDisabled(options)) {
+            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
+            if (!hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
+                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
+            }
+            this.receiver = (hasExplicitReceiver(options) ?
+                options.receiver
+                : this.initDefaultReceiver(options));
+            this.receiver.init({
+                eventEmitter: this.webEventConsumer,
+                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
+            });
+        }
+    }
+    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
+        return new HttpReceiver({
+            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
+            webhooksSecretToken,
+            logLevel: logLevel ?? DEFAULT_LOGLEVEL
+        });
+    }
+    async start() {
+        if (!this.receiver) {
+            throw new ReceiverInconsistentStateError("Receiver not constructed. Was disableReceiver set to true?");
+        }
+        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
+        // may or may not return a promise. This is not required when implementing `Receiver`.
+        return (await Promise.resolve(this.receiver.start()));
+    }
+}
+
+class MeetingsOAuthClient extends ProductClient {
+    initAuth({ clientId, clientSecret, tokenStore, ...restOptions }) {
+        const oAuth = new OAuth({ clientId, clientSecret, tokenStore });
+        if (hasInstallerOptions(restOptions)) {
+            oAuth.setInstallerOptions(restOptions.installerOptions);
+        }
+        return oAuth;
     }
     initEndpoints(auth, options) {
-        return new VideoSdkEndpoints({ auth, doubleEncodeUrl: true, ...options });
+        return new MeetingsEndpoints({ auth, ...options });
     }
     initEventProcessor(endpoints) {
-        return new VideoSdkEventProcessor(endpoints);
+        return new MeetingsEventProcessor(endpoints);
+    }
+}
+
+class S2SAuth extends Auth {
+    accountId;
+    constructor({ accountId, ...restOptions }) {
+        super(restOptions);
+        this.accountId = accountId;
+    }
+    assertRawToken(obj) {
+        if (typeof obj.access_token !== "string" ||
+            typeof obj.expires_in !== "number" ||
+            typeof obj.scope !== "string") {
+            throw new S2SRawResponseError(`Failed to match raw response ${JSON.stringify(obj)} to expected shape.`);
+        }
+    }
+    async fetchAccessToken() {
+        const response = await this.makeOAuthTokenRequest("account_credentials", {
+            account_id: this.accountId
+        });
+        this.assertRawToken(response.data);
+        return this.mapAccessToken(response.data);
+    }
+    async getToken() {
+        const { tokenStore } = this;
+        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
+        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
+            return currentToken.accessToken;
+        }
+        const token = await this.fetchAccessToken();
+        await Promise.resolve(tokenStore.storeToken(token));
+        return token.accessToken;
+    }
+    mapAccessToken({ access_token, expires_in, scope }) {
+        return {
+            accessToken: access_token,
+            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
+            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
+        };
+    }
+}
+
+class MeetingsS2SAuthClient extends ProductClient {
+    initAuth({ clientId, clientSecret, tokenStore, accountId }) {
+        return new S2SAuth({ clientId, clientSecret, tokenStore, accountId });
+    }
+    initEndpoints(auth, options) {
+        return new MeetingsEndpoints({ auth, ...options });
+    }
+    initEventProcessor(endpoints) {
+        return new MeetingsEventProcessor(endpoints);
     }
 }
 
@@ -1065,6 +1410,10 @@ exports.HTTPReceiverConstructionError = HTTPReceiverConstructionError;
 exports.HTTPReceiverPortNotNumberError = HTTPReceiverPortNotNumberError;
 exports.HTTPReceiverRequestError = HTTPReceiverRequestError;
 exports.HttpReceiver = HttpReceiver;
+exports.MeetingsEndpoints = MeetingsEndpoints;
+exports.MeetingsEventProcessor = MeetingsEventProcessor;
+exports.MeetingsOAuthClient = MeetingsOAuthClient;
+exports.MeetingsS2SAuthClient = MeetingsS2SAuthClient;
 exports.OAuthInstallerNotInitializedError = OAuthInstallerNotInitializedError;
 exports.OAuthStateVerificationFailedError = OAuthStateVerificationFailedError;
 exports.OAuthTokenDoesNotExistError = OAuthTokenDoesNotExistError;
@@ -1075,8 +1424,5 @@ exports.ProductClientConstructionError = ProductClientConstructionError;
 exports.ReceiverInconsistentStateError = ReceiverInconsistentStateError;
 exports.ReceiverOAuthFlowError = ReceiverOAuthFlowError;
 exports.S2SRawResponseError = S2SRawResponseError;
-exports.VideoSdkClient = VideoSdkClient;
-exports.VideoSdkEndpoints = VideoSdkEndpoints;
-exports.VideoSdkEventProcessor = VideoSdkEventProcessor;
 exports.isCoreError = isCoreError;
 exports.isStateStore = isStateStore;

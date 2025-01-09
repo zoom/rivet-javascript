@@ -57,12 +57,11 @@ To use Zoom Rivet effectively, you should understand three important concepts: a
 
 Zoom Rivet handles authentication for developers. All you have to do is provide your app's `ClientId` and `ClientSecret`. See the matrix in the table below to better how authentication works in each Rivet module:
 
-| Module    | Auth Type                                                                                                            |
-| --------- | -------------------------------------------------------------------------------------------------------------------- |
-| Team Chat | [OAuth](https://developers.zoom.us/docs/team-chat-apps/installation-and-authentication/#authentication)              |
-| Chatbot   | [Client Credentials](https://developers.zoom.us/docs/team-chat-apps/installation-and-authentication/#authentication) |
-| Users     | [OAuth](https://developers.zoom.us/docs/team-chat-apps/installation-and-authentication/#authentication)              |
-| Video SDK | [JWT](https://developers.zoom.us/docs/video-sdk/auth/)                                                               |
+| Module                                      | Auth Type                                                                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Chatbot                                     | [Client Credentials](https://developers.zoom.us/docs/team-chat-apps/installation-and-authentication/#authentication)        |
+| Video SDK                                   | [JWT](https://developers.zoom.us/docs/video-sdk/api-request/)                                                               |
+| Team Chat, Meetings, Phone, Accounts, Users | [User OAuth](https://developers.zoom.us/docs/integrations/), [Server OAuth](https://developers.zoom.us/docs/internal-apps/) |
 
 ### Listening to Events
 
