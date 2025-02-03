@@ -745,9 +745,26 @@ class HttpReceiver {
 
 const type = "module";
 const name = "@zoom/rivet";
-const author = "Zoom Developers <developers@zoom.us> (https://developers.zoom.us)";
+const author = "Zoom Communications, Inc.";
+const contributors = [
+  {
+    name: "James Coon",
+    email: "james.coon@zoom.us",
+    url: "https://www.npmjs.com/~jcoon97"
+  },
+  {
+    name: "Will Ezrine",
+    email: "will.ezrine@zoom.us",
+    url: "https://www.npmjs.com/~wezrine"
+  },
+  {
+    name: "Tommy Gaessler",
+    email: "tommy.gaessler@zoom.us",
+    url: "https://www.npmjs.com/~tommygaessler"
+  }
+];
 const packageManager = "pnpm@9.9.0";
-const version = "0.2.1";
+const version = "0.2.2";
 const scripts = {
   test: "vitest",
   "test:coverage": "vitest --coverage",
@@ -793,6 +810,7 @@ var packageJson = {
   type: type,
   name: name,
   author: author,
+  contributors: contributors,
   packageManager: packageManager,
   version: version,
   scripts: scripts,
