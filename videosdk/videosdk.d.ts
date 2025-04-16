@@ -1,87 +1,7 @@
-import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { AxiosResponse } from 'axios';
+import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { Server } from 'node:http';
 import { ServerOptions } from 'node:https';
-
-type AllPropsOptional<T, True, False> = Exclude<{
-    [P in keyof T]: undefined extends T[P] ? True : False;
-}[keyof T], undefined> extends True ? True : False;
-type Constructor<T> = new (...args: any[]) => T;
-type MaybeArray<T> = T | T[];
-type MaybePromise<T> = T | Promise<T>;
-type StringIndexed<V = any> = Record<string, V>;
-
-/**
- * {@link StateStore} defines methods for generating and verifying OAuth state.
- *
- * This interface is implemented internally for the default state store; however,
- * it can also be implemented and passed to an OAuth client as well.
- */
-interface StateStore {
-    /**
-     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
-     */
-    generateState(): MaybePromise<string>;
-    /**
-     * Verify that the state received during OAuth callback is valid and not forged.
-     *
-     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
-     *
-     * @param state The state parameter that was received during OAuth callback
-     */
-    verifyState(state: string): MaybePromise<void>;
-}
-/**
- * Guard if an object implements the {@link StateStore} interface — most notably,
- * `generateState()` and `verifyState(state: string)`.
- */
-declare const isStateStore: (obj: unknown) => obj is StateStore;
-
-interface TokenStore<Token> {
-    getLatestToken(): MaybePromise<Token | null | undefined>;
-    storeToken(token: Token): MaybePromise<void>;
-}
-
-interface RivetError<ErrorCode extends string = string> extends Error {
-    readonly errorCode: ErrorCode;
-}
-
-declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
-    readonly ApiResponseError: "zoom_rivet_api_response_error";
-    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
-    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
-    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
-    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
-    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
-    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
-    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
-    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
-    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
-    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
-    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
-    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
-    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
-    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
-    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
-    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
-}[K]>;
-declare const ApiResponseError: Constructor<Error>;
-declare const AwsReceiverRequestError: Constructor<Error>;
-declare const ClientCredentialsRawResponseError: Constructor<Error>;
-declare const S2SRawResponseError: Constructor<Error>;
-declare const CommonHttpRequestError: Constructor<Error>;
-declare const ReceiverInconsistentStateError: Constructor<Error>;
-declare const ReceiverOAuthFlowError: Constructor<Error>;
-declare const HTTPReceiverConstructionError: Constructor<Error>;
-declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
-declare const HTTPReceiverRequestError: Constructor<Error>;
-declare const OAuthInstallerNotInitializedError: Constructor<Error>;
-declare const OAuthTokenDoesNotExistError: Constructor<Error>;
-declare const OAuthTokenFetchFailedError: Constructor<Error>;
-declare const OAuthTokenRawResponseError: Constructor<Error>;
-declare const OAuthTokenRefreshFailedError: Constructor<Error>;
-declare const OAuthStateVerificationFailedError: Constructor<Error>;
-declare const ProductClientConstructionError: Constructor<Error>;
 
 declare enum LogLevel {
     ERROR = "error",
@@ -142,6 +62,19 @@ declare class ConsoleLogger implements Logger {
     private static isMoreOrEqualSevere;
 }
 
+type AllPropsOptional<T, True, False> = Exclude<{
+    [P in keyof T]: undefined extends T[P] ? True : False;
+}[keyof T], undefined> extends True ? True : False;
+type Constructor<T> = new (...args: any[]) => T;
+type MaybeArray<T> = T | T[];
+type MaybePromise<T> = T | Promise<T>;
+type StringIndexed<V = any> = Record<string, V>;
+
+interface TokenStore<Token> {
+    getLatestToken(): MaybePromise<Token | null | undefined>;
+    storeToken(token: Token): MaybePromise<void>;
+}
+
 interface AuthOptions<Token> {
     clientId: string;
     clientSecret: string;
@@ -187,6 +120,21 @@ declare abstract class Auth<Token = unknown> {
     }>, "grant_type">): Promise<AxiosResponse>;
 }
 
+interface ClientCredentialsToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    scopes: string[];
+}
+
+interface JwtToken {
+    token: string;
+    expirationTimeIso: string;
+}
+declare class JwtAuth extends Auth<JwtToken> {
+    private generateToken;
+    getToken(): Promise<string>;
+}
+
 interface S2SAuthToken {
     accessToken: string;
     expirationTimeIso: string;
@@ -225,12 +173,31 @@ declare class EventManager<Endpoints, Events> {
     protected withContext<EventName extends EventKeys<Events>, Context>(): ContextListener<Events, EventName, Context>;
 }
 
+declare enum StatusCode {
+    OK = 200,
+    TEMPORARY_REDIRECT = 302,
+    BAD_REQUEST = 400,
+    NOT_FOUND = 404,
+    METHOD_NOT_ALLOWED = 405,
+    INTERNAL_SERVER_ERROR = 500
+}
+interface ReceiverInitOptions {
+    eventEmitter?: GenericEventManager | undefined;
+    interactiveAuth?: InteractiveAuth | undefined;
+}
+interface Receiver {
+    canInstall(): true | false;
+    init(options: ReceiverInitOptions): void;
+    start(...args: any[]): MaybePromise<unknown>;
+    stop(...args: any[]): MaybePromise<unknown>;
+}
+
 interface HttpReceiverOptions extends Partial<SecureServerOptions> {
     endpoints?: MaybeArray<string> | undefined;
+    logger?: Logger | undefined;
+    logLevel?: LogLevel | undefined;
     port?: number | string | undefined;
-    webhooksSecretToken: string;
-    logger?: Logger;
-    logLevel?: LogLevel;
+    webhooksSecretToken?: string | undefined;
 }
 type SecureServerOptions = {
     [K in (typeof secureServerOptionKeys)[number]]: ServerOptions[K];
@@ -243,10 +210,15 @@ declare class HttpReceiver implements Receiver {
     private logger;
     constructor(options: HttpReceiverOptions);
     canInstall(): true;
+    private buildDeletedStateCookieHeader;
+    private buildStateCookieHeader;
+    private getRequestCookie;
     private getServerCreator;
     private hasEndpoint;
     private hasSecureOptions;
     init({ eventEmitter, interactiveAuth }: ReceiverInitOptions): void;
+    private setResponseCookie;
+    private areNormalizedUrlsEqual;
     start(port?: number | string): Promise<Server>;
     stop(): Promise<void>;
     private writeTemporaryRedirect;
@@ -305,38 +277,68 @@ type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A>
 interface ClientReceiverOptions<R extends Receiver> {
     receiver: R;
 }
-type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = IsReceiverDisabled<O> extends true ? O : O & (ClientReceiverOptions<R> | HttpReceiverOptions);
+type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = (O & {
+    disableReceiver: true;
+}) | (O & (ClientReceiverOptions<R> | HttpReceiverOptions));
 type ExtractInstallerOptions<A extends Auth, R extends Receiver> = A extends InteractiveAuth ? [
     ReturnType<R["canInstall"]>
 ] extends [true] ? WideInstallerOptions : object : object;
 type ExtractAuthTokenType<A> = A extends Auth<infer T> ? T : never;
-type GenericClientOptions = CommonClientOptions<any, any>;
 type GetAuthOptions<A extends Auth> = AuthOptions<ExtractAuthTokenType<A>> & (A extends S2SAuth ? S2SAuthOptions : object);
-type IsReceiverDisabled<O extends Pick<GenericClientOptions, "disableReceiver">> = [
-    O["disableReceiver"]
-] extends [true] ? true : false;
 type WideInstallerOptions = {
     installerOptions: InstallerOptions;
 };
 declare abstract class ProductClient<AuthType extends Auth, EndpointsType extends WebEndpoints, EventProcessorType extends GenericEventManager, OptionsType extends CommonClientOptions<AuthType, ReceiverType>, ReceiverType extends Receiver> {
     private readonly auth;
     readonly endpoints: EndpointsType;
-    readonly webEventConsumer: EventProcessorType;
+    readonly webEventConsumer?: EventProcessorType | undefined;
     private readonly receiver?;
     constructor(options: ClientConstructorOptions<AuthType, OptionsType, ReceiverType>);
     protected abstract initAuth(options: OptionsType): AuthType;
     protected abstract initEndpoints(auth: AuthType, options: OptionsType): EndpointsType;
-    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType;
+    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType | undefined;
     private initDefaultReceiver;
-    start(this: IsReceiverDisabled<OptionsType> extends true ? never : this): Promise<ReturnType<ReceiverType["start"]>>;
+    start(): Promise<ReturnType<ReceiverType["start"]>>;
 }
 
+/**
+ * {@link StateStore} defines methods for generating and verifying OAuth state.
+ *
+ * This interface is implemented internally for the default state store; however,
+ * it can also be implemented and passed to an OAuth client as well.
+ */
+interface StateStore {
+    /**
+     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
+     */
+    generateState(): MaybePromise<string>;
+    /**
+     * Verify that the state received during OAuth callback is valid and not forged.
+     *
+     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
+     *
+     * @param state The state parameter that was received during OAuth callback
+     */
+    verifyState(state: string): MaybePromise<void>;
+}
+/**
+ * Guard if an object implements the {@link StateStore} interface — most notably,
+ * `generateState()` and `verifyState(state: string)`.
+ */
+declare const isStateStore: (obj: unknown) => obj is StateStore;
+
+interface AuthorizationUrlResult {
+    fullUrl: string;
+    generatedState: string;
+}
 interface InstallerOptions {
     directInstall?: boolean | undefined;
     installPath?: string | undefined;
     redirectUri: string;
     redirectUriPath?: string | undefined;
     stateStore: StateStore | string;
+    stateCookieName?: string | undefined;
+    stateCookieMaxAge?: number | undefined;
 }
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
@@ -350,35 +352,78 @@ interface InstallerOptions {
  */
 declare abstract class InteractiveAuth<Token = unknown> extends Auth<Token> {
     installerOptions?: ReturnType<typeof this.setInstallerOptions>;
-    getAuthorizationUrl(): Promise<string>;
+    getAuthorizationUrl(): Promise<AuthorizationUrlResult>;
     getFullRedirectUri(): string;
-    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore }: InstallerOptions): {
+    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore, stateCookieName, stateCookieMaxAge }: InstallerOptions): {
         directInstall: boolean;
         installPath: string;
         redirectUri: string;
         redirectUriPath: string;
         stateStore: StateStore;
+        stateCookieName: string;
+        stateCookieMaxAge: number;
     };
 }
 
-declare enum StatusCode {
-    OK = 200,
-    TEMPORARY_REDIRECT = 302,
-    BAD_REQUEST = 400,
-    NOT_FOUND = 404,
-    METHOD_NOT_ALLOWED = 405,
-    INTERNAL_SERVER_ERROR = 500
+/**
+ * Credentials for access token & refresh token, which are used to access Zoom's APIs.
+ *
+ * As access token is short-lived (usually a single hour), its expiration time is checked
+ * first. If it's possible to use the access token, it's used; however, if it has expired
+ * or is close to expiring, the refresh token should be used to generate a new access token
+ * before the API call is made. Refresh tokens are generally valid for 90 days.
+ *
+ * If neither the access token nor the refresh token is available, {@link OAuthTokenRefreshFailedError}
+ * shall be thrown, informing the developer that neither value can be used, and the user must re-authorize.
+ * It's likely that this error will be rare, but it _can_ be thrown.
+ */
+interface OAuthToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    refreshToken: string;
+    scopes: string[];
 }
-interface ReceiverInitOptions {
-    eventEmitter: GenericEventManager;
-    interactiveAuth?: InteractiveAuth | undefined;
+
+interface RivetError<ErrorCode extends string = string> extends Error {
+    readonly errorCode: ErrorCode;
 }
-interface Receiver {
-    canInstall(): true | false;
-    init(options: ReceiverInitOptions): void;
-    start(...args: any[]): MaybePromise<unknown>;
-    stop(...args: any[]): MaybePromise<unknown>;
-}
+
+declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
+    readonly ApiResponseError: "zoom_rivet_api_response_error";
+    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
+    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
+    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
+    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
+    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
+    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
+    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
+    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
+    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
+    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
+    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
+    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
+    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
+    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
+    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
+    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
+}[K]>;
+declare const ApiResponseError: Constructor<Error>;
+declare const AwsReceiverRequestError: Constructor<Error>;
+declare const ClientCredentialsRawResponseError: Constructor<Error>;
+declare const S2SRawResponseError: Constructor<Error>;
+declare const CommonHttpRequestError: Constructor<Error>;
+declare const ReceiverInconsistentStateError: Constructor<Error>;
+declare const ReceiverOAuthFlowError: Constructor<Error>;
+declare const HTTPReceiverConstructionError: Constructor<Error>;
+declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
+declare const HTTPReceiverRequestError: Constructor<Error>;
+declare const OAuthInstallerNotInitializedError: Constructor<Error>;
+declare const OAuthTokenDoesNotExistError: Constructor<Error>;
+declare const OAuthTokenFetchFailedError: Constructor<Error>;
+declare const OAuthTokenRawResponseError: Constructor<Error>;
+declare const OAuthTokenRefreshFailedError: Constructor<Error>;
+declare const OAuthStateVerificationFailedError: Constructor<Error>;
+declare const ProductClientConstructionError: Constructor<Error>;
 
 interface AwsLambdaReceiverOptions {
     webhooksSecretToken: string;
@@ -392,15 +437,6 @@ declare class AwsLambdaReceiver implements Receiver {
     init({ eventEmitter }: ReceiverInitOptions): void;
     start(): LambdaFunctionURLHandler;
     stop(): Promise<void>;
-}
-
-interface JwtToken {
-    token: string;
-    expirationTimeIso: string;
-}
-declare class JwtAuth extends Auth<JwtToken> {
-    private generateToken;
-    getToken(): Promise<string>;
 }
 
 type ByosStorageUpdateBringYourOwnStorageSettingsRequestBody = {
@@ -1885,4 +1921,4 @@ declare class VideoSdkClient<ReceiverType extends Receiver = HttpReceiver, Optio
     protected initEventProcessor(endpoints: VideoSdkEndpoints): VideoSdkEventProcessor;
 }
 
-export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, type ByosStorageAddStorageLocationRequestBody, type ByosStorageAddStorageLocationResponse, type ByosStorageChangeStorageLocationDetailPathParams, type ByosStorageChangeStorageLocationDetailRequestBody, type ByosStorageDeleteStorageLocationDetailPathParams, type ByosStorageListStorageLocationResponse, type ByosStorageStorageLocationDetailPathParams, type ByosStorageStorageLocationDetailResponse, type ByosStorageUpdateBringYourOwnStorageSettingsRequestBody, ClientCredentialsRawResponseError, type CloudRecordingDeleteSessionsRecordingFilePathParams, type CloudRecordingDeleteSessionsRecordingFileQueryParams, type CloudRecordingDeleteSessionsRecordingsPathParams, type CloudRecordingDeleteSessionsRecordingsQueryParams, type CloudRecordingListRecordingsOfAccountQueryParams, type CloudRecordingListRecordingsOfAccountResponse, type CloudRecordingListSessionsRecordingsPathParams, type CloudRecordingListSessionsRecordingsQueryParams, type CloudRecordingListSessionsRecordingsResponse, type CloudRecordingRecoverSessionsRecordingsPathParams, type CloudRecordingRecoverSessionsRecordingsRequestBody, type CloudRecordingRecoverSingleRecordingPathParams, type CloudRecordingRecoverSingleRecordingRequestBody, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, LogLevel, type Logger, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, S2SRawResponseError, type SessionAlertEvent, type SessionEndedEvent, type SessionLiveStreamingStartedEvent, type SessionLiveStreamingStoppedEvent, type SessionRecordingCompletedEvent, type SessionRecordingDeletedEvent, type SessionRecordingPausedEvent, type SessionRecordingRecoveredEvent, type SessionRecordingResumedEvent, type SessionRecordingStartedEvent, type SessionRecordingStoppedEvent, type SessionRecordingTranscriptCompletedEvent, type SessionRecordingTranscriptFailedEvent, type SessionRecordingTrashedEvent, type SessionSharingEndedEvent, type SessionSharingStartedEvent, type SessionStartedEvent, type SessionUserJoinedEvent, type SessionUserLeftEvent, type SessionUserPhoneCalloutAcceptedEvent, type SessionUserPhoneCalloutMissedEvent, type SessionUserPhoneCalloutRejectedEvent, type SessionUserPhoneCalloutRingingEvent, type SessionUserRoomSystemCalloutAcceptedEvent, type SessionUserRoomSystemCalloutFailedEvent, type SessionUserRoomSystemCalloutMissedEvent, type SessionUserRoomSystemCalloutRejectedEvent, type SessionUserRoomSystemCalloutRingingEvent, type SessionsCreateSessionRequestBody, type SessionsCreateSessionResponse, type SessionsDeleteSessionPathParams, type SessionsGetSessionDetailsPathParams, type SessionsGetSessionDetailsQueryParams, type SessionsGetSessionDetailsResponse, type SessionsGetSessionLiveStreamDetailsPathParams, type SessionsGetSessionLiveStreamDetailsResponse, type SessionsGetSessionUserQoSPathParams, type SessionsGetSessionUserQoSQueryParams, type SessionsGetSessionUserQoSResponse, type SessionsGetSharingRecordingDetailsPathParams, type SessionsGetSharingRecordingDetailsQueryParams, type SessionsGetSharingRecordingDetailsResponse, type SessionsListSessionUsersPathParams, type SessionsListSessionUsersQoSPathParams, type SessionsListSessionUsersQoSQueryParams, type SessionsListSessionUsersQoSResponse, type SessionsListSessionUsersQueryParams, type SessionsListSessionUsersResponse, type SessionsListSessionsQueryParams, type SessionsListSessionsResponse, type SessionsUpdateSessionLiveStreamPathParams, type SessionsUpdateSessionLiveStreamRequestBody, type SessionsUpdateSessionLivestreamStatusPathParams, type SessionsUpdateSessionLivestreamStatusRequestBody, type SessionsUpdateSessionStatusPathParams, type SessionsUpdateSessionStatusRequestBody, type SessionsUseInSessionEventsControlsPathParams, type SessionsUseInSessionEventsControlsRequestBody, type StateStore, StatusCode, type TokenStore, type VideoSDKReportsGetCloudRecordingUsageReportQueryParams, type VideoSDKReportsGetCloudRecordingUsageReportResponse, type VideoSDKReportsGetDailyUsageReportQueryParams, type VideoSDKReportsGetDailyUsageReportResponse, type VideoSDKReportsGetOperationLogsReportQueryParams, type VideoSDKReportsGetOperationLogsReportResponse, type VideoSDKReportsGetTelephoneReportQueryParams, type VideoSDKReportsGetTelephoneReportResponse, VideoSdkClient, VideoSdkEndpoints, VideoSdkEventProcessor, type VideoSdkOptions, isCoreError, isStateStore };
+export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, type ByosStorageAddStorageLocationRequestBody, type ByosStorageAddStorageLocationResponse, type ByosStorageChangeStorageLocationDetailPathParams, type ByosStorageChangeStorageLocationDetailRequestBody, type ByosStorageDeleteStorageLocationDetailPathParams, type ByosStorageListStorageLocationResponse, type ByosStorageStorageLocationDetailPathParams, type ByosStorageStorageLocationDetailResponse, type ByosStorageUpdateBringYourOwnStorageSettingsRequestBody, ClientCredentialsRawResponseError, type ClientCredentialsToken, type CloudRecordingDeleteSessionsRecordingFilePathParams, type CloudRecordingDeleteSessionsRecordingFileQueryParams, type CloudRecordingDeleteSessionsRecordingsPathParams, type CloudRecordingDeleteSessionsRecordingsQueryParams, type CloudRecordingListRecordingsOfAccountQueryParams, type CloudRecordingListRecordingsOfAccountResponse, type CloudRecordingListSessionsRecordingsPathParams, type CloudRecordingListSessionsRecordingsQueryParams, type CloudRecordingListSessionsRecordingsResponse, type CloudRecordingRecoverSessionsRecordingsPathParams, type CloudRecordingRecoverSessionsRecordingsRequestBody, type CloudRecordingRecoverSingleRecordingPathParams, type CloudRecordingRecoverSingleRecordingRequestBody, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, type JwtToken, LogLevel, type Logger, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, type OAuthToken, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, type S2SAuthToken, S2SRawResponseError, type SessionAlertEvent, type SessionEndedEvent, type SessionLiveStreamingStartedEvent, type SessionLiveStreamingStoppedEvent, type SessionRecordingCompletedEvent, type SessionRecordingDeletedEvent, type SessionRecordingPausedEvent, type SessionRecordingRecoveredEvent, type SessionRecordingResumedEvent, type SessionRecordingStartedEvent, type SessionRecordingStoppedEvent, type SessionRecordingTranscriptCompletedEvent, type SessionRecordingTranscriptFailedEvent, type SessionRecordingTrashedEvent, type SessionSharingEndedEvent, type SessionSharingStartedEvent, type SessionStartedEvent, type SessionUserJoinedEvent, type SessionUserLeftEvent, type SessionUserPhoneCalloutAcceptedEvent, type SessionUserPhoneCalloutMissedEvent, type SessionUserPhoneCalloutRejectedEvent, type SessionUserPhoneCalloutRingingEvent, type SessionUserRoomSystemCalloutAcceptedEvent, type SessionUserRoomSystemCalloutFailedEvent, type SessionUserRoomSystemCalloutMissedEvent, type SessionUserRoomSystemCalloutRejectedEvent, type SessionUserRoomSystemCalloutRingingEvent, type SessionsCreateSessionRequestBody, type SessionsCreateSessionResponse, type SessionsDeleteSessionPathParams, type SessionsGetSessionDetailsPathParams, type SessionsGetSessionDetailsQueryParams, type SessionsGetSessionDetailsResponse, type SessionsGetSessionLiveStreamDetailsPathParams, type SessionsGetSessionLiveStreamDetailsResponse, type SessionsGetSessionUserQoSPathParams, type SessionsGetSessionUserQoSQueryParams, type SessionsGetSessionUserQoSResponse, type SessionsGetSharingRecordingDetailsPathParams, type SessionsGetSharingRecordingDetailsQueryParams, type SessionsGetSharingRecordingDetailsResponse, type SessionsListSessionUsersPathParams, type SessionsListSessionUsersQoSPathParams, type SessionsListSessionUsersQoSQueryParams, type SessionsListSessionUsersQoSResponse, type SessionsListSessionUsersQueryParams, type SessionsListSessionUsersResponse, type SessionsListSessionsQueryParams, type SessionsListSessionsResponse, type SessionsUpdateSessionLiveStreamPathParams, type SessionsUpdateSessionLiveStreamRequestBody, type SessionsUpdateSessionLivestreamStatusPathParams, type SessionsUpdateSessionLivestreamStatusRequestBody, type SessionsUpdateSessionStatusPathParams, type SessionsUpdateSessionStatusRequestBody, type SessionsUseInSessionEventsControlsPathParams, type SessionsUseInSessionEventsControlsRequestBody, type StateStore, StatusCode, type TokenStore, type VideoSDKReportsGetCloudRecordingUsageReportQueryParams, type VideoSDKReportsGetCloudRecordingUsageReportResponse, type VideoSDKReportsGetDailyUsageReportQueryParams, type VideoSDKReportsGetDailyUsageReportResponse, type VideoSDKReportsGetOperationLogsReportQueryParams, type VideoSDKReportsGetOperationLogsReportResponse, type VideoSDKReportsGetTelephoneReportQueryParams, type VideoSDKReportsGetTelephoneReportResponse, VideoSdkClient, VideoSdkEndpoints, VideoSdkEventProcessor, type VideoSdkOptions, isCoreError, isStateStore };

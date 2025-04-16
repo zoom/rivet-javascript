@@ -130,48 +130,6 @@ class ConsoleLogger {
     }
 }
 
-class EventManager {
-    endpoints;
-    /** @internal */
-    listeners;
-    constructor(endpoints) {
-        this.endpoints = endpoints;
-        this.listeners = {};
-    }
-    appendListener(eventName, predicate, listener) {
-        if (this.listeners[eventName]) {
-            this.listeners[eventName].push({ predicate, listener });
-        }
-        else {
-            this.listeners[eventName] = [{ predicate, listener }];
-        }
-    }
-    filteredEvent(eventName, predicate, listener) {
-        if (typeof predicate !== "function" || typeof listener !== "function") {
-            throw new Error("Event predicate and listener must be of type function.");
-        }
-        this.appendListener(eventName, predicate, listener);
-    }
-    async emit(eventName, payload) {
-        if (!this.listeners[eventName])
-            return;
-        await Promise.all(this.listeners[eventName].map(async ({ predicate, listener }) => {
-            if (typeof predicate !== "undefined" && !predicate(payload))
-                return;
-            await Promise.resolve(listener(payload));
-        }));
-    }
-    event(eventName, listener) {
-        if (typeof listener !== "function") {
-            throw new Error("Event listener must be of type function.");
-        }
-        this.appendListener(eventName, undefined, listener);
-    }
-    withContext() {
-        throw new Error("Method not implemented. Only to be used for type.");
-    }
-}
-
 /** @internal */
 const hashUrlValidationEvent = ({ payload: { plainToken } }, webhooksSecretToken) => ({
     encryptedToken: createHmac("sha256", webhooksSecretToken).update(plainToken).digest("hex"),
@@ -893,323 +851,47 @@ class WebEndpoints {
     }
 }
 
-class MeetingsEndpoints extends WebEndpoints {
-    archiving = {
-        listArchivedFiles: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/archive_files` }),
-        getArchivedFileStatistics: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/archive_files/statistics` }),
-        updateArchivedFilesAutoDeleteStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ fileId }) => `/archive_files/${fileId}` }),
-        getMeetingsArchivedFiles: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingUUID }) => `/past_meetings/${meetingUUID}/archive_files` }),
-        deleteMeetingsArchivedFiles: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ meetingUUID }) => `/past_meetings/${meetingUUID}/archive_files` })
+class CommerceEndpoints extends WebEndpoints {
+    accountManagement = {
+        createEndCustomerAccount: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/commerce/account` }),
+        addContactsToExistingEndCustomerOrYourOwnAccount: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ accountKey }) => `/commerce/account/${accountKey}/contacts` }),
+        getsListOfAllAccountsAssociatedWithZoomPartnerSubResellerByAccountType: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/accounts` }),
+        getAccountDetailsForZoomPartnerSubResellerEndCustomer: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ accountKey }) => `/commerce/accounts/${accountKey}` })
     };
-    cloudRecording = {
-        getMeetingRecordings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings` }),
-        deleteMeetingOrWebinarRecordings: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings` }),
-        getMeetingOrWebinarRecordingsAnalyticsDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/analytics_details` }),
-        getMeetingOrWebinarRecordingsAnalyticsSummary: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/analytics_summary` }),
-        listRecordingRegistrants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants` }),
-        createRecordingRegistrant: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants` }),
-        getRegistrationQuestions: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants/questions` }),
-        updateRegistrationQuestions: this.buildEndpoint({
-            method: "PATCH",
-            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants/questions`
-        }),
-        updateRegistrantsStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/registrants/status` }),
-        getMeetingRecordingSettings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/settings` }),
-        updateMeetingRecordingSettings: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/recordings/settings` }),
-        deleteRecordingFileForMeetingOrWebinar: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ meetingId, recordingId }) => `/meetings/${meetingId}/recordings/${recordingId}`
-        }),
-        recoverSingleRecording: this.buildEndpoint({
-            method: "PUT",
-            urlPathBuilder: ({ meetingId, recordingId }) => `/meetings/${meetingId}/recordings/${recordingId}/status`
-        }),
-        recoverMeetingRecordings: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingUUID }) => `/meetings/${meetingUUID}/recordings/status` }),
-        listAllRecordings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/recordings` })
-    };
-    devices = {
-        listDevices: this.buildEndpoint({
+    billing = {
+        getsAllBillingDocumentsForDistributorOrReseller: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/billing_documents` }),
+        getsPDFDocumentForBillingDocumentID: this.buildEndpoint({
             method: "GET",
-            urlPathBuilder: () => `/devices`
+            urlPathBuilder: ({ documentNumber }) => `/commerce/billing_documents/${documentNumber}/document`
         }),
-        addNewDevice: this.buildEndpoint({
-            method: "POST",
-            urlPathBuilder: () => `/devices`
-        }),
-        getZDMGroupInfo: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/devices/groups` }),
-        assignDeviceToUserOrCommonarea: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/devices/zpa/assignment` }),
-        upgradeZpaOsApp: this.buildEndpoint({
-            method: "POST",
-            urlPathBuilder: () => `/devices/zpa/upgrade`
-        }),
-        deleteZPADeviceByVendorAndMacAddress: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ vendor, macAddress }) => `/devices/zpa/vendors/${vendor}/mac_addresses/${macAddress}`
-        }),
-        getZPAVersionInfo: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ zdmGroupId }) => `/devices/zpa/zdm_groups/${zdmGroupId}/versions` }),
-        getDeviceDetail: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}` }),
-        deleteDevice: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}`
-        }),
-        changeDevice: this.buildEndpoint({
-            method: "PATCH",
-            urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}`
-        }),
-        changeDeviceAssociation: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ deviceId }) => `/devices/${deviceId}/assignment` })
+        getDetailedInformationAboutSpecificInvoiceForDistributorOrReseller: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ invoiceNumber }) => `/commerce/invoices/${invoiceNumber}` })
     };
-    h323Devices = {
-        listHSIPDevices: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/h323/devices` }),
-        createHSIPDevice: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/h323/devices` }),
-        deleteHSIPDevice: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ deviceId }) => `/h323/devices/${deviceId}`
-        }),
-        updateHSIPDevice: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ deviceId }) => `/h323/devices/${deviceId}` })
+    dealRegistration = {
+        retrievesAllValidZoomCampaignsWhichDealRegistrationCanBeAssociatedWith: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/campaigns` }),
+        createsNewDealRegistrationForPartner: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/commerce/deal_registration` }),
+        getsAllValidDealRegistrationsForPartner: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/deal_registrations` }),
+        getsDetailsForDealRegistrationByDealRegistrationNumber: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ dealRegKey }) => `/commerce/deal_registrations/${dealRegKey}` }),
+        updatesExistingDealRegistration: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ dealRegKey }) => `/commerce/deal_registrations/${dealRegKey}` })
     };
-    meetings = {
-        deleteLiveMeetingMessage: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ meetingId, messageId }) => `/live_meetings/${meetingId}/chat/messages/${messageId}`
-        }),
-        updateLiveMeetingMessage: this.buildEndpoint({
-            method: "PATCH",
-            urlPathBuilder: ({ meetingId, messageId }) => `/live_meetings/${meetingId}/chat/messages/${messageId}`
-        }),
-        useInMeetingControls: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/live_meetings/${meetingId}/events` }),
-        listMeetingSummariesOfAccount: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/meetings/meeting_summaries` }),
-        getMeeting: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}` }),
-        deleteMeeting: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}`
-        }),
-        updateMeeting: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}` }),
-        performBatchPollCreation: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/batch_polls` }),
-        performBatchRegistration: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/batch_registrants` }),
-        getMeetingInvitation: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/invitation` }),
-        createMeetingsInviteLinks: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/invite_links` }),
-        getMeetingsJoinTokenForLiveStreaming: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/jointoken/live_streaming` }),
-        getMeetingsArchiveTokenForLocalArchiving: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/jointoken/local_archiving` }),
-        getMeetingsJoinTokenForLocalRecording: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/jointoken/local_recording` }),
-        getLivestreamDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/livestream` }),
-        updateLivestream: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/livestream` }),
-        updateLivestreamStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/livestream/status` }),
-        getMeetingSummary: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/meeting_summary` }),
-        addMeetingApp: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/open_apps` }),
-        deleteMeetingApp: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/open_apps`
-        }),
-        listMeetingPolls: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/polls` }),
-        createMeetingPoll: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/polls` }),
-        getMeetingPoll: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId, pollId }) => `/meetings/${meetingId}/polls/${pollId}` }),
-        updateMeetingPoll: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId, pollId }) => `/meetings/${meetingId}/polls/${pollId}` }),
-        deleteMeetingPoll: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ meetingId, pollId }) => `/meetings/${meetingId}/polls/${pollId}`
-        }),
-        listMeetingRegistrants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants` }),
-        addMeetingRegistrant: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants` }),
-        listRegistrationQuestions: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants/questions` }),
-        updateRegistrationQuestions: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants/questions` }),
-        updateRegistrantsStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/registrants/status` }),
-        getMeetingRegistrant: this.buildEndpoint({
+    order = {
+        createsSubscriptionOrderForZoomPartner: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/commerce/order` }),
+        previewDeltaOrderMetricsAndSubscriptionsInOrder: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/commerce/order/preview` }),
+        getsAllOrdersForZoomPartner: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/orders` }),
+        getsOrderDetailsByOrderReferenceID: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ orderReferenceId }) => `/commerce/orders/${orderReferenceId}` })
+    };
+    productCatalog = {
+        getsZoomProductCatalogForZoomPartner: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/commerce/catalog` }),
+        getsDetailsForZoomProductOrOffer: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ offerId }) => `/commerce/catalog/${offerId}` }),
+        getsPricebookInDownloadableFile: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/pricebooks` })
+    };
+    subscription = {
+        getsSubscriptionsForZoomPartner: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/subscriptions` }),
+        getsSubscriptionDetailsForGivenSubscriptionNumber: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ subscriptionNumber }) => `/commerce/subscriptions/${subscriptionNumber}` }),
+        getsSubscriptionChangesVersionsForGivenSubscriptionNumber: this.buildEndpoint({
             method: "GET",
-            urlPathBuilder: ({ meetingId, registrantId }) => `/meetings/${meetingId}/registrants/${registrantId}`
-        }),
-        deleteMeetingRegistrant: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ meetingId, registrantId }) => `/meetings/${meetingId}/registrants/${registrantId}`
-        }),
-        getMeetingSIPURIWithPasscode: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/sip_dialing` }),
-        updateMeetingStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/status` }),
-        getMeetingSurvey: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/survey` }),
-        deleteMeetingSurvey: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/survey`
-        }),
-        updateMeetingSurvey: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/survey` }),
-        getMeetingsToken: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/meetings/${meetingId}/token` }),
-        getPastMeetingDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}` }),
-        listPastMeetingInstances: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/instances` }),
-        getPastMeetingParticipants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/participants` }),
-        listPastMeetingsPollResults: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/polls` }),
-        listPastMeetingsQA: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/past_meetings/${meetingId}/qa` }),
-        listMeetingTemplates: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/meeting_templates` }),
-        createMeetingTemplateFromExistingMeeting: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/meeting_templates` }),
-        listMeetings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/meetings` }),
-        createMeeting: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/meetings` }),
-        listUpcomingMeetings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/upcoming_meetings` })
-    };
-    pAC = {
-        listUsersPACAccounts: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/pac` })
-    };
-    reports = {
-        getSignInSignOutActivityReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/activities` }),
-        getBillingReports: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: () => `/report/billing`
-        }),
-        getBillingInvoiceReports: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/billing/invoices` }),
-        getCloudRecordingUsageReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/cloud_recording` }),
-        getDailyUsageReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/daily` }),
-        getMeetingActivitiesReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/meeting_activities` }),
-        getMeetingDetailReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}` }),
-        getMeetingParticipantReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/participants` }),
-        getMeetingPollReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/polls` }),
-        getMeetingQAReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/qa` }),
-        getMeetingSurveyReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ meetingId }) => `/report/meetings/${meetingId}/survey` }),
-        getOperationLogsReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/operationlogs` }),
-        getTelephoneReports: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/telephone` }),
-        getUpcomingEventsReport: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/upcoming_events` }),
-        getActiveOrInactiveHostReports: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/report/users` }),
-        getMeetingReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/report/users/${userId}/meetings` }),
-        getWebinarDetailReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}` }),
-        getWebinarParticipantReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/participants` }),
-        getWebinarPollReports: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/polls` }),
-        getWebinarQAReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/qa` }),
-        getWebinarSurveyReport: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/report/webinars/${webinarId}/survey` })
-    };
-    sIPPhone = {
-        listSIPPhones: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/sip_phones` }),
-        enableSIPPhone: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/sip_phones` }),
-        deleteSIPPhone: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ phoneId }) => `/sip_phones/${phoneId}`
-        }),
-        updateSIPPhone: this.buildEndpoint({
-            method: "PATCH",
-            urlPathBuilder: ({ phoneId }) => `/sip_phones/${phoneId}`
+            urlPathBuilder: ({ subscriptionNumber }) => `/commerce/subscriptions/${subscriptionNumber}/versions`
         })
     };
-    tSP = {
-        getAccountsTSPInformation: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: () => `/tsp`
-        }),
-        updateAccountsTSPInformation: this.buildEndpoint({
-            method: "PATCH",
-            urlPathBuilder: () => `/tsp`
-        }),
-        listUsersTSPAccounts: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/tsp` }),
-        addUsersTSPAccount: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/tsp` }),
-        setGlobalDialInURLForTSPUser: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ userId }) => `/users/${userId}/tsp/settings` }),
-        getUsersTSPAccount: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId, tspId }) => `/users/${userId}/tsp/${tspId}` }),
-        deleteUsersTSPAccount: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ userId, tspId }) => `/users/${userId}/tsp/${tspId}`
-        }),
-        updateTSPAccount: this.buildEndpoint({
-            method: "PATCH",
-            urlPathBuilder: ({ userId, tspId }) => `/users/${userId}/tsp/${tspId}`
-        })
-    };
-    trackingField = {
-        listTrackingFields: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: () => `/tracking_fields`
-        }),
-        createTrackingField: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/tracking_fields` }),
-        getTrackingField: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ fieldId }) => `/tracking_fields/${fieldId}` }),
-        deleteTrackingField: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ fieldId }) => `/tracking_fields/${fieldId}`
-        }),
-        updateTrackingField: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ fieldId }) => `/tracking_fields/${fieldId}` })
-    };
-    webinars = {
-        deleteLiveWebinarMessage: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ webinarId, messageId }) => `/live_webinars/${webinarId}/chat/messages/${messageId}`
-        }),
-        getWebinarAbsentees: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/absentees` }),
-        listPastWebinarInstances: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/instances` }),
-        listWebinarParticipants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/participants` }),
-        listPastWebinarPollResults: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/polls` }),
-        listQAsOfPastWebinar: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/past_webinars/${webinarId}/qa` }),
-        listWebinarTemplates: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/webinar_templates` }),
-        createWebinarTemplate: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/webinar_templates` }),
-        listWebinars: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/users/${userId}/webinars` }),
-        createWebinar: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ userId }) => `/users/${userId}/webinars` }),
-        getWebinar: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}` }),
-        deleteWebinar: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}`
-        }),
-        updateWebinar: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}` }),
-        performBatchRegistration: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/batch_registrants` }),
-        getWebinarsSessionBranding: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding` }),
-        createWebinarsBrandingNameTag: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/name_tags` }),
-        deleteWebinarsBrandingNameTag: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/name_tags` }),
-        updateWebinarsBrandingNameTag: this.buildEndpoint({
-            method: "PATCH",
-            urlPathBuilder: ({ webinarId, nameTagId }) => `/webinars/${webinarId}/branding/name_tags/${nameTagId}`
-        }),
-        uploadWebinarsBrandingVirtualBackground: this.buildEndpoint({
-            method: "POST",
-            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/virtual_backgrounds`,
-            requestMimeType: "multipart/form-data"
-        }),
-        deleteWebinarsBrandingVirtualBackgrounds: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/virtual_backgrounds` }),
-        setWebinarsDefaultBrandingVirtualBackground: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/virtual_backgrounds` }),
-        uploadWebinarsBrandingWallpaper: this.buildEndpoint({
-            method: "POST",
-            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/wallpaper`,
-            requestMimeType: "multipart/form-data"
-        }),
-        deleteWebinarsBrandingWallpaper: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/branding/wallpaper` }),
-        createWebinarsInviteLinks: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/invite_links` }),
-        getWebinarsJoinTokenForLiveStreaming: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/jointoken/live_streaming` }),
-        getWebinarsArchiveTokenForLocalArchiving: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/jointoken/local_archiving` }),
-        getWebinarsJoinTokenForLocalRecording: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/jointoken/local_recording` }),
-        getLiveStreamDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/livestream` }),
-        updateLiveStream: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/livestream` }),
-        updateLiveStreamStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/livestream/status` }),
-        listPanelists: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/panelists` }),
-        addPanelists: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/panelists` }),
-        removeAllPanelists: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/panelists`
-        }),
-        removePanelist: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ webinarId, panelistId }) => `/webinars/${webinarId}/panelists/${panelistId}`
-        }),
-        listWebinarsPolls: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/polls` }),
-        createWebinarsPoll: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/polls` }),
-        getWebinarPoll: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId, pollId }) => `/webinars/${webinarId}/polls/${pollId}` }),
-        updateWebinarPoll: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ webinarId, pollId }) => `/webinars/${webinarId}/polls/${pollId}` }),
-        deleteWebinarPoll: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ webinarId, pollId }) => `/webinars/${webinarId}/polls/${pollId}`
-        }),
-        listWebinarRegistrants: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants` }),
-        addWebinarRegistrant: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants` }),
-        listRegistrationQuestions: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants/questions` }),
-        updateRegistrationQuestions: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants/questions` }),
-        updateRegistrantsStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/registrants/status` }),
-        getWebinarRegistrant: this.buildEndpoint({
-            method: "GET",
-            urlPathBuilder: ({ webinarId, registrantId }) => `/webinars/${webinarId}/registrants/${registrantId}`
-        }),
-        deleteWebinarRegistrant: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ webinarId, registrantId }) => `/webinars/${webinarId}/registrants/${registrantId}`
-        }),
-        getWebinarSIPURIWithPasscode: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/sip_dialing` }),
-        updateWebinarStatus: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/status` }),
-        getWebinarSurvey: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/survey` }),
-        deleteWebinarSurvey: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/survey`
-        }),
-        updateWebinarSurvey: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/survey` }),
-        getWebinarsToken: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/token` }),
-        getWebinarTrackingSources: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ webinarId }) => `/webinars/${webinarId}/tracking_sources` })
-    };
-}
-
-class MeetingsEventProcessor extends EventManager {
 }
 
 class OAuth extends InteractiveAuth {
@@ -1327,7 +1009,7 @@ class ProductClient {
     }
 }
 
-class MeetingsOAuthClient extends ProductClient {
+class CommerceOAuthClient extends ProductClient {
     initAuth({ clientId, clientSecret, tokenStore, ...restOptions }) {
         const oAuth = new OAuth({ clientId, clientSecret, tokenStore });
         if (hasInstallerOptions(restOptions)) {
@@ -1336,62 +1018,11 @@ class MeetingsOAuthClient extends ProductClient {
         return oAuth;
     }
     initEndpoints(auth, options) {
-        return new MeetingsEndpoints({ auth, ...options });
+        return new CommerceEndpoints({ auth, ...options });
     }
-    initEventProcessor(endpoints) {
-        return new MeetingsEventProcessor(endpoints);
-    }
-}
-
-class S2SAuth extends Auth {
-    accountId;
-    constructor({ accountId, ...restOptions }) {
-        super(restOptions);
-        this.accountId = accountId;
-    }
-    assertRawToken(obj) {
-        if (typeof obj.access_token !== "string" ||
-            typeof obj.expires_in !== "number" ||
-            typeof obj.scope !== "string") {
-            throw new S2SRawResponseError(`Failed to match raw response ${JSON.stringify(obj)} to expected shape.`);
-        }
-    }
-    async fetchAccessToken() {
-        const response = await this.makeOAuthTokenRequest("account_credentials", {
-            account_id: this.accountId
-        });
-        this.assertRawToken(response.data);
-        return this.mapAccessToken(response.data);
-    }
-    async getToken() {
-        const { tokenStore } = this;
-        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
-        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
-            return currentToken.accessToken;
-        }
-        const token = await this.fetchAccessToken();
-        await Promise.resolve(tokenStore.storeToken(token));
-        return token.accessToken;
-    }
-    mapAccessToken({ access_token, expires_in, scope }) {
-        return {
-            accessToken: access_token,
-            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
-            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
-        };
+    initEventProcessor() {
+        return undefined;
     }
 }
 
-class MeetingsS2SAuthClient extends ProductClient {
-    initAuth({ clientId, clientSecret, tokenStore, accountId }) {
-        return new S2SAuth({ clientId, clientSecret, tokenStore, accountId });
-    }
-    initEndpoints(auth, options) {
-        return new MeetingsEndpoints({ auth, ...options });
-    }
-    initEventProcessor(endpoints) {
-        return new MeetingsEventProcessor(endpoints);
-    }
-}
-
-export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, LogLevel, MeetingsEndpoints, MeetingsEventProcessor, MeetingsOAuthClient, MeetingsS2SAuthClient, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, ReceiverInconsistentStateError, ReceiverOAuthFlowError, S2SRawResponseError, StatusCode, isCoreError, isStateStore };
+export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommerceEndpoints, CommerceOAuthClient, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, LogLevel, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, ReceiverInconsistentStateError, ReceiverOAuthFlowError, S2SRawResponseError, StatusCode, isCoreError, isStateStore };

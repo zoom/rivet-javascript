@@ -1,95 +1,8 @@
-import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { AxiosResponse } from 'axios';
+import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { Server } from 'node:http';
 import { ServerOptions } from 'node:https';
 import { ReadStream } from 'node:fs';
-
-type AllKeysOf<T> = T extends any ? keyof T : never;
-type AllPropsOptional<T, True, False> = Exclude<{
-    [P in keyof T]: undefined extends T[P] ? True : False;
-}[keyof T], undefined> extends True ? True : False;
-type Constructor<T> = new (...args: any[]) => T;
-type ExactlyOneOf<T extends any[]> = {
-    [K in keyof T]: T[K] & ProhibitKeys<Exclude<AllKeysOf<T[number]>, keyof T[K]>>;
-}[number];
-type MaybeArray<T> = T | T[];
-type MaybePromise<T> = T | Promise<T>;
-type ProhibitKeys<K extends keyof any> = {
-    [P in K]?: never;
-};
-type StringIndexed<V = any> = Record<string, V>;
-
-/**
- * {@link StateStore} defines methods for generating and verifying OAuth state.
- *
- * This interface is implemented internally for the default state store; however,
- * it can also be implemented and passed to an OAuth client as well.
- */
-interface StateStore {
-    /**
-     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
-     */
-    generateState(): MaybePromise<string>;
-    /**
-     * Verify that the state received during OAuth callback is valid and not forged.
-     *
-     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
-     *
-     * @param state The state parameter that was received during OAuth callback
-     */
-    verifyState(state: string): MaybePromise<void>;
-}
-/**
- * Guard if an object implements the {@link StateStore} interface — most notably,
- * `generateState()` and `verifyState(state: string)`.
- */
-declare const isStateStore: (obj: unknown) => obj is StateStore;
-
-interface TokenStore<Token> {
-    getLatestToken(): MaybePromise<Token | null | undefined>;
-    storeToken(token: Token): MaybePromise<void>;
-}
-
-interface RivetError<ErrorCode extends string = string> extends Error {
-    readonly errorCode: ErrorCode;
-}
-
-declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
-    readonly ApiResponseError: "zoom_rivet_api_response_error";
-    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
-    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
-    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
-    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
-    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
-    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
-    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
-    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
-    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
-    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
-    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
-    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
-    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
-    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
-    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
-    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
-}[K]>;
-declare const ApiResponseError: Constructor<Error>;
-declare const AwsReceiverRequestError: Constructor<Error>;
-declare const ClientCredentialsRawResponseError: Constructor<Error>;
-declare const S2SRawResponseError: Constructor<Error>;
-declare const CommonHttpRequestError: Constructor<Error>;
-declare const ReceiverInconsistentStateError: Constructor<Error>;
-declare const ReceiverOAuthFlowError: Constructor<Error>;
-declare const HTTPReceiverConstructionError: Constructor<Error>;
-declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
-declare const HTTPReceiverRequestError: Constructor<Error>;
-declare const OAuthInstallerNotInitializedError: Constructor<Error>;
-declare const OAuthTokenDoesNotExistError: Constructor<Error>;
-declare const OAuthTokenFetchFailedError: Constructor<Error>;
-declare const OAuthTokenRawResponseError: Constructor<Error>;
-declare const OAuthTokenRefreshFailedError: Constructor<Error>;
-declare const OAuthStateVerificationFailedError: Constructor<Error>;
-declare const ProductClientConstructionError: Constructor<Error>;
 
 declare enum LogLevel {
     ERROR = "error",
@@ -150,6 +63,26 @@ declare class ConsoleLogger implements Logger {
     private static isMoreOrEqualSevere;
 }
 
+type AllKeysOf<T> = T extends any ? keyof T : never;
+type AllPropsOptional<T, True, False> = Exclude<{
+    [P in keyof T]: undefined extends T[P] ? True : False;
+}[keyof T], undefined> extends True ? True : False;
+type Constructor<T> = new (...args: any[]) => T;
+type ExactlyOneOf<T extends any[]> = {
+    [K in keyof T]: T[K] & ProhibitKeys<Exclude<AllKeysOf<T[number]>, keyof T[K]>>;
+}[number];
+type MaybeArray<T> = T | T[];
+type MaybePromise<T> = T | Promise<T>;
+type ProhibitKeys<K extends keyof any> = {
+    [P in K]?: never;
+};
+type StringIndexed<V = any> = Record<string, V>;
+
+interface TokenStore<Token> {
+    getLatestToken(): MaybePromise<Token | null | undefined>;
+    storeToken(token: Token): MaybePromise<void>;
+}
+
 interface AuthOptions<Token> {
     clientId: string;
     clientSecret: string;
@@ -195,6 +128,17 @@ declare abstract class Auth<Token = unknown> {
     }>, "grant_type">): Promise<AxiosResponse>;
 }
 
+interface ClientCredentialsToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    scopes: string[];
+}
+
+interface JwtToken {
+    token: string;
+    expirationTimeIso: string;
+}
+
 interface S2SAuthToken {
     accessToken: string;
     expirationTimeIso: string;
@@ -233,12 +177,31 @@ declare class EventManager<Endpoints, Events> {
     protected withContext<EventName extends EventKeys<Events>, Context>(): ContextListener<Events, EventName, Context>;
 }
 
+declare enum StatusCode {
+    OK = 200,
+    TEMPORARY_REDIRECT = 302,
+    BAD_REQUEST = 400,
+    NOT_FOUND = 404,
+    METHOD_NOT_ALLOWED = 405,
+    INTERNAL_SERVER_ERROR = 500
+}
+interface ReceiverInitOptions {
+    eventEmitter?: GenericEventManager | undefined;
+    interactiveAuth?: InteractiveAuth | undefined;
+}
+interface Receiver {
+    canInstall(): true | false;
+    init(options: ReceiverInitOptions): void;
+    start(...args: any[]): MaybePromise<unknown>;
+    stop(...args: any[]): MaybePromise<unknown>;
+}
+
 interface HttpReceiverOptions extends Partial<SecureServerOptions> {
     endpoints?: MaybeArray<string> | undefined;
+    logger?: Logger | undefined;
+    logLevel?: LogLevel | undefined;
     port?: number | string | undefined;
-    webhooksSecretToken: string;
-    logger?: Logger;
-    logLevel?: LogLevel;
+    webhooksSecretToken?: string | undefined;
 }
 type SecureServerOptions = {
     [K in (typeof secureServerOptionKeys)[number]]: ServerOptions[K];
@@ -251,10 +214,15 @@ declare class HttpReceiver implements Receiver {
     private logger;
     constructor(options: HttpReceiverOptions);
     canInstall(): true;
+    private buildDeletedStateCookieHeader;
+    private buildStateCookieHeader;
+    private getRequestCookie;
     private getServerCreator;
     private hasEndpoint;
     private hasSecureOptions;
     init({ eventEmitter, interactiveAuth }: ReceiverInitOptions): void;
+    private setResponseCookie;
+    private areNormalizedUrlsEqual;
     start(port?: number | string): Promise<Server>;
     stop(): Promise<void>;
     private writeTemporaryRedirect;
@@ -313,38 +281,68 @@ type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A>
 interface ClientReceiverOptions<R extends Receiver> {
     receiver: R;
 }
-type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = IsReceiverDisabled<O> extends true ? O : O & (ClientReceiverOptions<R> | HttpReceiverOptions);
+type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = (O & {
+    disableReceiver: true;
+}) | (O & (ClientReceiverOptions<R> | HttpReceiverOptions));
 type ExtractInstallerOptions<A extends Auth, R extends Receiver> = A extends InteractiveAuth ? [
     ReturnType<R["canInstall"]>
 ] extends [true] ? WideInstallerOptions : object : object;
 type ExtractAuthTokenType<A> = A extends Auth<infer T> ? T : never;
-type GenericClientOptions = CommonClientOptions<any, any>;
 type GetAuthOptions<A extends Auth> = AuthOptions<ExtractAuthTokenType<A>> & (A extends S2SAuth ? S2SAuthOptions : object);
-type IsReceiverDisabled<O extends Pick<GenericClientOptions, "disableReceiver">> = [
-    O["disableReceiver"]
-] extends [true] ? true : false;
 type WideInstallerOptions = {
     installerOptions: InstallerOptions;
 };
 declare abstract class ProductClient<AuthType extends Auth, EndpointsType extends WebEndpoints, EventProcessorType extends GenericEventManager, OptionsType extends CommonClientOptions<AuthType, ReceiverType>, ReceiverType extends Receiver> {
     private readonly auth;
     readonly endpoints: EndpointsType;
-    readonly webEventConsumer: EventProcessorType;
+    readonly webEventConsumer?: EventProcessorType | undefined;
     private readonly receiver?;
     constructor(options: ClientConstructorOptions<AuthType, OptionsType, ReceiverType>);
     protected abstract initAuth(options: OptionsType): AuthType;
     protected abstract initEndpoints(auth: AuthType, options: OptionsType): EndpointsType;
-    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType;
+    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType | undefined;
     private initDefaultReceiver;
-    start(this: IsReceiverDisabled<OptionsType> extends true ? never : this): Promise<ReturnType<ReceiverType["start"]>>;
+    start(): Promise<ReturnType<ReceiverType["start"]>>;
 }
 
+/**
+ * {@link StateStore} defines methods for generating and verifying OAuth state.
+ *
+ * This interface is implemented internally for the default state store; however,
+ * it can also be implemented and passed to an OAuth client as well.
+ */
+interface StateStore {
+    /**
+     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
+     */
+    generateState(): MaybePromise<string>;
+    /**
+     * Verify that the state received during OAuth callback is valid and not forged.
+     *
+     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
+     *
+     * @param state The state parameter that was received during OAuth callback
+     */
+    verifyState(state: string): MaybePromise<void>;
+}
+/**
+ * Guard if an object implements the {@link StateStore} interface — most notably,
+ * `generateState()` and `verifyState(state: string)`.
+ */
+declare const isStateStore: (obj: unknown) => obj is StateStore;
+
+interface AuthorizationUrlResult {
+    fullUrl: string;
+    generatedState: string;
+}
 interface InstallerOptions {
     directInstall?: boolean | undefined;
     installPath?: string | undefined;
     redirectUri: string;
     redirectUriPath?: string | undefined;
     stateStore: StateStore | string;
+    stateCookieName?: string | undefined;
+    stateCookieMaxAge?: number | undefined;
 }
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
@@ -358,48 +356,17 @@ interface InstallerOptions {
  */
 declare abstract class InteractiveAuth<Token = unknown> extends Auth<Token> {
     installerOptions?: ReturnType<typeof this.setInstallerOptions>;
-    getAuthorizationUrl(): Promise<string>;
+    getAuthorizationUrl(): Promise<AuthorizationUrlResult>;
     getFullRedirectUri(): string;
-    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore }: InstallerOptions): {
+    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore, stateCookieName, stateCookieMaxAge }: InstallerOptions): {
         directInstall: boolean;
         installPath: string;
         redirectUri: string;
         redirectUriPath: string;
         stateStore: StateStore;
+        stateCookieName: string;
+        stateCookieMaxAge: number;
     };
-}
-
-declare enum StatusCode {
-    OK = 200,
-    TEMPORARY_REDIRECT = 302,
-    BAD_REQUEST = 400,
-    NOT_FOUND = 404,
-    METHOD_NOT_ALLOWED = 405,
-    INTERNAL_SERVER_ERROR = 500
-}
-interface ReceiverInitOptions {
-    eventEmitter: GenericEventManager;
-    interactiveAuth?: InteractiveAuth | undefined;
-}
-interface Receiver {
-    canInstall(): true | false;
-    init(options: ReceiverInitOptions): void;
-    start(...args: any[]): MaybePromise<unknown>;
-    stop(...args: any[]): MaybePromise<unknown>;
-}
-
-interface AwsLambdaReceiverOptions {
-    webhooksSecretToken: string;
-}
-declare class AwsLambdaReceiver implements Receiver {
-    private eventEmitter?;
-    private readonly webhooksSecretToken;
-    constructor({ webhooksSecretToken }: AwsLambdaReceiverOptions);
-    buildResponse(statusCode: StatusCode, body: object): LambdaFunctionURLResult;
-    canInstall(): false;
-    init({ eventEmitter }: ReceiverInitOptions): void;
-    start(): LambdaFunctionURLHandler;
-    stop(): Promise<void>;
 }
 
 /**
@@ -427,6 +394,61 @@ declare class OAuth extends InteractiveAuth<OAuthToken> {
     initRedirectCode(code: string): Promise<void>;
     private mapOAuthToken;
     private refreshAccessToken;
+}
+
+interface RivetError<ErrorCode extends string = string> extends Error {
+    readonly errorCode: ErrorCode;
+}
+
+declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
+    readonly ApiResponseError: "zoom_rivet_api_response_error";
+    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
+    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
+    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
+    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
+    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
+    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
+    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
+    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
+    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
+    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
+    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
+    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
+    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
+    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
+    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
+    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
+}[K]>;
+declare const ApiResponseError: Constructor<Error>;
+declare const AwsReceiverRequestError: Constructor<Error>;
+declare const ClientCredentialsRawResponseError: Constructor<Error>;
+declare const S2SRawResponseError: Constructor<Error>;
+declare const CommonHttpRequestError: Constructor<Error>;
+declare const ReceiverInconsistentStateError: Constructor<Error>;
+declare const ReceiverOAuthFlowError: Constructor<Error>;
+declare const HTTPReceiverConstructionError: Constructor<Error>;
+declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
+declare const HTTPReceiverRequestError: Constructor<Error>;
+declare const OAuthInstallerNotInitializedError: Constructor<Error>;
+declare const OAuthTokenDoesNotExistError: Constructor<Error>;
+declare const OAuthTokenFetchFailedError: Constructor<Error>;
+declare const OAuthTokenRawResponseError: Constructor<Error>;
+declare const OAuthTokenRefreshFailedError: Constructor<Error>;
+declare const OAuthStateVerificationFailedError: Constructor<Error>;
+declare const ProductClientConstructionError: Constructor<Error>;
+
+interface AwsLambdaReceiverOptions {
+    webhooksSecretToken: string;
+}
+declare class AwsLambdaReceiver implements Receiver {
+    private eventEmitter?;
+    private readonly webhooksSecretToken;
+    constructor({ webhooksSecretToken }: AwsLambdaReceiverOptions);
+    buildResponse(statusCode: StatusCode, body: object): LambdaFunctionURLResult;
+    canInstall(): false;
+    init({ eventEmitter }: ReceiverInitOptions): void;
+    start(): LambdaFunctionURLHandler;
+    stop(): Promise<void>;
 }
 
 type ChatChannelsPerformOperationsOnChannelsRequestBody = {
@@ -3710,4 +3732,4 @@ declare class TeamChatS2SAuthClient<ReceiverType extends Receiver = HttpReceiver
     protected initEventProcessor(endpoints: TeamChatEndpoints): TeamChatEventProcessor;
 }
 
-export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, type ChatChannelCreatedEvent, type ChatChannelDeletedEvent, type ChatChannelMemberInvitedEvent, type ChatChannelMemberJoinedEvent, type ChatChannelMemberLeftEvent, type ChatChannelMemberRemovedEvent, type ChatChannelUpdatedEvent, type ChatChannelsAccountLevelBatchDeleteChannelsPathParams, type ChatChannelsAccountLevelBatchDeleteChannelsQueryParams, type ChatChannelsAccountLevelBatchDemoteChannelAdministratorsPathParams, type ChatChannelsAccountLevelBatchDemoteChannelAdministratorsQueryParams, type ChatChannelsAccountLevelDeleteChannelPathParams, type ChatChannelsAccountLevelGetChannelPathParams, type ChatChannelsAccountLevelGetChannelResponse, type ChatChannelsAccountLevelGetRetentionPolicyOfChannelPathParams, type ChatChannelsAccountLevelGetRetentionPolicyOfChannelResponse, type ChatChannelsAccountLevelInviteChannelMembersPathParams, type ChatChannelsAccountLevelInviteChannelMembersRequestBody, type ChatChannelsAccountLevelInviteChannelMembersResponse, type ChatChannelsAccountLevelListAccountsPublicChannelsQueryParams, type ChatChannelsAccountLevelListAccountsPublicChannelsResponse, type ChatChannelsAccountLevelListChannelAdministratorsPathParams, type ChatChannelsAccountLevelListChannelAdministratorsQueryParams, type ChatChannelsAccountLevelListChannelAdministratorsResponse, type ChatChannelsAccountLevelListChannelMembersPathParams, type ChatChannelsAccountLevelListChannelMembersQueryParams, type ChatChannelsAccountLevelListChannelMembersResponse, type ChatChannelsAccountLevelPromoteChannelMembersToAdministratorsPathParams, type ChatChannelsAccountLevelPromoteChannelMembersToAdministratorsRequestBody, type ChatChannelsAccountLevelPromoteChannelMembersToAdministratorsResponse, type ChatChannelsAccountLevelRemoveMemberPathParams, type ChatChannelsAccountLevelSearchUsersOrAccountsChannelsRequestBody, type ChatChannelsAccountLevelSearchUsersOrAccountsChannelsResponse, type ChatChannelsAccountLevelUpdateChannelPathParams, type ChatChannelsAccountLevelUpdateChannelRequestBody, type ChatChannelsAccountLevelUpdateRetentionPolicyOfChannelPathParams, type ChatChannelsAccountLevelUpdateRetentionPolicyOfChannelRequestBody, type ChatChannelsBatchRemoveMembersFromChannelPathParams, type ChatChannelsBatchRemoveMembersFromChannelQueryParams, type ChatChannelsCreateChannelPathParams, type ChatChannelsCreateChannelRequestBody, type ChatChannelsCreateChannelResponse, type ChatChannelsDeleteChannelPathParams, type ChatChannelsGetChannelPathParams, type ChatChannelsGetChannelResponse, type ChatChannelsInviteChannelMembersGroupsPathParams, type ChatChannelsInviteChannelMembersGroupsRequestBody, type ChatChannelsInviteChannelMembersGroupsResponse, type ChatChannelsInviteChannelMembersPathParams, type ChatChannelsInviteChannelMembersRequestBody, type ChatChannelsInviteChannelMembersResponse, type ChatChannelsJoinChannelPathParams, type ChatChannelsJoinChannelResponse, type ChatChannelsLeaveChannelPathParams, type ChatChannelsListChannelMembersGroupsPathParams, type ChatChannelsListChannelMembersGroupsResponse, type ChatChannelsListChannelMembersPathParams, type ChatChannelsListChannelMembersQueryParams, type ChatChannelsListChannelMembersResponse, type ChatChannelsListUsersChannelsPathParams, type ChatChannelsListUsersChannelsQueryParams, type ChatChannelsListUsersChannelsResponse, type ChatChannelsPerformOperationsOnChannelsRequestBody, type ChatChannelsPerformOperationsOnChannelsResponse, type ChatChannelsRemoveMemberGroupPathParams, type ChatChannelsRemoveMemberPathParams, type ChatChannelsUpdateChannelPathParams, type ChatChannelsUpdateChannelRequestBody, type ChatEmojiAddCustomEmojiRequestBody, type ChatEmojiAddCustomEmojiResponse, type ChatEmojiDeleteCustomEmojiPathParams, type ChatEmojiListCustomEmojisQueryParams, type ChatEmojiListCustomEmojisResponse, type ChatFilesDeleteChatFilePathParams, type ChatFilesGetFileInfoPathParams, type ChatFilesGetFileInfoResponse, type ChatFilesSendChatFilePathParams, type ChatFilesSendChatFileRequestBody, type ChatFilesSendChatFileResponse, type ChatFilesUploadChatFilePathParams, type ChatFilesUploadChatFileRequestBody, type ChatFilesUploadChatFileResponse, type ChatMessageDeletedEvent, type ChatMessageRepliedEvent, type ChatMessageSentEvent, type ChatMessageUpdatedEvent, type ChatMessagesAddOrRemoveBookmarkQueryParams, type ChatMessagesAddOrRemoveBookmarkRequestBody, type ChatMessagesDeleteMessagePathParams, type ChatMessagesDeleteMessageQueryParams, type ChatMessagesDeleteScheduledMessagePathParams, type ChatMessagesDeleteScheduledMessageQueryParams, type ChatMessagesGetMessagePathParams, type ChatMessagesGetMessageQueryParams, type ChatMessagesGetMessageResponse, type ChatMessagesListBookmarksQueryParams, type ChatMessagesListBookmarksResponse, type ChatMessagesListPinnedHistoryMessagesOfChannelPathParams, type ChatMessagesListPinnedHistoryMessagesOfChannelQueryParams, type ChatMessagesListPinnedHistoryMessagesOfChannelResponse, type ChatMessagesListScheduledMessagesQueryParams, type ChatMessagesListScheduledMessagesResponse, type ChatMessagesListUsersChatMessagesPathParams, type ChatMessagesListUsersChatMessagesQueryParams, type ChatMessagesListUsersChatMessagesResponse, type ChatMessagesMarkMessageReadOrUnreadPathParams, type ChatMessagesMarkMessageReadOrUnreadRequestBody, type ChatMessagesPerformOperationsOnMessageOfChannelRequestBody, type ChatMessagesReactToChatMessagePathParams, type ChatMessagesReactToChatMessageRequestBody, type ChatMessagesRetrieveThreadPathParams, type ChatMessagesRetrieveThreadQueryParams, type ChatMessagesRetrieveThreadResponse, type ChatMessagesSendChatMessagePathParams, type ChatMessagesSendChatMessageRequestBody, type ChatMessagesSendChatMessageResponse, type ChatMessagesUpdateMessagePathParams, type ChatMessagesUpdateMessageRequestBody, type ChatMigrationMigrateChannelMembersPathParams, type ChatMigrationMigrateChannelMembersRequestBody, type ChatMigrationMigrateChatChannelPathParams, type ChatMigrationMigrateChatChannelRequestBody, type ChatMigrationMigrateChatChannelResponse, type ChatMigrationMigrateChatMessageReactionsRequestBody, type ChatMigrationMigrateChatMessagesRequestBody, type ChatMigrationMigrateChatMessagesResponse, type ChatMigrationMigrateConversationOrChannelOperationsPathParams, type ChatMigrationMigrateConversationOrChannelOperationsRequestBody, type ChatReminderCreateReminderMessagePathParams, type ChatReminderCreateReminderMessageRequestBody, type ChatReminderDeleteReminderForMessagePathParams, type ChatReminderDeleteReminderForMessageQueryParams, type ChatReminderListRemindersQueryParams, type ChatReminderListRemindersResponse, type ChatSessionsListUsersChatSessionsPathParams, type ChatSessionsListUsersChatSessionsQueryParams, type ChatSessionsListUsersChatSessionsResponse, type ChatSessionsStarOrUnstarChannelOrContactUserPathParams, type ChatSessionsStarOrUnstarChannelOrContactUserRequestBody, ClientCredentialsRawResponseError, CommonHttpRequestError, ConsoleLogger, type ContactsGetUsersContactDetailsPathParams, type ContactsGetUsersContactDetailsQueryParams, type ContactsGetUsersContactDetailsResponse, type ContactsListUsersContactsQueryParams, type ContactsListUsersContactsResponse, type ContactsSearchCompanyContactsQueryParams, type ContactsSearchCompanyContactsResponse, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, type IMChatSendIMMessagesQueryParams, type IMChatSendIMMessagesRequestBody, type IMChatSendIMMessagesResponse, type IMGroupsAddIMDirectoryGroupMembersPathParams, type IMGroupsAddIMDirectoryGroupMembersRequestBody, type IMGroupsCreateIMDirectoryGroupRequestBody, type IMGroupsDeleteIMDirectoryGroupMemberPathParams, type IMGroupsDeleteIMDirectoryGroupPathParams, type IMGroupsListIMDirectoryGroupMembersPathParams, type IMGroupsListIMDirectoryGroupMembersQueryParams, type IMGroupsListIMDirectoryGroupMembersResponse, type IMGroupsListIMDirectoryGroupsResponse, type IMGroupsRetrieveIMDirectoryGroupPathParams, type IMGroupsRetrieveIMDirectoryGroupResponse, type IMGroupsUpdateIMDirectoryGroupPathParams, type IMGroupsUpdateIMDirectoryGroupRequestBody, type LegalHoldAddLegalHoldMatterRequestBody, type LegalHoldAddLegalHoldMatterResponse, type LegalHoldDeleteLegalHoldMattersPathParams, type LegalHoldDownloadLegalHoldFilesForGivenMatterPathParams, type LegalHoldDownloadLegalHoldFilesForGivenMatterQueryParams, type LegalHoldListLegalHoldFilesByGivenMatterPathParams, type LegalHoldListLegalHoldFilesByGivenMatterQueryParams, type LegalHoldListLegalHoldFilesByGivenMatterResponse, type LegalHoldListLegalHoldMattersQueryParams, type LegalHoldListLegalHoldMattersResponse, type LegalHoldUpdateLegalHoldMatterPathParams, type LegalHoldUpdateLegalHoldMatterRequestBody, LogLevel, type Logger, type MessageReplyContext, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, type ReportsGetChatMessagesReportsPathParams, type ReportsGetChatMessagesReportsQueryParams, type ReportsGetChatMessagesReportsResponse, type ReportsGetChatSessionsReportsQueryParams, type ReportsGetChatSessionsReportsResponse, S2SRawResponseError, type SharedSpacesAddMembersToSharedSpacePathParams, type SharedSpacesAddMembersToSharedSpaceRequestBody, type SharedSpacesAddMembersToSharedSpaceResponse, type SharedSpacesCreateSharedSpaceRequestBody, type SharedSpacesCreateSharedSpaceResponse, type SharedSpacesDeleteSharedSpacePathParams, type SharedSpacesDemoteSharedSpaceAdministratorsToMembersPathParams, type SharedSpacesDemoteSharedSpaceAdministratorsToMembersQueryParams, type SharedSpacesDemoteSharedSpaceAdministratorsToMembersResponse, type SharedSpacesGetSharedSpacePathParams, type SharedSpacesGetSharedSpaceResponse, type SharedSpacesListSharedSpaceChannelsPathParams, type SharedSpacesListSharedSpaceChannelsQueryParams, type SharedSpacesListSharedSpaceChannelsResponse, type SharedSpacesListSharedSpaceMembersPathParams, type SharedSpacesListSharedSpaceMembersQueryParams, type SharedSpacesListSharedSpaceMembersResponse, type SharedSpacesListSharedSpacesQueryParams, type SharedSpacesListSharedSpacesResponse, type SharedSpacesMoveSharedSpaceChannelsPathParams, type SharedSpacesMoveSharedSpaceChannelsRequestBody, type SharedSpacesMoveSharedSpaceChannelsResponse, type SharedSpacesPromoteSharedSpaceMembersToAdministratorsPathParams, type SharedSpacesPromoteSharedSpaceMembersToAdministratorsRequestBody, type SharedSpacesPromoteSharedSpaceMembersToAdministratorsResponse, type SharedSpacesRemoveMembersFromSharedSpacePathParams, type SharedSpacesRemoveMembersFromSharedSpaceQueryParams, type SharedSpacesRemoveMembersFromSharedSpaceResponse, type SharedSpacesTransferSharedSpaceOwnershipPathParams, type SharedSpacesTransferSharedSpaceOwnershipQueryParams, type SharedSpacesUpdateSharedSpaceSettingsPathParams, type SharedSpacesUpdateSharedSpaceSettingsRequestBody, type StateStore, StatusCode, type TeamChatBookmarkAddedEvent, type TeamChatBookmarkRemovedEvent, type TeamChatChannelAppAddedEvent, type TeamChatChannelAppRemovedEvent, type TeamChatChannelArchivedEvent, type TeamChatChannelInvitationAcceptedEvent, type TeamChatChannelInvitationApprovalRequestedEvent, type TeamChatChannelInvitationApprovedEvent, type TeamChatChannelInvitationCreatedEvent, type TeamChatChannelInvitationDeclinedEvent, type TeamChatChannelInvitationRejectedEvent, type TeamChatChannelInvitationRemovedEvent, type TeamChatChannelJoinApprovalRequestedEvent, type TeamChatChannelJoinApprovedEvent, type TeamChatChannelJoinDeclinedEvent, type TeamChatChannelJoinRequestedEvent, type TeamChatChannelMessageDeletedEvent, type TeamChatChannelMessagePostedEvent, type TeamChatChannelMessageUpdatedEvent, type TeamChatChannelPinAddedEvent, type TeamChatChannelPinRemovedEvent, type TeamChatChannelReactionAddedEvent, type TeamChatChannelReactionRemovedEvent, type TeamChatChannelUnarchivedEvent, TeamChatClient, type TeamChatDmMessageDeletedEvent, type TeamChatDmMessagePostedEvent, type TeamChatDmMessageUpdatedEvent, type TeamChatDmReactionAddedEvent, type TeamChatDmReactionRemovedEvent, type TeamChatEmojiAddedEvent, type TeamChatEmojiRemovedEvent, TeamChatEndpoints, TeamChatEventProcessor, type TeamChatFileChangedEvent, type TeamChatFileDeletedEvent, type TeamChatFileDownloadedEvent, type TeamChatFileSharedEvent, type TeamChatFileUnsharedEvent, type TeamChatFileUploadedEvent, type TeamChatOptions, TeamChatS2SAuthClient, type TeamChatS2SAuthOptions, type TeamChatSharedSpacesEditedEvent, type TeamChatSharedSpacesMemberInvitedEvent, type TeamChatSharedSpacesMemberLeftEvent, type TeamChatSharedSpacesMemberRemovedEvent, type TeamChatStarredEvent, type TeamChatUnstarredEvent, type TokenStore, isCoreError, isStateStore };
+export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, type ChatChannelCreatedEvent, type ChatChannelDeletedEvent, type ChatChannelMemberInvitedEvent, type ChatChannelMemberJoinedEvent, type ChatChannelMemberLeftEvent, type ChatChannelMemberRemovedEvent, type ChatChannelUpdatedEvent, type ChatChannelsAccountLevelBatchDeleteChannelsPathParams, type ChatChannelsAccountLevelBatchDeleteChannelsQueryParams, type ChatChannelsAccountLevelBatchDemoteChannelAdministratorsPathParams, type ChatChannelsAccountLevelBatchDemoteChannelAdministratorsQueryParams, type ChatChannelsAccountLevelDeleteChannelPathParams, type ChatChannelsAccountLevelGetChannelPathParams, type ChatChannelsAccountLevelGetChannelResponse, type ChatChannelsAccountLevelGetRetentionPolicyOfChannelPathParams, type ChatChannelsAccountLevelGetRetentionPolicyOfChannelResponse, type ChatChannelsAccountLevelInviteChannelMembersPathParams, type ChatChannelsAccountLevelInviteChannelMembersRequestBody, type ChatChannelsAccountLevelInviteChannelMembersResponse, type ChatChannelsAccountLevelListAccountsPublicChannelsQueryParams, type ChatChannelsAccountLevelListAccountsPublicChannelsResponse, type ChatChannelsAccountLevelListChannelAdministratorsPathParams, type ChatChannelsAccountLevelListChannelAdministratorsQueryParams, type ChatChannelsAccountLevelListChannelAdministratorsResponse, type ChatChannelsAccountLevelListChannelMembersPathParams, type ChatChannelsAccountLevelListChannelMembersQueryParams, type ChatChannelsAccountLevelListChannelMembersResponse, type ChatChannelsAccountLevelPromoteChannelMembersToAdministratorsPathParams, type ChatChannelsAccountLevelPromoteChannelMembersToAdministratorsRequestBody, type ChatChannelsAccountLevelPromoteChannelMembersToAdministratorsResponse, type ChatChannelsAccountLevelRemoveMemberPathParams, type ChatChannelsAccountLevelSearchUsersOrAccountsChannelsRequestBody, type ChatChannelsAccountLevelSearchUsersOrAccountsChannelsResponse, type ChatChannelsAccountLevelUpdateChannelPathParams, type ChatChannelsAccountLevelUpdateChannelRequestBody, type ChatChannelsAccountLevelUpdateRetentionPolicyOfChannelPathParams, type ChatChannelsAccountLevelUpdateRetentionPolicyOfChannelRequestBody, type ChatChannelsBatchRemoveMembersFromChannelPathParams, type ChatChannelsBatchRemoveMembersFromChannelQueryParams, type ChatChannelsCreateChannelPathParams, type ChatChannelsCreateChannelRequestBody, type ChatChannelsCreateChannelResponse, type ChatChannelsDeleteChannelPathParams, type ChatChannelsGetChannelPathParams, type ChatChannelsGetChannelResponse, type ChatChannelsInviteChannelMembersGroupsPathParams, type ChatChannelsInviteChannelMembersGroupsRequestBody, type ChatChannelsInviteChannelMembersGroupsResponse, type ChatChannelsInviteChannelMembersPathParams, type ChatChannelsInviteChannelMembersRequestBody, type ChatChannelsInviteChannelMembersResponse, type ChatChannelsJoinChannelPathParams, type ChatChannelsJoinChannelResponse, type ChatChannelsLeaveChannelPathParams, type ChatChannelsListChannelMembersGroupsPathParams, type ChatChannelsListChannelMembersGroupsResponse, type ChatChannelsListChannelMembersPathParams, type ChatChannelsListChannelMembersQueryParams, type ChatChannelsListChannelMembersResponse, type ChatChannelsListUsersChannelsPathParams, type ChatChannelsListUsersChannelsQueryParams, type ChatChannelsListUsersChannelsResponse, type ChatChannelsPerformOperationsOnChannelsRequestBody, type ChatChannelsPerformOperationsOnChannelsResponse, type ChatChannelsRemoveMemberGroupPathParams, type ChatChannelsRemoveMemberPathParams, type ChatChannelsUpdateChannelPathParams, type ChatChannelsUpdateChannelRequestBody, type ChatEmojiAddCustomEmojiRequestBody, type ChatEmojiAddCustomEmojiResponse, type ChatEmojiDeleteCustomEmojiPathParams, type ChatEmojiListCustomEmojisQueryParams, type ChatEmojiListCustomEmojisResponse, type ChatFilesDeleteChatFilePathParams, type ChatFilesGetFileInfoPathParams, type ChatFilesGetFileInfoResponse, type ChatFilesSendChatFilePathParams, type ChatFilesSendChatFileRequestBody, type ChatFilesSendChatFileResponse, type ChatFilesUploadChatFilePathParams, type ChatFilesUploadChatFileRequestBody, type ChatFilesUploadChatFileResponse, type ChatMessageDeletedEvent, type ChatMessageRepliedEvent, type ChatMessageSentEvent, type ChatMessageUpdatedEvent, type ChatMessagesAddOrRemoveBookmarkQueryParams, type ChatMessagesAddOrRemoveBookmarkRequestBody, type ChatMessagesDeleteMessagePathParams, type ChatMessagesDeleteMessageQueryParams, type ChatMessagesDeleteScheduledMessagePathParams, type ChatMessagesDeleteScheduledMessageQueryParams, type ChatMessagesGetMessagePathParams, type ChatMessagesGetMessageQueryParams, type ChatMessagesGetMessageResponse, type ChatMessagesListBookmarksQueryParams, type ChatMessagesListBookmarksResponse, type ChatMessagesListPinnedHistoryMessagesOfChannelPathParams, type ChatMessagesListPinnedHistoryMessagesOfChannelQueryParams, type ChatMessagesListPinnedHistoryMessagesOfChannelResponse, type ChatMessagesListScheduledMessagesQueryParams, type ChatMessagesListScheduledMessagesResponse, type ChatMessagesListUsersChatMessagesPathParams, type ChatMessagesListUsersChatMessagesQueryParams, type ChatMessagesListUsersChatMessagesResponse, type ChatMessagesMarkMessageReadOrUnreadPathParams, type ChatMessagesMarkMessageReadOrUnreadRequestBody, type ChatMessagesPerformOperationsOnMessageOfChannelRequestBody, type ChatMessagesReactToChatMessagePathParams, type ChatMessagesReactToChatMessageRequestBody, type ChatMessagesRetrieveThreadPathParams, type ChatMessagesRetrieveThreadQueryParams, type ChatMessagesRetrieveThreadResponse, type ChatMessagesSendChatMessagePathParams, type ChatMessagesSendChatMessageRequestBody, type ChatMessagesSendChatMessageResponse, type ChatMessagesUpdateMessagePathParams, type ChatMessagesUpdateMessageRequestBody, type ChatMigrationMigrateChannelMembersPathParams, type ChatMigrationMigrateChannelMembersRequestBody, type ChatMigrationMigrateChatChannelPathParams, type ChatMigrationMigrateChatChannelRequestBody, type ChatMigrationMigrateChatChannelResponse, type ChatMigrationMigrateChatMessageReactionsRequestBody, type ChatMigrationMigrateChatMessagesRequestBody, type ChatMigrationMigrateChatMessagesResponse, type ChatMigrationMigrateConversationOrChannelOperationsPathParams, type ChatMigrationMigrateConversationOrChannelOperationsRequestBody, type ChatReminderCreateReminderMessagePathParams, type ChatReminderCreateReminderMessageRequestBody, type ChatReminderDeleteReminderForMessagePathParams, type ChatReminderDeleteReminderForMessageQueryParams, type ChatReminderListRemindersQueryParams, type ChatReminderListRemindersResponse, type ChatSessionsListUsersChatSessionsPathParams, type ChatSessionsListUsersChatSessionsQueryParams, type ChatSessionsListUsersChatSessionsResponse, type ChatSessionsStarOrUnstarChannelOrContactUserPathParams, type ChatSessionsStarOrUnstarChannelOrContactUserRequestBody, ClientCredentialsRawResponseError, type ClientCredentialsToken, CommonHttpRequestError, ConsoleLogger, type ContactsGetUsersContactDetailsPathParams, type ContactsGetUsersContactDetailsQueryParams, type ContactsGetUsersContactDetailsResponse, type ContactsListUsersContactsQueryParams, type ContactsListUsersContactsResponse, type ContactsSearchCompanyContactsQueryParams, type ContactsSearchCompanyContactsResponse, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, type IMChatSendIMMessagesQueryParams, type IMChatSendIMMessagesRequestBody, type IMChatSendIMMessagesResponse, type IMGroupsAddIMDirectoryGroupMembersPathParams, type IMGroupsAddIMDirectoryGroupMembersRequestBody, type IMGroupsCreateIMDirectoryGroupRequestBody, type IMGroupsDeleteIMDirectoryGroupMemberPathParams, type IMGroupsDeleteIMDirectoryGroupPathParams, type IMGroupsListIMDirectoryGroupMembersPathParams, type IMGroupsListIMDirectoryGroupMembersQueryParams, type IMGroupsListIMDirectoryGroupMembersResponse, type IMGroupsListIMDirectoryGroupsResponse, type IMGroupsRetrieveIMDirectoryGroupPathParams, type IMGroupsRetrieveIMDirectoryGroupResponse, type IMGroupsUpdateIMDirectoryGroupPathParams, type IMGroupsUpdateIMDirectoryGroupRequestBody, type JwtToken, type LegalHoldAddLegalHoldMatterRequestBody, type LegalHoldAddLegalHoldMatterResponse, type LegalHoldDeleteLegalHoldMattersPathParams, type LegalHoldDownloadLegalHoldFilesForGivenMatterPathParams, type LegalHoldDownloadLegalHoldFilesForGivenMatterQueryParams, type LegalHoldListLegalHoldFilesByGivenMatterPathParams, type LegalHoldListLegalHoldFilesByGivenMatterQueryParams, type LegalHoldListLegalHoldFilesByGivenMatterResponse, type LegalHoldListLegalHoldMattersQueryParams, type LegalHoldListLegalHoldMattersResponse, type LegalHoldUpdateLegalHoldMatterPathParams, type LegalHoldUpdateLegalHoldMatterRequestBody, LogLevel, type Logger, type MessageReplyContext, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, type OAuthToken, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, type ReportsGetChatMessagesReportsPathParams, type ReportsGetChatMessagesReportsQueryParams, type ReportsGetChatMessagesReportsResponse, type ReportsGetChatSessionsReportsQueryParams, type ReportsGetChatSessionsReportsResponse, type S2SAuthToken, S2SRawResponseError, type SharedSpacesAddMembersToSharedSpacePathParams, type SharedSpacesAddMembersToSharedSpaceRequestBody, type SharedSpacesAddMembersToSharedSpaceResponse, type SharedSpacesCreateSharedSpaceRequestBody, type SharedSpacesCreateSharedSpaceResponse, type SharedSpacesDeleteSharedSpacePathParams, type SharedSpacesDemoteSharedSpaceAdministratorsToMembersPathParams, type SharedSpacesDemoteSharedSpaceAdministratorsToMembersQueryParams, type SharedSpacesDemoteSharedSpaceAdministratorsToMembersResponse, type SharedSpacesGetSharedSpacePathParams, type SharedSpacesGetSharedSpaceResponse, type SharedSpacesListSharedSpaceChannelsPathParams, type SharedSpacesListSharedSpaceChannelsQueryParams, type SharedSpacesListSharedSpaceChannelsResponse, type SharedSpacesListSharedSpaceMembersPathParams, type SharedSpacesListSharedSpaceMembersQueryParams, type SharedSpacesListSharedSpaceMembersResponse, type SharedSpacesListSharedSpacesQueryParams, type SharedSpacesListSharedSpacesResponse, type SharedSpacesMoveSharedSpaceChannelsPathParams, type SharedSpacesMoveSharedSpaceChannelsRequestBody, type SharedSpacesMoveSharedSpaceChannelsResponse, type SharedSpacesPromoteSharedSpaceMembersToAdministratorsPathParams, type SharedSpacesPromoteSharedSpaceMembersToAdministratorsRequestBody, type SharedSpacesPromoteSharedSpaceMembersToAdministratorsResponse, type SharedSpacesRemoveMembersFromSharedSpacePathParams, type SharedSpacesRemoveMembersFromSharedSpaceQueryParams, type SharedSpacesRemoveMembersFromSharedSpaceResponse, type SharedSpacesTransferSharedSpaceOwnershipPathParams, type SharedSpacesTransferSharedSpaceOwnershipQueryParams, type SharedSpacesUpdateSharedSpaceSettingsPathParams, type SharedSpacesUpdateSharedSpaceSettingsRequestBody, type StateStore, StatusCode, type TeamChatBookmarkAddedEvent, type TeamChatBookmarkRemovedEvent, type TeamChatChannelAppAddedEvent, type TeamChatChannelAppRemovedEvent, type TeamChatChannelArchivedEvent, type TeamChatChannelInvitationAcceptedEvent, type TeamChatChannelInvitationApprovalRequestedEvent, type TeamChatChannelInvitationApprovedEvent, type TeamChatChannelInvitationCreatedEvent, type TeamChatChannelInvitationDeclinedEvent, type TeamChatChannelInvitationRejectedEvent, type TeamChatChannelInvitationRemovedEvent, type TeamChatChannelJoinApprovalRequestedEvent, type TeamChatChannelJoinApprovedEvent, type TeamChatChannelJoinDeclinedEvent, type TeamChatChannelJoinRequestedEvent, type TeamChatChannelMessageDeletedEvent, type TeamChatChannelMessagePostedEvent, type TeamChatChannelMessageUpdatedEvent, type TeamChatChannelPinAddedEvent, type TeamChatChannelPinRemovedEvent, type TeamChatChannelReactionAddedEvent, type TeamChatChannelReactionRemovedEvent, type TeamChatChannelUnarchivedEvent, TeamChatClient, type TeamChatDmMessageDeletedEvent, type TeamChatDmMessagePostedEvent, type TeamChatDmMessageUpdatedEvent, type TeamChatDmReactionAddedEvent, type TeamChatDmReactionRemovedEvent, type TeamChatEmojiAddedEvent, type TeamChatEmojiRemovedEvent, TeamChatEndpoints, TeamChatEventProcessor, type TeamChatFileChangedEvent, type TeamChatFileDeletedEvent, type TeamChatFileDownloadedEvent, type TeamChatFileSharedEvent, type TeamChatFileUnsharedEvent, type TeamChatFileUploadedEvent, type TeamChatOptions, TeamChatS2SAuthClient, type TeamChatS2SAuthOptions, type TeamChatSharedSpacesEditedEvent, type TeamChatSharedSpacesMemberInvitedEvent, type TeamChatSharedSpacesMemberLeftEvent, type TeamChatSharedSpacesMemberRemovedEvent, type TeamChatStarredEvent, type TeamChatUnstarredEvent, type TokenStore, isCoreError, isStateStore };
