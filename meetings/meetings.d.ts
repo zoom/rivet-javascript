@@ -1,95 +1,8 @@
-import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { AxiosResponse } from 'axios';
+import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { Server } from 'node:http';
 import { ServerOptions } from 'node:https';
 import { ReadStream } from 'node:fs';
-
-type AllKeysOf<T> = T extends any ? keyof T : never;
-type AllPropsOptional<T, True, False> = Exclude<{
-    [P in keyof T]: undefined extends T[P] ? True : False;
-}[keyof T], undefined> extends True ? True : False;
-type Constructor<T> = new (...args: any[]) => T;
-type ExactlyOneOf<T extends any[]> = {
-    [K in keyof T]: T[K] & ProhibitKeys<Exclude<AllKeysOf<T[number]>, keyof T[K]>>;
-}[number];
-type MaybeArray<T> = T | T[];
-type MaybePromise<T> = T | Promise<T>;
-type ProhibitKeys<K extends keyof any> = {
-    [P in K]?: never;
-};
-type StringIndexed<V = any> = Record<string, V>;
-
-/**
- * {@link StateStore} defines methods for generating and verifying OAuth state.
- *
- * This interface is implemented internally for the default state store; however,
- * it can also be implemented and passed to an OAuth client as well.
- */
-interface StateStore {
-    /**
-     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
-     */
-    generateState(): MaybePromise<string>;
-    /**
-     * Verify that the state received during OAuth callback is valid and not forged.
-     *
-     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
-     *
-     * @param state The state parameter that was received during OAuth callback
-     */
-    verifyState(state: string): MaybePromise<void>;
-}
-/**
- * Guard if an object implements the {@link StateStore} interface — most notably,
- * `generateState()` and `verifyState(state: string)`.
- */
-declare const isStateStore: (obj: unknown) => obj is StateStore;
-
-interface TokenStore<Token> {
-    getLatestToken(): MaybePromise<Token | null | undefined>;
-    storeToken(token: Token): MaybePromise<void>;
-}
-
-interface RivetError<ErrorCode extends string = string> extends Error {
-    readonly errorCode: ErrorCode;
-}
-
-declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
-    readonly ApiResponseError: "zoom_rivet_api_response_error";
-    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
-    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
-    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
-    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
-    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
-    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
-    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
-    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
-    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
-    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
-    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
-    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
-    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
-    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
-    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
-    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
-}[K]>;
-declare const ApiResponseError: Constructor<Error>;
-declare const AwsReceiverRequestError: Constructor<Error>;
-declare const ClientCredentialsRawResponseError: Constructor<Error>;
-declare const S2SRawResponseError: Constructor<Error>;
-declare const CommonHttpRequestError: Constructor<Error>;
-declare const ReceiverInconsistentStateError: Constructor<Error>;
-declare const ReceiverOAuthFlowError: Constructor<Error>;
-declare const HTTPReceiverConstructionError: Constructor<Error>;
-declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
-declare const HTTPReceiverRequestError: Constructor<Error>;
-declare const OAuthInstallerNotInitializedError: Constructor<Error>;
-declare const OAuthTokenDoesNotExistError: Constructor<Error>;
-declare const OAuthTokenFetchFailedError: Constructor<Error>;
-declare const OAuthTokenRawResponseError: Constructor<Error>;
-declare const OAuthTokenRefreshFailedError: Constructor<Error>;
-declare const OAuthStateVerificationFailedError: Constructor<Error>;
-declare const ProductClientConstructionError: Constructor<Error>;
 
 declare enum LogLevel {
     ERROR = "error",
@@ -150,6 +63,19 @@ declare class ConsoleLogger implements Logger {
     private static isMoreOrEqualSevere;
 }
 
+type AllPropsOptional<T, True, False> = Exclude<{
+    [P in keyof T]: undefined extends T[P] ? True : False;
+}[keyof T], undefined> extends True ? True : False;
+type Constructor<T> = new (...args: any[]) => T;
+type MaybeArray<T> = T | T[];
+type MaybePromise<T> = T | Promise<T>;
+type StringIndexed<V = any> = Record<string, V>;
+
+interface TokenStore<Token> {
+    getLatestToken(): MaybePromise<Token | null | undefined>;
+    storeToken(token: Token): MaybePromise<void>;
+}
+
 interface AuthOptions<Token> {
     clientId: string;
     clientSecret: string;
@@ -195,6 +121,17 @@ declare abstract class Auth<Token = unknown> {
     }>, "grant_type">): Promise<AxiosResponse>;
 }
 
+interface ClientCredentialsToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    scopes: string[];
+}
+
+interface JwtToken {
+    token: string;
+    expirationTimeIso: string;
+}
+
 interface S2SAuthToken {
     accessToken: string;
     expirationTimeIso: string;
@@ -233,12 +170,31 @@ declare class EventManager<Endpoints, Events> {
     protected withContext<EventName extends EventKeys<Events>, Context>(): ContextListener<Events, EventName, Context>;
 }
 
+declare enum StatusCode {
+    OK = 200,
+    TEMPORARY_REDIRECT = 302,
+    BAD_REQUEST = 400,
+    NOT_FOUND = 404,
+    METHOD_NOT_ALLOWED = 405,
+    INTERNAL_SERVER_ERROR = 500
+}
+interface ReceiverInitOptions {
+    eventEmitter?: GenericEventManager | undefined;
+    interactiveAuth?: InteractiveAuth | undefined;
+}
+interface Receiver {
+    canInstall(): true | false;
+    init(options: ReceiverInitOptions): void;
+    start(...args: any[]): MaybePromise<unknown>;
+    stop(...args: any[]): MaybePromise<unknown>;
+}
+
 interface HttpReceiverOptions extends Partial<SecureServerOptions> {
     endpoints?: MaybeArray<string> | undefined;
+    logger?: Logger | undefined;
+    logLevel?: LogLevel | undefined;
     port?: number | string | undefined;
-    webhooksSecretToken: string;
-    logger?: Logger;
-    logLevel?: LogLevel;
+    webhooksSecretToken?: string | undefined;
 }
 type SecureServerOptions = {
     [K in (typeof secureServerOptionKeys)[number]]: ServerOptions[K];
@@ -251,10 +207,15 @@ declare class HttpReceiver implements Receiver {
     private logger;
     constructor(options: HttpReceiverOptions);
     canInstall(): true;
+    private buildDeletedStateCookieHeader;
+    private buildStateCookieHeader;
+    private getRequestCookie;
     private getServerCreator;
     private hasEndpoint;
     private hasSecureOptions;
     init({ eventEmitter, interactiveAuth }: ReceiverInitOptions): void;
+    private setResponseCookie;
+    private areNormalizedUrlsEqual;
     start(port?: number | string): Promise<Server>;
     stop(): Promise<void>;
     private writeTemporaryRedirect;
@@ -277,6 +238,7 @@ interface WebEndpointOptions {
     baseUrl?: string | undefined;
     doubleEncodeUrl?: boolean | undefined;
     timeout?: number | undefined;
+    userAgentName?: string | undefined;
 }
 type EndpointArguments<PathSchema extends StringIndexed | NoParams, BodySchema extends StringIndexed | NoParams, QuerySchema extends StringIndexed | NoParams> = (PathSchema extends NoParams ? object : AllPropsOptional<PathSchema, "t", "f"> extends "t" ? {
     path?: PathSchema;
@@ -298,6 +260,7 @@ declare class WebEndpoints {
     constructor(options: WebEndpointOptions);
     protected buildEndpoint<PathSchema extends StringIndexed | NoParams, BodySchema extends StringIndexed | NoParams, QuerySchema extends StringIndexed | NoParams, ResponseData = unknown>({ method, baseUrlOverride, urlPathBuilder, requestMimeType }: BuildEndpointOptions<PathSchema>): (_: EndpointArguments<PathSchema, BodySchema, QuerySchema>) => Promise<BaseResponse<ResponseData>>;
     private buildUserAgent;
+    private getCustomUserAgentName;
     private getHeaders;
     private getRequestBody;
     private isOk;
@@ -305,7 +268,7 @@ declare class WebEndpoints {
     private makeRequest;
 }
 
-type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A> & ExtractInstallerOptions<A, R> & {
+type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A> & ExtractInstallerOptions<A, R> & Pick<WebEndpointOptions, "userAgentName"> & {
     disableReceiver?: boolean | undefined;
     logger?: Logger | undefined;
     logLevel?: LogLevel | undefined;
@@ -313,38 +276,68 @@ type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A>
 interface ClientReceiverOptions<R extends Receiver> {
     receiver: R;
 }
-type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = IsReceiverDisabled<O> extends true ? O : O & (ClientReceiverOptions<R> | HttpReceiverOptions);
+type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = (O & {
+    disableReceiver: true;
+}) | (O & (ClientReceiverOptions<R> | HttpReceiverOptions));
 type ExtractInstallerOptions<A extends Auth, R extends Receiver> = A extends InteractiveAuth ? [
     ReturnType<R["canInstall"]>
 ] extends [true] ? WideInstallerOptions : object : object;
 type ExtractAuthTokenType<A> = A extends Auth<infer T> ? T : never;
-type GenericClientOptions = CommonClientOptions<any, any>;
 type GetAuthOptions<A extends Auth> = AuthOptions<ExtractAuthTokenType<A>> & (A extends S2SAuth ? S2SAuthOptions : object);
-type IsReceiverDisabled<O extends Pick<GenericClientOptions, "disableReceiver">> = [
-    O["disableReceiver"]
-] extends [true] ? true : false;
 type WideInstallerOptions = {
     installerOptions: InstallerOptions;
 };
 declare abstract class ProductClient<AuthType extends Auth, EndpointsType extends WebEndpoints, EventProcessorType extends GenericEventManager, OptionsType extends CommonClientOptions<AuthType, ReceiverType>, ReceiverType extends Receiver> {
     private readonly auth;
     readonly endpoints: EndpointsType;
-    readonly webEventConsumer: EventProcessorType;
+    readonly webEventConsumer?: EventProcessorType | undefined;
     private readonly receiver?;
     constructor(options: ClientConstructorOptions<AuthType, OptionsType, ReceiverType>);
     protected abstract initAuth(options: OptionsType): AuthType;
     protected abstract initEndpoints(auth: AuthType, options: OptionsType): EndpointsType;
-    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType;
+    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType | undefined;
     private initDefaultReceiver;
-    start(this: IsReceiverDisabled<OptionsType> extends true ? never : this): Promise<ReturnType<ReceiverType["start"]>>;
+    start(): Promise<ReturnType<ReceiverType["start"]>>;
 }
 
+/**
+ * {@link StateStore} defines methods for generating and verifying OAuth state.
+ *
+ * This interface is implemented internally for the default state store; however,
+ * it can also be implemented and passed to an OAuth client as well.
+ */
+interface StateStore {
+    /**
+     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
+     */
+    generateState(): MaybePromise<string>;
+    /**
+     * Verify that the state received during OAuth callback is valid and not forged.
+     *
+     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
+     *
+     * @param state The state parameter that was received during OAuth callback
+     */
+    verifyState(state: string): MaybePromise<void>;
+}
+/**
+ * Guard if an object implements the {@link StateStore} interface — most notably,
+ * `generateState()` and `verifyState(state: string)`.
+ */
+declare const isStateStore: (obj: unknown) => obj is StateStore;
+
+interface AuthorizationUrlResult {
+    fullUrl: string;
+    generatedState: string;
+}
 interface InstallerOptions {
     directInstall?: boolean | undefined;
     installPath?: string | undefined;
     redirectUri: string;
     redirectUriPath?: string | undefined;
     stateStore: StateStore | string;
+    stateCookieName?: string | undefined;
+    stateCookieMaxAge?: number | undefined;
 }
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
@@ -358,35 +351,86 @@ interface InstallerOptions {
  */
 declare abstract class InteractiveAuth<Token = unknown> extends Auth<Token> {
     installerOptions?: ReturnType<typeof this.setInstallerOptions>;
-    getAuthorizationUrl(): Promise<string>;
+    getAuthorizationUrl(): Promise<AuthorizationUrlResult>;
     getFullRedirectUri(): string;
-    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore }: InstallerOptions): {
+    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore, stateCookieName, stateCookieMaxAge }: InstallerOptions): {
         directInstall: boolean;
         installPath: string;
         redirectUri: string;
         redirectUriPath: string;
         stateStore: StateStore;
+        stateCookieName: string;
+        stateCookieMaxAge: number;
     };
 }
 
-declare enum StatusCode {
-    OK = 200,
-    TEMPORARY_REDIRECT = 302,
-    BAD_REQUEST = 400,
-    NOT_FOUND = 404,
-    METHOD_NOT_ALLOWED = 405,
-    INTERNAL_SERVER_ERROR = 500
+/**
+ * Credentials for access token & refresh token, which are used to access Zoom's APIs.
+ *
+ * As access token is short-lived (usually a single hour), its expiration time is checked
+ * first. If it's possible to use the access token, it's used; however, if it has expired
+ * or is close to expiring, the refresh token should be used to generate a new access token
+ * before the API call is made. Refresh tokens are generally valid for 90 days.
+ *
+ * If neither the access token nor the refresh token is available, {@link OAuthTokenRefreshFailedError}
+ * shall be thrown, informing the developer that neither value can be used, and the user must re-authorize.
+ * It's likely that this error will be rare, but it _can_ be thrown.
+ */
+interface OAuthToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    refreshToken: string;
+    scopes: string[];
 }
-interface ReceiverInitOptions {
-    eventEmitter: GenericEventManager;
-    interactiveAuth?: InteractiveAuth | undefined;
+declare class OAuth extends InteractiveAuth<OAuthToken> {
+    private assertResponseAccessToken;
+    private fetchAccessToken;
+    getToken(): Promise<string>;
+    initRedirectCode(code: string): Promise<void>;
+    private mapOAuthToken;
+    private refreshAccessToken;
 }
-interface Receiver {
-    canInstall(): true | false;
-    init(options: ReceiverInitOptions): void;
-    start(...args: any[]): MaybePromise<unknown>;
-    stop(...args: any[]): MaybePromise<unknown>;
+
+interface RivetError<ErrorCode extends string = string> extends Error {
+    readonly errorCode: ErrorCode;
 }
+
+declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
+    readonly ApiResponseError: "zoom_rivet_api_response_error";
+    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
+    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
+    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
+    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
+    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
+    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
+    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
+    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
+    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
+    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
+    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
+    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
+    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
+    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
+    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
+    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
+}[K]>;
+declare const ApiResponseError: Constructor<Error>;
+declare const AwsReceiverRequestError: Constructor<Error>;
+declare const ClientCredentialsRawResponseError: Constructor<Error>;
+declare const S2SRawResponseError: Constructor<Error>;
+declare const CommonHttpRequestError: Constructor<Error>;
+declare const ReceiverInconsistentStateError: Constructor<Error>;
+declare const ReceiverOAuthFlowError: Constructor<Error>;
+declare const HTTPReceiverConstructionError: Constructor<Error>;
+declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
+declare const HTTPReceiverRequestError: Constructor<Error>;
+declare const OAuthInstallerNotInitializedError: Constructor<Error>;
+declare const OAuthTokenDoesNotExistError: Constructor<Error>;
+declare const OAuthTokenFetchFailedError: Constructor<Error>;
+declare const OAuthTokenRawResponseError: Constructor<Error>;
+declare const OAuthTokenRefreshFailedError: Constructor<Error>;
+declare const OAuthStateVerificationFailedError: Constructor<Error>;
+declare const ProductClientConstructionError: Constructor<Error>;
 
 interface AwsLambdaReceiverOptions {
     webhooksSecretToken: string;
@@ -407,7 +451,7 @@ type ArchivingListArchivedFilesQueryParams = {
     next_page_token?: string;
     from?: string;
     to?: string;
-    query_date_type?: string;
+    query_date_type?: "meeting_start_time" | "archive_complete_time";
     group_id?: string;
     group_ids?: string;
 };
@@ -420,17 +464,17 @@ type ArchivingListArchivedFilesResponse = {
             file_extension: string;
             file_path?: string;
             file_size: number;
-            file_type: string;
+            file_type: "MP4" | "M4A" | "CHAT" | "CC" | "CHAT_MESSAGE" | "TRANSCRIPT" | "SUB_GROUP_MEMBER_LOG" | "AIC_COVERSATION";
             id: string;
             individual: boolean;
             participant_email?: string;
             participant_join_time: string;
             participant_leave_time: string;
-            recording_type: string;
-            status: string;
+            recording_type: "shared_screen_with_speaker_view" | "audio_only" | "chat_file" | "closed_caption" | "chat_message" | "audio_transcript" | "aic_conversation";
+            status: "completed" | "processing" | "failed";
             encryption_fingerprint: string;
             number_of_messages?: number;
-            storage_location?: string;
+            storage_location?: "US" | "AU" | "BR" | "CA" | "EU" | "IN" | "JP" | "SG" | "CH";
             auto_delete?: boolean;
         }[];
         complete_time: string;
@@ -439,17 +483,23 @@ type ArchivingListArchivedFilesResponse = {
         host_id: string;
         id: number;
         is_breakout_room: boolean;
-        meeting_type: string;
+        meeting_type: "internal" | "external";
         parent_meeting_id?: string;
         recording_count: number;
         start_time: string;
         timezone: string;
         topic: string;
         total_size: number;
-        type: number;
+        type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 100;
         uuid: string;
-        status: string;
+        status: "completed" | "processing";
         group_id?: string;
+        physical_files?: {
+            file_id?: string;
+            file_name?: string;
+            file_size?: number;
+            download_url?: string;
+        }[];
     }[];
     next_page_token?: string;
     page_size?: number;
@@ -493,17 +543,17 @@ type ArchivingGetMeetingsArchivedFilesResponse = {
         file_extension: string;
         file_path?: string;
         file_size: number;
-        file_type: string;
+        file_type: "MP4" | "M4A" | "CHAT" | "CC" | "CHAT_MESSAGE" | "TRANSCRIPT" | "SUB_GROUP_MEMBER_LOG" | "AIC_COVERSATION";
         id: string;
         individual: boolean;
         participant_email?: string;
         participant_join_time: string;
         participant_leave_time: string;
-        recording_type: string;
-        status: string;
+        recording_type: "shared_screen_with_speaker_view" | "audio_only" | "chat_file" | "closed_caption" | "chat_message" | "audio_transcript" | "aic_conversation";
+        status: "completed" | "processing" | "failed";
         encryption_fingerprint: string;
         number_of_messages?: number;
-        storage_location?: string;
+        storage_location?: "US" | "AU" | "BR" | "CA" | "EU" | "IN" | "JP" | "SG" | "CH";
         auto_delete?: boolean;
     }[];
     complete_time: string;
@@ -512,17 +562,23 @@ type ArchivingGetMeetingsArchivedFilesResponse = {
     host_id: string;
     id: number;
     is_breakout_room: boolean;
-    meeting_type: string;
+    meeting_type: "internal" | "external";
     parent_meeting_id?: string;
     recording_count: number;
     start_time: string;
     timezone: string;
     topic: string;
     total_size: number;
-    type: number;
+    type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 100;
     uuid: string;
-    status: string;
+    status: "completed" | "processing";
     group_id?: string;
+    physical_files?: {
+        file_id?: string;
+        file_name?: string;
+        file_size?: number;
+        download_url?: string;
+    }[];
 };
 type ArchivingDeleteMeetingsArchivedFilesPathParams = {
     meetingUUID: string;
@@ -543,7 +599,7 @@ type CloudRecordingGetMeetingRecordingsResponse = ({
     start_time?: string;
     topic?: string;
     total_size?: number;
-    type?: string;
+    type?: "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "99";
     uuid?: string;
     recording_play_passcode?: string;
     auto_delete?: boolean;
@@ -554,15 +610,15 @@ type CloudRecordingGetMeetingRecordingsResponse = ({
         download_url?: string;
         file_path?: string;
         file_size?: number;
-        file_type?: string;
-        file_extension?: string;
+        file_type?: "MP4" | "M4A" | "CHAT" | "TRANSCRIPT" | "CSV" | "TB" | "CC" | "CHAT_MESSAGE" | "SUMMARY";
+        file_extension?: "MP4" | "M4A" | "TXT" | "VTT" | "CSV" | "JSON" | "JPG";
         id?: string;
         meeting_id?: string;
         play_url?: string;
         recording_end?: string;
         recording_start?: string;
-        recording_type?: string;
-        status?: string;
+        recording_type?: "shared_screen_with_speaker_view(CC)" | "shared_screen_with_speaker_view" | "shared_screen_with_gallery_view" | "active_speaker" | "gallery_view" | "shared_screen" | "audio_only" | "audio_transcript" | "chat_file" | "poll" | "host_video" | "closed_caption" | "timeline" | "thumbnail" | "audio_interpretation" | "summary" | "summary_next_steps" | "summary_smart_chapters" | "sign_interpretation" | "production_studio";
+        status?: "completed";
     }[];
 }) & {
     download_access_token?: string;
@@ -579,14 +635,14 @@ type CloudRecordingGetMeetingRecordingsResponse = ({
         play_url?: string;
         recording_end?: string;
         recording_start?: string;
-        status?: string;
+        status?: "completed";
     }[];
 };
 type CloudRecordingDeleteMeetingOrWebinarRecordingsPathParams = {
     meetingId: string;
 };
 type CloudRecordingDeleteMeetingOrWebinarRecordingsQueryParams = {
-    action?: string;
+    action?: "trash" | "delete";
 };
 type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsPathParams = {
     meetingId: string;
@@ -596,7 +652,7 @@ type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsQueryParams = {
     next_page_token?: string;
     from?: string;
     to?: string;
-    type?: string;
+    type?: "by_view" | "by_download";
 };
 type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsResponse = {
     from?: string;
@@ -631,7 +687,7 @@ type CloudRecordingListRecordingRegistrantsPathParams = {
     meetingId: number;
 };
 type CloudRecordingListRecordingRegistrantsQueryParams = {
-    status?: string;
+    status?: "pending" | "approved" | "denied";
     page_size?: number;
     page_number?: number;
     next_page_token?: string;
@@ -659,13 +715,13 @@ type CloudRecordingListRecordingRegistrantsResponse = {
         industry?: string;
         job_title?: string;
         last_name?: string;
-        no_of_employees?: string;
+        no_of_employees?: "" | "1-20" | "21-50" | "51-100" | "101-250" | "251-500" | "501-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
         org?: string;
         phone?: string;
-        purchasing_time_frame?: string;
-        role_in_purchase_process?: string;
+        purchasing_time_frame?: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+        role_in_purchase_process?: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
         state?: string;
-        status?: string;
+        status?: "approved" | "denied" | "pending";
         zip?: string;
     })[];
 };
@@ -686,13 +742,13 @@ type CloudRecordingCreateRecordingRegistrantRequestBody = {
     industry?: string;
     job_title?: string;
     last_name?: string;
-    no_of_employees?: string;
+    no_of_employees?: "" | "1-20" | "21-50" | "51-100" | "101-250" | "251-500" | "501-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
     org?: string;
     phone?: string;
-    purchasing_time_frame?: string;
-    role_in_purchase_process?: string;
+    purchasing_time_frame?: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+    role_in_purchase_process?: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
     state?: string;
-    status?: string;
+    status?: "approved" | "denied" | "pending";
     zip?: string;
 };
 type CloudRecordingCreateRecordingRegistrantResponse = {
@@ -709,10 +765,10 @@ type CloudRecordingGetRegistrationQuestionsResponse = {
         answers?: string[];
         required?: boolean;
         title?: string;
-        type?: string;
+        type?: "short" | "single" | "multiple";
     }[];
     questions?: {
-        field_name?: string;
+        field_name?: "last_name" | "address" | "city" | "country" | "zip" | "state" | "phone" | "industry" | "org" | "job_title" | "purchasing_time_frame" | "role_in_purchase_process" | "no_of_employees" | "comments";
         required?: boolean;
     }[];
 };
@@ -724,10 +780,10 @@ type CloudRecordingUpdateRegistrationQuestionsRequestBody = {
         answers?: string[];
         required?: boolean;
         title?: string;
-        type?: string;
+        type?: "short" | "single" | "multiple";
     }[];
     questions?: {
-        field_name?: string;
+        field_name?: "last_name" | "address" | "city" | "country" | "zip" | "state" | "phone" | "industry" | "org" | "job_title" | "purchasing_time_frame" | "role_in_purchase_process" | "no_of_employees" | "comments";
         required?: boolean;
     }[];
 };
@@ -735,7 +791,7 @@ type CloudRecordingUpdateRegistrantsStatusPathParams = {
     meetingId: number;
 };
 type CloudRecordingUpdateRegistrantsStatusRequestBody = {
-    action: string;
+    action: "approve" | "deny";
     registrants?: {
         id?: string;
     }[];
@@ -744,14 +800,15 @@ type CloudRecordingGetMeetingRecordingSettingsPathParams = {
     meetingId: string;
 };
 type CloudRecordingGetMeetingRecordingSettingsResponse = {
-    approval_type?: number;
+    approval_type?: 0 | 1 | 2;
     authentication_domains?: string;
     authentication_option?: string;
+    authentication_name?: string;
     on_demand?: boolean;
     password?: string;
     recording_authentication?: boolean;
     send_email_to_host?: boolean;
-    share_recording?: string;
+    share_recording?: "publicly" | "internally" | "none";
     show_social_share_buttons?: boolean;
     topic?: string;
     viewer_download?: boolean;
@@ -762,14 +819,14 @@ type CloudRecordingUpdateMeetingRecordingSettingsPathParams = {
     meetingId: string;
 };
 type CloudRecordingUpdateMeetingRecordingSettingsRequestBody = {
-    approval_type?: number;
+    approval_type?: 0 | 1 | 2;
     authentication_domains?: string;
     authentication_option?: string;
     on_demand?: boolean;
     password?: string;
     recording_authentication?: boolean;
     send_email_to_host?: boolean;
-    share_recording?: string;
+    share_recording?: "publicly" | "internally" | "none";
     show_social_share_buttons?: boolean;
     topic?: string;
     viewer_download?: boolean;
@@ -780,20 +837,38 @@ type CloudRecordingDeleteRecordingFileForMeetingOrWebinarPathParams = {
     recordingId: string;
 };
 type CloudRecordingDeleteRecordingFileForMeetingOrWebinarQueryParams = {
-    action?: string;
+    action?: "trash" | "delete";
 };
 type CloudRecordingRecoverSingleRecordingPathParams = {
     meetingId: string;
     recordingId: string;
 };
 type CloudRecordingRecoverSingleRecordingRequestBody = {
-    action?: string;
+    action?: "recover";
+};
+type CloudRecordingGetMeetingTranscriptPathParams = {
+    meetingId: string;
+};
+type CloudRecordingGetMeetingTranscriptResponse = {
+    meeting_id?: string;
+    account_id?: string;
+    meeting_topic?: string;
+    host_id?: string;
+    transcript_created_time?: string;
+    can_download?: boolean;
+    auto_delete?: boolean;
+    auto_delete_date?: string;
+    download_url?: string;
+    download_restriction_reason?: "DELETED_OR_TRASHED" | "UNSUPPORTED" | "NO_TRANSCRIPT_DATA" | "NOT_READY";
+};
+type CloudRecordingDeleteMeetingOrWebinarTranscriptPathParams = {
+    meetingId: string;
 };
 type CloudRecordingRecoverMeetingRecordingsPathParams = {
     meetingUUID: string;
 };
 type CloudRecordingRecoverMeetingRecordingsRequestBody = {
-    action?: string;
+    action?: "recover";
 };
 type CloudRecordingListAllRecordingsPathParams = {
     userId: string;
@@ -826,7 +901,7 @@ type CloudRecordingListAllRecordingsResponse = {
         start_time?: string;
         topic?: string;
         total_size?: number;
-        type?: string;
+        type?: "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "99";
         uuid?: string;
         recording_play_passcode?: string;
         auto_delete?: boolean;
@@ -837,26 +912,26 @@ type CloudRecordingListAllRecordingsResponse = {
             download_url?: string;
             file_path?: string;
             file_size?: number;
-            file_type?: string;
-            file_extension?: string;
+            file_type?: "MP4" | "M4A" | "CHAT" | "TRANSCRIPT" | "CSV" | "TB" | "CC" | "CHAT_MESSAGE" | "SUMMARY";
+            file_extension?: "MP4" | "M4A" | "TXT" | "VTT" | "CSV" | "JSON" | "JPG";
             id?: string;
             meeting_id?: string;
             play_url?: string;
             recording_end?: string;
             recording_start?: string;
-            recording_type?: string;
-            status?: string;
+            recording_type?: "shared_screen_with_speaker_view(CC)" | "shared_screen_with_speaker_view" | "shared_screen_with_gallery_view" | "active_speaker" | "gallery_view" | "shared_screen" | "audio_only" | "audio_transcript" | "chat_file" | "poll" | "host_video" | "closed_caption" | "timeline" | "thumbnail" | "audio_interpretation" | "summary" | "summary_next_steps" | "summary_smart_chapters" | "sign_interpretation" | "production_studio";
+            status?: "completed";
         }[];
     })[];
 };
 type DevicesListDevicesQueryParams = {
     search_text?: string;
-    platform_os?: string;
+    platform_os?: "win" | "mac" | "ipad" | "iphone" | "android" | "linux";
     is_enrolled_in_zdm?: boolean;
-    device_type?: number;
+    device_type?: -1 | 0 | 1 | 2 | 3 | 4 | 5 | 6;
     device_vendor?: string;
     device_model?: string;
-    device_status?: number;
+    device_status?: -1 | 0 | 1;
     page_size?: number;
     next_page_token?: string;
 };
@@ -877,9 +952,9 @@ type DevicesListDevicesResponse = {
         connected_to_zdm?: boolean;
         room_id?: string;
         room_name?: string;
-        device_type?: number;
+        device_type?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
         skd_version?: string;
-        device_status?: number;
+        device_status?: -1 | 0 | 1;
         last_online?: string;
         user_email?: string;
     }[];
@@ -892,7 +967,7 @@ type DevicesAddNewDeviceRequestBody = {
     model: string;
     room_id?: string;
     user_email?: string;
-    device_type: number;
+    device_type: 0 | 1 | 5;
     tag?: string;
     zdm_group_id?: string;
     extension_number?: string;
@@ -915,7 +990,29 @@ type DevicesAssignDeviceToUserOrCommonareaRequestBody = {
     mac_address: string;
     vendor: string;
 };
-type DevicesUpgradeZpaOsAppRequestBody = {
+type DevicesGetZoomPhoneApplianceSettingsByUserIDQueryParams = {
+    user_id?: string;
+};
+type DevicesGetZoomPhoneApplianceSettingsByUserIDResponse = {
+    language?: string;
+    timezone?: string;
+    device_infos?: {
+        device_id?: string;
+        device_type?: string;
+        vendor?: string;
+        model?: string;
+        status?: "online" | "offline";
+        policy?: {
+            hot_desking?: {
+                status?: "online" | "offline";
+            };
+            call_control?: {
+                status?: "unsupported" | "on" | "off";
+            };
+        };
+    }[];
+};
+type DevicesUpgradeZPAFirmwareOrAppRequestBody = {
     zdm_group_id: string;
     data: {
         firmware_versions?: {
@@ -923,10 +1020,10 @@ type DevicesUpgradeZpaOsAppRequestBody = {
             version?: string;
             model?: string;
         }[];
-        upgrade_type: string;
+        upgrade_type: "UPGRADE_FIRMWARE";
     } | {
         app_version?: string;
-        upgrade_type: string;
+        upgrade_type: "UPGRADE_APP";
     };
 };
 type DevicesDeleteZPADeviceByVendorAndMacAddressPathParams = {
@@ -962,9 +1059,9 @@ type DevicesGetDeviceDetailResponse = {
     connected_to_zdm?: boolean;
     room_id?: string;
     room_name?: string;
-    device_type?: number;
+    device_type?: 0 | 1 | 2 | 3 | 4 | 5 | 6;
     sdk_version?: string;
-    device_status?: number;
+    device_status?: -1 | 0 | 1;
     last_online?: string;
     user_email?: string;
 };
@@ -978,14 +1075,20 @@ type DevicesChangeDeviceRequestBody = {
     device_name: string;
     tag?: string;
     room_id?: string;
-    device_type?: number;
+    device_type?: 0 | 1 | 3;
+};
+type DevicesAssignDeviceToGroupPathParams = {
+    deviceId: string;
+};
+type DevicesAssignDeviceToGroupQueryParams = {
+    group_id: string;
 };
 type DevicesChangeDeviceAssociationPathParams = {
     deviceId: string;
 };
 type DevicesChangeDeviceAssociationRequestBody = {
     room_id?: string;
-    app_type?: string;
+    app_type?: "ZR" | "ZRC" | "ZRP" | "ZRW";
 };
 type H323DevicesListHSIPDevicesQueryParams = {
     page_size?: number;
@@ -1002,25 +1105,25 @@ type H323DevicesListHSIPDevicesResponse = {
     devices?: ({
         id?: string;
     } & {
-        encryption: string;
+        encryption: "auto" | "yes" | "no";
         ip: string;
         name: string;
-        protocol: string;
+        protocol: "H.323" | "SIP";
     })[];
 };
 type H323DevicesCreateHSIPDeviceRequestBody = {
-    encryption: string;
+    encryption: "auto" | "yes" | "no";
     ip: string;
     name: string;
-    protocol: string;
+    protocol: "H.323" | "SIP";
 };
 type H323DevicesCreateHSIPDeviceResponse = {
     id?: string;
 } & {
-    encryption: string;
+    encryption: "auto" | "yes" | "no";
     ip: string;
     name: string;
-    protocol: string;
+    protocol: "H.323" | "SIP";
 };
 type H323DevicesDeleteHSIPDevicePathParams = {
     deviceId: string;
@@ -1029,10 +1132,10 @@ type H323DevicesUpdateHSIPDevicePathParams = {
     deviceId: string;
 };
 type H323DevicesUpdateHSIPDeviceRequestBody = {
-    encryption: string;
+    encryption: "auto" | "yes" | "no";
     ip: string;
     name: string;
-    protocol: string;
+    protocol: "H.323" | "SIP";
 };
 type MeetingsDeleteLiveMeetingMessagePathParams = {
     meetingId: number;
@@ -1052,7 +1155,7 @@ type MeetingsUseInMeetingControlsPathParams = {
     meetingId: string;
 };
 type MeetingsUseInMeetingControlsRequestBody = {
-    method?: string;
+    method?: "recording.start" | "recording.stop" | "recording.pause" | "recording.resume" | "participant.invite" | "participant.invite.callout" | "participant.invite.room_system_callout" | "waiting_room.update";
     params?: {
         contacts?: {
             email?: string;
@@ -1079,15 +1182,27 @@ type MeetingsUseInMeetingControlsRequestBody = {
                 value?: string;
             }[];
         };
+        waiting_room_title?: string;
+        waiting_room_description?: string;
     };
 };
-type MeetingsListMeetingSummariesOfAccountQueryParams = {
+type MeetingsUpdateParticipantRealTimeMediaStreamsRTMSAppStatusPathParams = {
+    meetingId: number;
+};
+type MeetingsUpdateParticipantRealTimeMediaStreamsRTMSAppStatusRequestBody = {
+    action?: "start" | "stop" | "pause" | "resume";
+    settings?: {
+        participant_user_id?: string;
+        client_id: string;
+    };
+};
+type MeetingsListAccountsMeetingOrWebinarSummariesQueryParams = {
     page_size?: number;
     next_page_token?: string;
     from?: string;
     to?: string;
 };
-type MeetingsListMeetingSummariesOfAccountResponse = {
+type MeetingsListAccountsMeetingOrWebinarSummariesResponse = {
     page_size?: number;
     next_page_token?: string;
     from?: string;
@@ -1131,7 +1246,7 @@ type MeetingsGetMeetingResponse = {
         duration?: number;
         occurrence_id?: string;
         start_time?: string;
-        status?: string;
+        status?: "available" | "deleted";
     }[];
     password?: string;
     pmi?: string;
@@ -1140,25 +1255,27 @@ type MeetingsGetMeetingResponse = {
         end_date_time?: string;
         end_times?: number;
         monthly_day?: number;
-        monthly_week?: number;
-        monthly_week_day?: number;
+        monthly_week?: -1 | 1 | 2 | 3 | 4;
+        monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
         repeat_interval?: number;
-        type: number;
-        weekly_days?: string;
+        type: 1 | 2 | 3;
+        weekly_days?: "1" | "2" | "3" | "4" | "5" | "6" | "7";
     };
     settings?: {
         allow_multiple_devices?: boolean;
         alternative_hosts?: string;
         alternative_hosts_email_notification?: boolean;
         alternative_host_update_polls?: boolean;
-        approval_type?: number;
+        alternative_host_manage_meeting_summary?: boolean;
+        alternative_host_manage_cloud_recording?: boolean;
+        approval_type?: 0 | 1 | 2;
         approved_or_denied_countries_or_regions?: {
             approved_list?: string[];
             denied_list?: string[];
             enable?: boolean;
-            method?: string;
+            method?: "approve" | "deny";
         };
-        audio?: string;
+        audio?: "both" | "telephony" | "voip" | "thirdParty";
         audio_conference_info?: string;
         authentication_domains?: string;
         authentication_exception?: {
@@ -1168,7 +1285,14 @@ type MeetingsGetMeetingResponse = {
         }[];
         authentication_name?: string;
         authentication_option?: string;
-        auto_recording?: string;
+        auto_recording?: "local" | "cloud" | "none";
+        auto_add_recording_to_video_management?: {
+            enable: boolean;
+            channels?: {
+                channel_id: string;
+                name?: string;
+            }[];
+        };
         breakout_room?: {
             enable?: boolean;
             rooms?: {
@@ -1176,7 +1300,7 @@ type MeetingsGetMeetingResponse = {
                 participants?: string[];
             }[];
         };
-        calendar_type?: number;
+        calendar_type?: 1 | 2;
         close_registration?: boolean;
         cn_meeting?: boolean;
         contact_email?: string;
@@ -1186,7 +1310,7 @@ type MeetingsGetMeetingResponse = {
             value?: string;
         }[];
         email_notification?: boolean;
-        encryption_type?: string;
+        encryption_type?: "enhanced_encryption" | "e2ee";
         enforce_login?: boolean;
         enforce_login_domains?: string;
         focus_mode?: boolean;
@@ -1196,17 +1320,26 @@ type MeetingsGetMeetingResponse = {
             country?: string;
             country_name?: string;
             number?: string;
-            type?: string;
+            type?: "toll" | "tollfree";
         }[];
         host_video?: boolean;
         in_meeting?: boolean;
-        jbh_time?: number;
+        jbh_time?: 0 | 5 | 10 | 15;
         join_before_host?: boolean;
+        question_and_answer?: {
+            enable?: boolean;
+            allow_submit_questions?: boolean;
+            allow_anonymous_questions?: boolean;
+            question_visibility?: "answered" | "all";
+            attendees_can_comment?: boolean;
+            attendees_can_upvote?: boolean;
+        };
         language_interpretation?: {
             enable?: boolean;
             interpreters?: {
                 email?: string;
                 languages?: string;
+                interpreter_languages?: string;
             }[];
         };
         sign_language_interpretation?: {
@@ -1222,10 +1355,14 @@ type MeetingsGetMeetingResponse = {
         private_meeting?: boolean;
         registrants_confirmation_email?: boolean;
         registrants_email_notification?: boolean;
-        registration_type?: number;
+        registration_type?: 1 | 2 | 3;
         show_share_button?: boolean;
         use_pmi?: boolean;
         waiting_room?: boolean;
+        waiting_room_options?: {
+            mode: "follow_setting" | "custom";
+            who_goes_to_waiting_room?: "everyone" | "users_not_in_account" | "users_not_in_account_or_whitelisted_domains" | "users_not_on_invite";
+        };
         watermark?: boolean;
         host_save_video_order?: boolean;
         internal_meeting?: boolean;
@@ -1242,17 +1379,23 @@ type MeetingsGetMeetingResponse = {
         participant_focused_meeting?: boolean;
         push_change_to_calendar?: boolean;
         resources?: {
-            resource_type?: string;
+            resource_type?: "whiteboard";
             resource_id?: string;
-            permission_level?: string;
+            permission_level?: "editor" | "commenter" | "viewer";
         }[];
         auto_start_meeting_summary?: boolean;
+        who_will_receive_summary?: 1 | 2 | 3 | 4;
         auto_start_ai_companion_questions?: boolean;
+        who_can_ask_questions?: 1 | 2 | 3 | 4 | 5;
+        summary_template_id?: string;
         device_testing?: boolean;
+        allow_host_control_participant_mute_state?: boolean;
+        disable_participant_video?: boolean;
+        email_in_attendee_report?: boolean;
     };
     start_time?: string;
     start_url?: string;
-    status?: string;
+    status?: "waiting" | "started";
     timezone?: string;
     topic?: string;
     tracking_fields?: {
@@ -1260,8 +1403,9 @@ type MeetingsGetMeetingResponse = {
         value?: string;
         visible?: boolean;
     }[];
-    type?: number;
+    type?: 1 | 2 | 3 | 4 | 8 | 10;
     dynamic_host_key?: string;
+    creation_source?: "other" | "open_api" | "web_portal";
 };
 type MeetingsDeleteMeetingPathParams = {
     meetingId: number;
@@ -1287,25 +1431,27 @@ type MeetingsUpdateMeetingRequestBody = {
         end_date_time?: string;
         end_times?: number;
         monthly_day?: number;
-        monthly_week?: number;
-        monthly_week_day?: number;
+        monthly_week?: -1 | 1 | 2 | 3 | 4;
+        monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
         repeat_interval?: number;
-        type: number;
-        weekly_days?: string;
+        type: 1 | 2 | 3;
+        weekly_days?: "1" | "2" | "3" | "4" | "5" | "6" | "7";
     };
     settings?: {
         allow_multiple_devices?: boolean;
         alternative_hosts?: string;
         alternative_hosts_email_notification?: boolean;
         alternative_host_update_polls?: boolean;
-        approval_type?: number;
+        alternative_host_manage_meeting_summary?: boolean;
+        alternative_host_manage_cloud_recording?: boolean;
+        approval_type?: 0 | 1 | 2;
         approved_or_denied_countries_or_regions?: {
             approved_list?: string[];
             denied_list?: string[];
             enable?: boolean;
-            method?: string;
+            method?: "approve" | "deny";
         };
-        audio?: string;
+        audio?: "both" | "telephony" | "voip" | "thirdParty";
         audio_conference_info?: string;
         authentication_domains?: string;
         authentication_exception?: {
@@ -1315,7 +1461,14 @@ type MeetingsUpdateMeetingRequestBody = {
         }[];
         authentication_name?: string;
         authentication_option?: string;
-        auto_recording?: string;
+        auto_recording?: "local" | "cloud" | "none";
+        auto_add_recording_to_video_management?: {
+            enable: boolean;
+            channels?: {
+                channel_id: string;
+                name?: string;
+            }[];
+        };
         breakout_room?: {
             enable?: boolean;
             rooms?: {
@@ -1323,7 +1476,7 @@ type MeetingsUpdateMeetingRequestBody = {
                 participants?: string[];
             }[];
         };
-        calendar_type?: number;
+        calendar_type?: 1 | 2;
         close_registration?: boolean;
         cn_meeting?: boolean;
         contact_email?: string;
@@ -1333,7 +1486,7 @@ type MeetingsUpdateMeetingRequestBody = {
             value?: string;
         }[];
         email_notification?: boolean;
-        encryption_type?: string;
+        encryption_type?: "enhanced_encryption" | "e2ee";
         enforce_login?: boolean;
         enforce_login_domains?: string;
         focus_mode?: boolean;
@@ -1343,17 +1496,26 @@ type MeetingsUpdateMeetingRequestBody = {
             country?: string;
             country_name?: string;
             number?: string;
-            type?: string;
+            type?: "toll" | "tollfree";
         }[];
         host_video?: boolean;
         in_meeting?: boolean;
-        jbh_time?: number;
+        jbh_time?: 0 | 5 | 10 | 15;
         join_before_host?: boolean;
+        question_and_answer?: {
+            enable?: boolean;
+            allow_submit_questions?: boolean;
+            allow_anonymous_questions?: boolean;
+            question_visibility?: "answered" | "all";
+            attendees_can_comment?: boolean;
+            attendees_can_upvote?: boolean;
+        };
         language_interpretation?: {
             enable?: boolean;
             interpreters?: {
                 email?: string;
                 languages?: string;
+                interpreter_languages?: string;
             }[];
         };
         sign_language_interpretation?: {
@@ -1372,10 +1534,14 @@ type MeetingsUpdateMeetingRequestBody = {
         private_meeting?: boolean;
         registrants_confirmation_email?: boolean;
         registrants_email_notification?: boolean;
-        registration_type?: number;
+        registration_type?: 1 | 2 | 3;
         show_share_button?: boolean;
         use_pmi?: boolean;
         waiting_room?: boolean;
+        waiting_room_options?: {
+            mode: "follow_setting" | "custom";
+            who_goes_to_waiting_room?: "everyone" | "users_not_in_account" | "users_not_in_account_or_whitelisted_domains" | "users_not_on_invite";
+        };
         watermark?: boolean;
         host_save_video_order?: boolean;
         internal_meeting?: boolean;
@@ -1385,14 +1551,21 @@ type MeetingsUpdateMeetingRequestBody = {
             auto_add_meeting_participants?: boolean;
         };
         participant_focused_meeting?: boolean;
+        push_change_to_calendar?: boolean;
         resources?: {
-            resource_type?: string;
+            resource_type?: "whiteboard";
             resource_id?: string;
-            permission_level?: string;
+            permission_level?: "editor" | "commenter" | "viewer";
         }[];
         auto_start_meeting_summary?: boolean;
+        who_will_receive_summary?: 1 | 2 | 3 | 4;
         auto_start_ai_companion_questions?: boolean;
+        who_can_ask_questions?: 1 | 2 | 3 | 4 | 5;
+        summary_template_id?: string;
         device_testing?: boolean;
+        allow_host_control_participant_mute_state?: boolean;
+        disable_participant_video?: boolean;
+        email_in_attendee_report?: boolean;
     };
     start_time?: string;
     template_id?: string;
@@ -1402,7 +1575,7 @@ type MeetingsUpdateMeetingRequestBody = {
         field?: string;
         value?: string;
     }[];
-    type?: number;
+    type?: 1 | 2 | 3 | 8 | 10;
 };
 type MeetingsPerformBatchPollCreationPathParams = {
     meetingId: string;
@@ -1410,7 +1583,7 @@ type MeetingsPerformBatchPollCreationPathParams = {
 type MeetingsPerformBatchPollCreationRequestBody = {
     polls?: {
         anonymous?: boolean;
-        poll_type?: number;
+        poll_type?: 1 | 2 | 3;
         questions?: {
             answer_max_character?: number;
             answer_min_character?: number;
@@ -1428,7 +1601,7 @@ type MeetingsPerformBatchPollCreationRequestBody = {
             rating_min_value?: number;
             right_answers?: string[];
             show_as_dropdown?: boolean;
-            type?: string;
+            type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
         }[];
         title?: string;
     }[];
@@ -1437,7 +1610,7 @@ type MeetingsPerformBatchPollCreationResponse = {
     polls?: {
         anonymous?: boolean;
         id?: string;
-        poll_type?: number;
+        poll_type?: 1 | 2 | 3;
         questions?: {
             answer_max_character?: number;
             answer_min_character?: number;
@@ -1455,9 +1628,9 @@ type MeetingsPerformBatchPollCreationResponse = {
             rating_min_value?: number;
             right_answers?: string[];
             show_as_dropdown?: boolean;
-            type?: string;
+            type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
         }[];
-        status?: string;
+        status?: "notstart" | "started" | "ended" | "sharing";
         title?: string;
     }[];
 };
@@ -1494,6 +1667,8 @@ type MeetingsCreateMeetingsInviteLinksPathParams = {
 type MeetingsCreateMeetingsInviteLinksRequestBody = {
     attendees?: {
         name: string;
+        disable_video?: boolean;
+        disable_audio?: boolean;
     }[];
     ttl?: number;
 };
@@ -1507,14 +1682,14 @@ type MeetingsGetMeetingsJoinTokenForLiveStreamingPathParams = {
     meetingId: number;
 };
 type MeetingsGetMeetingsJoinTokenForLiveStreamingResponse = {
-    expire_in?: number;
+    expire_in?: 120;
     token?: string;
 };
 type MeetingsGetMeetingsArchiveTokenForLocalArchivingPathParams = {
     meetingId: number;
 };
 type MeetingsGetMeetingsArchiveTokenForLocalArchivingResponse = {
-    expire_in?: number;
+    expire_in?: 120;
     token?: string;
 };
 type MeetingsGetMeetingsJoinTokenForLocalRecordingPathParams = {
@@ -1524,7 +1699,7 @@ type MeetingsGetMeetingsJoinTokenForLocalRecordingQueryParams = {
     bypass_waiting_room?: boolean;
 };
 type MeetingsGetMeetingsJoinTokenForLocalRecordingResponse = {
-    expire_in?: number;
+    expire_in?: 120;
     token?: string;
 };
 type MeetingsGetLivestreamDetailsPathParams = {
@@ -1549,18 +1724,18 @@ type MeetingsUpdateLivestreamStatusPathParams = {
     meetingId: number;
 };
 type MeetingsUpdateLivestreamStatusRequestBody = {
-    action?: string;
+    action?: "start" | "stop" | "mode";
     settings?: {
         active_speaker_name?: boolean;
         display_name?: string;
-        layout?: string;
-        close_caption?: string;
+        layout?: "follow_host" | "gallery_view" | "speaker_view";
+        close_caption?: "burnt-in" | "embedded" | "off";
     };
 };
-type MeetingsGetMeetingSummaryPathParams = {
+type MeetingsGetMeetingOrWebinarSummaryPathParams = {
     meetingId: string;
 };
-type MeetingsGetMeetingSummaryResponse = {
+type MeetingsGetMeetingOrWebinarSummaryResponse = {
     meeting_host_id?: string;
     meeting_host_email?: string;
     meeting_uuid?: string;
@@ -1572,6 +1747,8 @@ type MeetingsGetMeetingSummaryResponse = {
     summary_end_time?: string;
     summary_created_time?: string;
     summary_last_modified_time?: string;
+    summary_last_modified_user_id?: string;
+    summary_last_modified_user_email?: string;
     summary_title?: string;
     summary_overview?: string;
     summary_details?: {
@@ -1580,9 +1757,15 @@ type MeetingsGetMeetingSummaryResponse = {
     }[];
     next_steps?: string[];
     edited_summary?: {
+        summary_overview?: string;
         summary_details?: string;
         next_steps?: string[];
     };
+    summary_content?: string;
+    summary_doc_url?: string;
+};
+type MeetingsDeleteMeetingOrWebinarSummaryPathParams = {
+    meetingId: string;
 };
 type MeetingsAddMeetingAppPathParams = {
     meetingId: number;
@@ -1604,10 +1787,10 @@ type MeetingsListMeetingPollsQueryParams = {
 type MeetingsListMeetingPollsResponse = {
     polls?: ({
         id?: string;
-        status?: string;
+        status?: "notstart" | "started" | "ended" | "sharing" | "deactivated";
     } & {
         anonymous?: boolean;
-        poll_type?: number;
+        poll_type?: 1 | 2 | 3;
         questions?: {
             answer_max_character?: number;
             answer_min_character?: number;
@@ -1625,7 +1808,7 @@ type MeetingsListMeetingPollsResponse = {
             rating_min_value?: number;
             right_answers?: string[];
             show_as_dropdown?: boolean;
-            type?: string;
+            type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
         }[];
         title?: string;
     })[];
@@ -1636,7 +1819,7 @@ type MeetingsCreateMeetingPollPathParams = {
 };
 type MeetingsCreateMeetingPollRequestBody = {
     anonymous?: boolean;
-    poll_type?: number;
+    poll_type?: 1 | 2 | 3;
     questions?: {
         answer_max_character?: number;
         answer_min_character?: number;
@@ -1654,16 +1837,16 @@ type MeetingsCreateMeetingPollRequestBody = {
         rating_min_value?: number;
         right_answers?: string[];
         show_as_dropdown?: boolean;
-        type?: string;
+        type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
     }[];
     title?: string;
 };
 type MeetingsCreateMeetingPollResponse = {
     id?: string;
-    status?: string;
+    status?: "notstart" | "started" | "ended" | "sharing";
 } & {
     anonymous?: boolean;
-    poll_type?: number;
+    poll_type?: 1 | 2 | 3;
     questions?: {
         answer_max_character?: number;
         answer_min_character?: number;
@@ -1681,7 +1864,7 @@ type MeetingsCreateMeetingPollResponse = {
         rating_min_value?: number;
         right_answers?: string[];
         show_as_dropdown?: boolean;
-        type?: string;
+        type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
     }[];
     title?: string;
 };
@@ -1691,10 +1874,10 @@ type MeetingsGetMeetingPollPathParams = {
 };
 type MeetingsGetMeetingPollResponse = {
     id?: string;
-    status?: string;
+    status?: "notstart" | "started" | "ended" | "sharing" | "deactivated";
 } & {
     anonymous?: boolean;
-    poll_type?: number;
+    poll_type?: 1 | 2 | 3;
     questions?: {
         answer_max_character?: number;
         answer_min_character?: number;
@@ -1712,7 +1895,7 @@ type MeetingsGetMeetingPollResponse = {
         rating_min_value?: number;
         right_answers?: string[];
         show_as_dropdown?: boolean;
-        type?: string;
+        type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
     }[];
     title?: string;
 };
@@ -1722,7 +1905,7 @@ type MeetingsUpdateMeetingPollPathParams = {
 };
 type MeetingsUpdateMeetingPollRequestBody = {
     anonymous?: boolean;
-    poll_type?: number;
+    poll_type?: 1 | 2 | 3;
     questions?: {
         answer_max_character?: number;
         answer_min_character?: number;
@@ -1740,7 +1923,7 @@ type MeetingsUpdateMeetingPollRequestBody = {
         rating_min_value?: number;
         right_answers?: string[];
         show_as_dropdown?: boolean;
-        type?: string;
+        type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
     }[];
     title?: string;
 };
@@ -1753,7 +1936,7 @@ type MeetingsListMeetingRegistrantsPathParams = {
 };
 type MeetingsListMeetingRegistrantsQueryParams = {
     occurrence_id?: string;
-    status?: string;
+    status?: "pending" | "approved" | "denied";
     page_size?: number;
     page_number?: number;
     next_page_token?: string;
@@ -1781,13 +1964,13 @@ type MeetingsListMeetingRegistrantsResponse = {
         industry?: string;
         job_title?: string;
         last_name?: string;
-        no_of_employees?: string;
+        no_of_employees?: "" | "1-20" | "21-50" | "51-100" | "101-250" | "251-500" | "501-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
         org?: string;
         phone?: string;
-        purchasing_time_frame?: string;
-        role_in_purchase_process?: string;
+        purchasing_time_frame?: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+        role_in_purchase_process?: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
         state?: string;
-        status?: string;
+        status?: "approved" | "denied" | "pending";
         zip?: string;
     } & {
         create_time?: string;
@@ -1819,12 +2002,12 @@ type MeetingsAddMeetingRegistrantRequestBody = {
     }[];
     industry?: string;
     job_title?: string;
-    no_of_employees?: string;
+    no_of_employees?: "" | "1-20" | "21-50" | "51-100" | "101-500" | "500-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
     org?: string;
-    purchasing_time_frame?: string;
-    role_in_purchase_process?: string;
+    purchasing_time_frame?: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+    role_in_purchase_process?: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
 } & {
-    language?: string;
+    language?: "en-US" | "de-DE" | "es-ES" | "fr-FR" | "jp-JP" | "pt-PT" | "ru-RU" | "zh-CN" | "zh-TW" | "ko-KO" | "it-IT" | "vi-VN" | "pl-PL" | "Tr-TR";
 } & {
     auto_approve?: boolean;
 };
@@ -1850,10 +2033,10 @@ type MeetingsListRegistrationQuestionsResponse = {
         answers?: string[];
         required?: boolean;
         title?: string;
-        type?: string;
+        type?: "short" | "single";
     }[];
     questions?: {
-        field_name?: string;
+        field_name?: "last_name" | "address" | "city" | "country" | "zip" | "state" | "phone" | "industry" | "org" | "job_title" | "purchasing_time_frame" | "role_in_purchase_process" | "no_of_employees" | "comments";
         required?: boolean;
     }[];
 };
@@ -1865,10 +2048,10 @@ type MeetingsUpdateRegistrationQuestionsRequestBody = {
         answers?: string[];
         required?: boolean;
         title?: string;
-        type?: string;
+        type?: "short" | "single";
     }[];
     questions?: {
-        field_name?: string;
+        field_name?: "last_name" | "address" | "city" | "country" | "zip" | "state" | "phone" | "industry" | "org" | "job_title" | "purchasing_time_frame" | "role_in_purchase_process" | "no_of_employees" | "comments";
         required?: boolean;
     }[];
 };
@@ -1879,7 +2062,7 @@ type MeetingsUpdateRegistrantsStatusQueryParams = {
     occurrence_id?: string;
 };
 type MeetingsUpdateRegistrantsStatusRequestBody = {
-    action: string;
+    action: "approve" | "cancel" | "deny";
     registrants?: {
         email?: string;
         id?: string;
@@ -1905,18 +2088,18 @@ type MeetingsGetMeetingRegistrantResponse = {
     industry?: string;
     job_title?: string;
     last_name?: string;
-    no_of_employees?: string;
+    no_of_employees?: "" | "1-20" | "21-50" | "51-100" | "101-250" | "251-500" | "501-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
     org?: string;
     phone?: string;
-    purchasing_time_frame?: string;
-    role_in_purchase_process?: string;
+    purchasing_time_frame?: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+    role_in_purchase_process?: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
     state?: string;
-    status?: string;
+    status?: "approved" | "denied" | "pending";
     zip?: string;
 } & {
     create_time?: string;
     join_url?: string;
-    status?: string;
+    status?: "approved" | "pending" | "denied";
     participant_pin_code?: number;
 };
 type MeetingsDeleteMeetingRegistrantPathParams = {
@@ -1942,7 +2125,7 @@ type MeetingsUpdateMeetingStatusPathParams = {
     meetingId: number;
 };
 type MeetingsUpdateMeetingStatusRequestBody = {
-    action?: string;
+    action?: "end" | "recover";
 };
 type MeetingsGetMeetingSurveyPathParams = {
     meetingId: number;
@@ -1956,7 +2139,7 @@ type MeetingsGetMeetingSurveyResponse = {
         feedback?: string;
         questions?: {
             name?: string;
-            type?: string;
+            type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
             answer_required?: boolean;
             show_as_dropdown?: boolean;
             answers?: string[];
@@ -1989,7 +2172,7 @@ type MeetingsUpdateMeetingSurveyRequestBody = {
         feedback?: string;
         questions?: {
             name?: string;
-            type?: string;
+            type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
             answer_required?: boolean;
             show_as_dropdown?: boolean;
             answers?: string[];
@@ -2011,13 +2194,13 @@ type MeetingsGetMeetingsTokenPathParams = {
     meetingId: number;
 };
 type MeetingsGetMeetingsTokenQueryParams = {
-    type?: string;
+    type?: "closed_caption_token";
 };
 type MeetingsGetMeetingsTokenResponse = {
     token?: string;
 };
 type MeetingsGetPastMeetingDetailsPathParams = {
-    meetingId: number | string;
+    meetingId: string;
 };
 type MeetingsGetPastMeetingDetailsResponse = {
     id?: number;
@@ -2031,7 +2214,7 @@ type MeetingsGetPastMeetingDetailsResponse = {
     source?: string;
     topic?: string;
     total_minutes?: number;
-    type?: number;
+    type?: 0 | 1 | 2 | 3 | 4 | 7 | 8;
     user_email?: string;
     user_name?: string;
 };
@@ -2067,7 +2250,7 @@ type MeetingsGetPastMeetingParticipantsResponse = {
         leave_time?: string;
         duration?: number;
         failover?: boolean;
-        status?: string;
+        status?: "in_meeting" | "in_waiting_room";
         internal_user?: boolean;
     }[];
 };
@@ -2133,7 +2316,7 @@ type MeetingsListMeetingsPathParams = {
     userId: string;
 };
 type MeetingsListMeetingsQueryParams = {
-    type?: string;
+    type?: "scheduled" | "live" | "upcoming" | "upcoming_meetings" | "previous_meetings";
     page_size?: number;
     next_page_token?: string;
     page_number?: number;
@@ -2159,7 +2342,7 @@ type MeetingsListMeetingsResponse = {
         start_time?: string;
         timezone?: string;
         topic?: string;
-        type?: number;
+        type?: 1 | 2 | 3 | 8;
         uuid?: string;
     }[];
 };
@@ -2176,11 +2359,11 @@ type MeetingsCreateMeetingRequestBody = {
         end_date_time?: string;
         end_times?: number;
         monthly_day?: number;
-        monthly_week?: number;
-        monthly_week_day?: number;
+        monthly_week?: -1 | 1 | 2 | 3 | 4;
+        monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
         repeat_interval?: number;
-        type: number;
-        weekly_days?: string;
+        type: 1 | 2 | 3;
+        weekly_days?: "1" | "2" | "3" | "4" | "5" | "6" | "7";
     };
     schedule_for?: string;
     settings?: {
@@ -2188,14 +2371,14 @@ type MeetingsCreateMeetingRequestBody = {
         allow_multiple_devices?: boolean;
         alternative_hosts?: string;
         alternative_hosts_email_notification?: boolean;
-        approval_type?: number;
+        approval_type?: 0 | 1 | 2;
         approved_or_denied_countries_or_regions?: {
             approved_list?: string[];
             denied_list?: string[];
             enable?: boolean;
-            method?: string;
+            method?: "approve" | "deny";
         };
-        audio?: string;
+        audio?: "both" | "telephony" | "voip" | "thirdParty";
         audio_conference_info?: string;
         authentication_domains?: string;
         authentication_exception?: {
@@ -2203,7 +2386,14 @@ type MeetingsCreateMeetingRequestBody = {
             name?: string;
         }[];
         authentication_option?: string;
-        auto_recording?: string;
+        auto_recording?: "local" | "cloud" | "none";
+        auto_add_recording_to_video_management?: {
+            enable: boolean;
+            channels?: {
+                channel_id: string;
+                name?: string;
+            }[];
+        };
         breakout_room?: {
             enable?: boolean;
             rooms?: {
@@ -2211,24 +2401,33 @@ type MeetingsCreateMeetingRequestBody = {
                 participants?: string[];
             }[];
         };
-        calendar_type?: number;
+        calendar_type?: 1 | 2;
         close_registration?: boolean;
         cn_meeting?: boolean;
         contact_email?: string;
         contact_name?: string;
         email_notification?: boolean;
-        encryption_type?: string;
+        encryption_type?: "enhanced_encryption" | "e2ee";
         focus_mode?: boolean;
         global_dial_in_countries?: string[];
         host_video?: boolean;
         in_meeting?: boolean;
-        jbh_time?: number;
+        jbh_time?: 0 | 5 | 10 | 15;
         join_before_host?: boolean;
+        question_and_answer?: {
+            enable?: boolean;
+            allow_submit_questions?: boolean;
+            allow_anonymous_questions?: boolean;
+            question_visibility?: "answered" | "all";
+            attendees_can_comment?: boolean;
+            attendees_can_upvote?: boolean;
+        };
         language_interpretation?: {
             enable?: boolean;
             interpreters?: {
                 email?: string;
                 languages?: string;
+                interpreter_languages?: string;
             }[];
         };
         sign_language_interpretation?: {
@@ -2247,13 +2446,19 @@ type MeetingsCreateMeetingRequestBody = {
         private_meeting?: boolean;
         registrants_confirmation_email?: boolean;
         registrants_email_notification?: boolean;
-        registration_type?: number;
+        registration_type?: 1 | 2 | 3;
         show_share_button?: boolean;
         use_pmi?: boolean;
         waiting_room?: boolean;
+        waiting_room_options?: {
+            mode: "follow_setting" | "custom";
+            who_goes_to_waiting_room?: "everyone" | "users_not_in_account" | "users_not_in_account_or_whitelisted_domains" | "users_not_on_invite";
+        };
         watermark?: boolean;
         host_save_video_order?: boolean;
         alternative_host_update_polls?: boolean;
+        alternative_host_manage_meeting_summary?: boolean;
+        alternative_host_manage_cloud_recording?: boolean;
         internal_meeting?: boolean;
         continuous_meeting_chat?: {
             enable?: boolean;
@@ -2263,13 +2468,19 @@ type MeetingsCreateMeetingRequestBody = {
         participant_focused_meeting?: boolean;
         push_change_to_calendar?: boolean;
         resources?: {
-            resource_type?: string;
+            resource_type?: "whiteboard";
             resource_id?: string;
-            permission_level?: string;
+            permission_level?: "editor" | "commenter" | "viewer";
         }[];
         auto_start_meeting_summary?: boolean;
+        who_will_receive_summary?: 1 | 2 | 3 | 4;
         auto_start_ai_companion_questions?: boolean;
+        who_can_ask_questions?: 1 | 2 | 3 | 4 | 5;
+        summary_template_id?: string;
         device_testing?: boolean;
+        allow_host_control_participant_mute_state?: boolean;
+        disable_participant_video?: boolean;
+        email_in_attendee_report?: boolean;
     };
     start_time?: string;
     template_id?: string;
@@ -2279,7 +2490,7 @@ type MeetingsCreateMeetingRequestBody = {
         field: string;
         value?: string;
     }[];
-    type?: number;
+    type?: 1 | 2 | 3 | 8 | 10;
 };
 type MeetingsCreateMeetingResponse = {
     assistant_id?: string;
@@ -2298,7 +2509,7 @@ type MeetingsCreateMeetingResponse = {
         duration?: number;
         occurrence_id?: string;
         start_time?: string;
-        status?: string;
+        status?: "available" | "deleted";
     }[];
     password?: string;
     pmi?: string;
@@ -2307,25 +2518,27 @@ type MeetingsCreateMeetingResponse = {
         end_date_time?: string;
         end_times?: number;
         monthly_day?: number;
-        monthly_week?: number;
-        monthly_week_day?: number;
+        monthly_week?: -1 | 1 | 2 | 3 | 4;
+        monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
         repeat_interval?: number;
-        type: number;
-        weekly_days?: string;
+        type: 1 | 2 | 3;
+        weekly_days?: "1" | "2" | "3" | "4" | "5" | "6" | "7";
     };
     settings?: {
         allow_multiple_devices?: boolean;
         alternative_hosts?: string;
         alternative_hosts_email_notification?: boolean;
         alternative_host_update_polls?: boolean;
-        approval_type?: number;
+        alternative_host_manage_meeting_summary?: boolean;
+        alternative_host_manage_cloud_recording?: boolean;
+        approval_type?: 0 | 1 | 2;
         approved_or_denied_countries_or_regions?: {
             approved_list?: string[];
             denied_list?: string[];
             enable?: boolean;
-            method?: string;
+            method?: "approve" | "deny";
         };
-        audio?: string;
+        audio?: "both" | "telephony" | "voip" | "thirdParty";
         audio_conference_info?: string;
         authentication_domains?: string;
         authentication_exception?: {
@@ -2335,7 +2548,14 @@ type MeetingsCreateMeetingResponse = {
         }[];
         authentication_name?: string;
         authentication_option?: string;
-        auto_recording?: string;
+        auto_recording?: "local" | "cloud" | "none";
+        auto_add_recording_to_video_management?: {
+            enable: boolean;
+            channels?: {
+                channel_id: string;
+                name?: string;
+            }[];
+        };
         breakout_room?: {
             enable?: boolean;
             rooms?: {
@@ -2343,7 +2563,7 @@ type MeetingsCreateMeetingResponse = {
                 participants?: string[];
             }[];
         };
-        calendar_type?: number;
+        calendar_type?: 1 | 2;
         close_registration?: boolean;
         cn_meeting?: boolean;
         contact_email?: string;
@@ -2353,7 +2573,7 @@ type MeetingsCreateMeetingResponse = {
             value?: string;
         }[];
         email_notification?: boolean;
-        encryption_type?: string;
+        encryption_type?: "enhanced_encryption" | "e2ee";
         enforce_login?: boolean;
         enforce_login_domains?: string;
         focus_mode?: boolean;
@@ -2363,17 +2583,26 @@ type MeetingsCreateMeetingResponse = {
             country?: string;
             country_name?: string;
             number?: string;
-            type?: string;
+            type?: "toll" | "tollfree";
         }[];
         host_video?: boolean;
         in_meeting?: boolean;
-        jbh_time?: number;
+        jbh_time?: 0 | 5 | 10 | 15;
         join_before_host?: boolean;
+        question_and_answer?: {
+            enable?: boolean;
+            allow_submit_questions?: boolean;
+            allow_anonymous_questions?: boolean;
+            question_visibility?: "answered" | "all";
+            attendees_can_comment?: boolean;
+            attendees_can_upvote?: boolean;
+        };
         language_interpretation?: {
             enable?: boolean;
             interpreters?: {
                 email?: string;
                 languages?: string;
+                interpreter_languages?: string;
             }[];
         };
         sign_language_interpretation?: {
@@ -2389,10 +2618,14 @@ type MeetingsCreateMeetingResponse = {
         private_meeting?: boolean;
         registrants_confirmation_email?: boolean;
         registrants_email_notification?: boolean;
-        registration_type?: number;
+        registration_type?: 1 | 2 | 3;
         show_share_button?: boolean;
         use_pmi?: boolean;
         waiting_room?: boolean;
+        waiting_room_options?: {
+            mode: "follow_setting" | "custom";
+            who_goes_to_waiting_room?: "everyone" | "users_not_in_account" | "users_not_in_account_or_whitelisted_domains" | "users_not_on_invite";
+        };
         watermark?: boolean;
         host_save_video_order?: boolean;
         internal_meeting?: boolean;
@@ -2408,13 +2641,19 @@ type MeetingsCreateMeetingResponse = {
         participant_focused_meeting?: boolean;
         push_change_to_calendar?: boolean;
         resources?: {
-            resource_type?: string;
+            resource_type?: "whiteboard";
             resource_id?: string;
-            permission_level?: string;
+            permission_level?: "editor" | "commenter" | "viewer";
         }[];
         auto_start_meeting_summary?: boolean;
+        who_will_receive_summary?: 1 | 2 | 3 | 4;
         auto_start_ai_companion_questions?: boolean;
+        who_can_ask_questions?: 1 | 2 | 3 | 4 | 5;
+        summary_template_id?: string;
         device_testing?: boolean;
+        allow_host_control_participant_mute_state?: boolean;
+        disable_participant_video?: boolean;
+        email_in_attendee_report?: boolean;
     };
     start_time?: string;
     start_url?: string;
@@ -2425,9 +2664,9 @@ type MeetingsCreateMeetingResponse = {
         value?: string;
         visible?: boolean;
     }[];
-    type?: number;
+    type?: 1 | 2 | 3 | 8 | 10;
     dynamic_host_key?: string;
-    creation_source?: string;
+    creation_source?: "other" | "open_api" | "web_portal";
 };
 type MeetingsListUpcomingMeetingsPathParams = {
     userId: string;
@@ -2437,12 +2676,15 @@ type MeetingsListUpcomingMeetingsResponse = {
     meetings?: {
         id?: number;
         topic?: string;
-        type?: number;
+        type?: 1 | 2 | 3 | 8;
         start_time?: string;
         duration?: number;
         timezone?: string;
         created_at?: string;
         join_url?: string;
+        passcode?: string;
+        use_pmi?: boolean;
+        is_host?: boolean;
     }[];
 };
 type PACListUsersPACAccountsPathParams = {
@@ -2475,7 +2717,7 @@ type ReportsGetSignInSignOutActivityReportResponse = {
         email?: string;
         ip_address?: string;
         time?: string;
-        type?: string;
+        type?: "Sign in" | "Sign out";
         version?: string;
     }[];
     from?: string;
@@ -2490,7 +2732,7 @@ type ReportsGetBillingReportsResponse = {
         start_date?: string;
         tax_amount?: string;
         total_amount?: string;
-        type?: number;
+        type?: 0 | 1;
     }[];
     currency?: string;
 };
@@ -2541,6 +2783,88 @@ type ReportsGetDailyUsageReportResponse = {
     month?: number;
     year?: number;
 };
+type ReportsGetHistoryMeetingAndWebinarListQueryParams = {
+    from: string;
+    to: string;
+    date_type?: "start_time" | "end_time";
+    meeting_type?: "meeting" | "webinar" | "all";
+    report_type?: "all" | "poll" | "survey" | "qa" | "resource" | "reaction";
+    search_key?: string;
+    page_size?: number;
+    next_page_token?: string;
+    group_id?: string;
+    meeting_feature?: "screen_sharing" | "video_on" | "remote_control" | "closed_caption" | "language_interpretation" | "telephone_usage" | "in_meeting_chat" | "poll" | "join_by_room" | "waiting_room" | "live_transcription" | "reaction" | "zoom_apps" | "annotation" | "raise_hand" | "virtual_background" | "whiteboard" | "immersive_scene" | "avatar" | "switch_to_mobile" | "file_sharing" | "meeting_summary" | "meeting_questions" | "record_to_computer" | "record_to_cloud" | "live_translation" | "registration" | "smart_recording" | "multi_speaker" | "meeting_wallpaper" | "gen_ai_virtual_background" | "multi_share" | "document_collaboration" | "portrait_lighting" | "personalized_audio_isolation" | "color_themes";
+};
+type ReportsGetHistoryMeetingAndWebinarListResponse = {
+    next_page_token?: string;
+    page_size?: number;
+    history_meetings?: {
+        meeting_uuid?: string;
+        meeting_id?: number;
+        type?: "Meeting" | "Webinar";
+        host_display_name?: string;
+        host_email?: string;
+        start_time?: string;
+        end_time?: string;
+        topic?: string;
+        participants?: number;
+        duration?: number;
+        total_participant_minutes?: number;
+        department?: string;
+        group?: string[];
+        source?: string;
+        unique_viewers?: number;
+        max_concurrent_views?: number;
+        create_time?: string;
+        custom_fields?: {
+            key?: string;
+            value?: string;
+        }[];
+        tracking_fields?: {
+            field?: string;
+            value?: string;
+        }[];
+        feature_used?: {
+            screen_sharing?: boolean;
+            video_on?: boolean;
+            remote_control?: boolean;
+            closed_caption?: boolean;
+            breakout_room?: boolean;
+            language_interpretation?: boolean;
+            telephone_usage?: boolean;
+            in_meeting_chat?: boolean;
+            poll?: boolean;
+            join_by_room?: boolean;
+            waiting_room?: boolean;
+            live_transcription?: boolean;
+            reaction?: boolean;
+            zoom_apps?: boolean;
+            annotation?: boolean;
+            raise_hand?: boolean;
+            virtual_background?: boolean;
+            whiteboard?: boolean;
+            immersive_scene?: boolean;
+            avatar?: boolean;
+            switch_to_mobile?: boolean;
+            file_sharing?: boolean;
+            meeting_summary?: boolean;
+            meeting_questions?: boolean;
+            record_to_computer?: boolean;
+            record_to_cloud?: boolean;
+            live_translation?: boolean;
+            registration?: boolean;
+            smart_recording?: boolean;
+            multi_speaker?: boolean;
+            meeting_wallpaper?: boolean;
+            gen_ai_virtual_background?: boolean;
+            multi_share?: boolean;
+            document_collaboration?: boolean;
+            portrait_lighting?: boolean;
+            personalized_audio_isolation?: boolean;
+            color_themes?: boolean;
+        };
+    }[];
+};
 type ReportsGetMeetingActivitiesReportQueryParams = {
     from: string;
     to: string;
@@ -2548,7 +2872,7 @@ type ReportsGetMeetingActivitiesReportQueryParams = {
     next_page_token?: string;
     meeting_number?: string;
     search_key?: string;
-    activity_type: string;
+    activity_type: "All Activities" | "Meeting Created" | "Meeting Started" | "User Join" | "User Left" | "Remote Control" | "In-Meeting Chat" | "Meeting Ended";
 };
 type ReportsGetMeetingActivitiesReportResponse = {
     meeting_activity_logs?: {
@@ -2593,7 +2917,7 @@ type ReportsGetMeetingParticipantReportsPathParams = {
 type ReportsGetMeetingParticipantReportsQueryParams = {
     page_size?: number;
     next_page_token?: string;
-    include_fields?: string;
+    include_fields?: "registrant_id";
 };
 type ReportsGetMeetingParticipantReportsResponse = {
     next_page_token?: string;
@@ -2610,7 +2934,7 @@ type ReportsGetMeetingParticipantReportsResponse = {
         leave_time?: string;
         name?: string;
         registrant_id?: string;
-        status?: string;
+        status?: "in_meeting" | "in_waiting_room";
         user_email?: string;
         user_id?: string;
         bo_mtg_id?: string;
@@ -2651,14 +2975,14 @@ type ReportsGetMeetingQAReportResponse = {
             question?: string;
             question_id?: string;
             create_time?: string;
-            question_status?: string;
+            question_status?: "default" | "open" | "dismissed" | "answered" | "deleted";
             answer_details?: {
                 user_id?: string;
                 name?: string;
                 email?: string;
                 content?: string;
                 create_time?: string;
-                type?: string;
+                type?: "default" | "host_answered_publicly" | "host_answered_privately" | "participant_commented" | "host_answered";
             }[];
         }[];
     }[];
@@ -2692,7 +3016,7 @@ type ReportsGetOperationLogsReportQueryParams = {
     to: string;
     page_size?: number;
     next_page_token?: string;
-    category_type?: string;
+    category_type?: "all" | "user" | "user_settings" | "account" | "billing" | "im" | "recording" | "phone_contacts" | "webinar" | "sub_account" | "role" | "zoom_rooms";
 };
 type ReportsGetOperationLogsReportResponse = {
     next_page_token?: string;
@@ -2707,8 +3031,8 @@ type ReportsGetOperationLogsReportResponse = {
     }[];
 };
 type ReportsGetTelephoneReportsQueryParams = {
-    type?: string;
-    query_date_type?: string;
+    type?: "1" | "2" | "3";
+    query_date_type?: "start_time" | "end_time" | "meeting_start_time" | "meeting_end_time";
     from: string;
     to: string;
     page_size?: number;
@@ -2739,7 +3063,7 @@ type ReportsGetTelephoneReportsResponse = {
         signaled_number?: string;
         start_time?: string;
         total?: number;
-        type?: string;
+        type?: "toll-free" | "call-out" | "call-in" | "US toll-number" | "global toll-number" | "premium" | "premium call-in" | "Toll";
         uuid?: string;
     }[];
 };
@@ -2748,7 +3072,7 @@ type ReportsGetUpcomingEventsReportQueryParams = {
     to: string;
     page_size?: number;
     next_page_token?: string;
-    type?: string;
+    type?: "meeting" | "webinar" | "all";
     group_id?: string;
 };
 type ReportsGetUpcomingEventsReportResponse = {
@@ -2766,7 +3090,7 @@ type ReportsGetUpcomingEventsReportResponse = {
     }[];
 };
 type ReportsGetActiveOrInactiveHostReportsQueryParams = {
-    type?: string;
+    type?: "active" | "inactive";
     from: string;
     to: string;
     page_size?: number;
@@ -2803,14 +3127,14 @@ type ReportsGetActiveOrInactiveHostReportsResponse = {
     }[];
 };
 type ReportsGetMeetingReportsPathParams = {
-    userId: string | string | string;
+    userId: string;
 };
 type ReportsGetMeetingReportsQueryParams = {
     from: string;
     to: string;
     page_size?: number;
     next_page_token?: string;
-    type?: string;
+    type?: "past" | "pastOne" | "pastJoined";
 };
 type ReportsGetMeetingReportsResponse = {
     next_page_token?: string;
@@ -2834,7 +3158,7 @@ type ReportsGetMeetingReportsResponse = {
         start_time?: string;
         topic?: string;
         total_minutes?: number;
-        type?: number;
+        type?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
         user_email?: string;
         user_name?: string;
         uuid?: string;
@@ -2847,7 +3171,7 @@ type ReportsGetMeetingReportsResponse = {
         has_screen_share?: boolean;
         has_recording?: boolean;
         has_chat?: boolean;
-        meeting_encryption_status?: number;
+        meeting_encryption_status?: 1 | 2;
         participants_count_my_account?: number;
     }[];
     next_page_token?: string;
@@ -2884,7 +3208,7 @@ type ReportsGetWebinarParticipantReportsPathParams = {
 type ReportsGetWebinarParticipantReportsQueryParams = {
     page_size?: number;
     next_page_token?: string;
-    include_fields?: string;
+    include_fields?: "registrant_id";
 };
 type ReportsGetWebinarParticipantReportsResponse = {
     next_page_token?: string;
@@ -2901,7 +3225,7 @@ type ReportsGetWebinarParticipantReportsResponse = {
         leave_time?: string;
         name?: string;
         registrant_id?: string;
-        status?: string;
+        status?: "in_meeting" | "in_waiting_room";
         user_email?: string;
         user_id?: string;
         participant_user_id?: string;
@@ -2942,14 +3266,14 @@ type ReportsGetWebinarQAReportResponse = {
             question?: string;
             question_id?: string;
             create_time?: string;
-            question_status?: string;
+            question_status?: "default" | "open" | "dismissed" | "answered" | "deleted";
             answer_details?: {
                 user_id?: string;
                 name?: string;
                 email?: string;
                 content?: string;
                 create_time?: string;
-                type?: string;
+                type?: "default" | "host_answered_publicly" | "host_answered_privately" | "participant_commented" | "host_answered";
             }[];
         }[];
     }[];
@@ -2979,73 +3303,90 @@ type ReportsGetWebinarSurveyReportResponse = {
     }[];
 };
 type SIPPhoneListSIPPhonesQueryParams = {
-    page_number?: number;
     search_key?: string;
     page_size?: number;
     next_page_token?: string;
 };
 type SIPPhoneListSIPPhonesResponse = {
     next_page_token?: string;
-    page_count?: number;
-    page_number?: number;
     page_size?: number;
     phones?: {
         authorization_name?: string;
         domain?: string;
-        id?: string;
+        phone_id?: string;
         password?: string;
-        proxy_server?: string;
-        proxy_server2?: string;
-        proxy_server3?: string;
-        register_server?: string;
-        register_server2?: string;
-        register_server3?: string;
         registration_expire_time?: number;
-        transport_protocol?: string;
-        transport_protocol2?: string;
-        transport_protocol3?: string;
         user_email?: string;
         user_name?: string;
         voice_mail?: string;
+        display_number?: string;
+        server?: {
+            proxy_server?: string;
+            register_server?: string;
+            transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+        };
+        server_2?: {
+            proxy_server?: string;
+            register_server?: string;
+            transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+        };
+        server_3?: {
+            proxy_server?: string;
+            register_server?: string;
+            transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+        };
     }[];
-    total_records?: number;
 };
 type SIPPhoneEnableSIPPhoneRequestBody = {
     authorization_name: string;
     domain: string;
     password: string;
-    proxy_server: string;
-    proxy_server2?: string;
-    proxy_server3?: string;
-    register_server: string;
-    register_server2?: string;
-    register_server3?: string;
     registration_expire_time?: number;
-    transport_protocol?: string;
-    transport_protocol2?: string;
-    transport_protocol3?: string;
     user_email: string;
     user_name: string;
-    voice_mail: string;
+    voice_mail?: string;
+    display_number?: string;
+    server: {
+        proxy_server?: string;
+        register_server?: string;
+        transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+    };
+    server_2?: {
+        proxy_server?: string;
+        register_server?: string;
+        transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+    };
+    server_3?: {
+        proxy_server?: string;
+        register_server?: string;
+        transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+    };
 };
 type SIPPhoneEnableSIPPhoneResponse = {
-    id?: string;
+    phone_id?: string;
     authorization_name?: string;
     domain?: string;
     password?: string;
-    proxy_server?: string;
-    proxy_server2?: string;
-    proxy_server3?: string;
-    register_server?: string;
-    register_server2?: string;
-    register_server3?: string;
     registration_expire_time?: number;
-    transport_protocol?: string;
-    transport_protocol2?: string;
-    transport_protocol3?: string;
     user_email?: string;
     user_name?: string;
     voice_mail?: string;
+    display_number?: string;
+    server?: {
+        proxy_server?: string;
+        register_server?: string;
+        transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+    };
+    server_2?: {
+        proxy_server?: string;
+        register_server?: string;
+        transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+    };
+    server_3?: {
+        proxy_server?: string;
+        register_server?: string;
+        transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+    };
 };
 type SIPPhoneDeleteSIPPhonePathParams = {
     phoneId: string;
@@ -3054,21 +3395,28 @@ type SIPPhoneUpdateSIPPhonePathParams = {
     phoneId: string;
 };
 type SIPPhoneUpdateSIPPhoneRequestBody = {
-    authorization_name: string;
-    domain: string;
-    password: string;
-    proxy_server: string;
-    proxy_server2: string;
-    proxy_server3: string;
-    register_server: string;
-    register_server2: string;
-    register_server3: string;
+    authorization_name?: string;
+    domain?: string;
+    password?: string;
     registration_expire_time?: number;
-    transport_protocol?: string;
-    transport_protocol2?: string;
-    transport_protocol3?: string;
-    user_name: string;
-    voice_mail: string;
+    user_name?: string;
+    voice_mail?: string;
+    display_number?: string;
+    server?: {
+        proxy_server?: string;
+        register_server?: string;
+        transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+    };
+    server_2?: {
+        proxy_server?: string;
+        register_server?: string;
+        transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+    };
+    server_3?: {
+        proxy_server?: string;
+        register_server?: string;
+        transport_protocol?: "UDP" | "TCP" | "TLS" | "AUTO";
+    };
 };
 type TSPGetAccountsTSPInformationResponse = {
     dial_in_number_unrestricted?: boolean;
@@ -3080,7 +3428,7 @@ type TSPGetAccountsTSPInformationResponse = {
     enable?: boolean;
     master_account_setting_extended?: boolean;
     modify_credential_forbidden?: boolean;
-    tsp_bridge?: string;
+    tsp_bridge?: "US_TSP_TB" | "EU_TSP_TB";
     tsp_enabled?: boolean;
     tsp_provider?: string;
 };
@@ -3089,7 +3437,7 @@ type TSPUpdateAccountsTSPInformationRequestBody = {
     enable?: boolean;
     master_account_setting_extended?: boolean;
     modify_credential_forbidden?: boolean;
-    tsp_bridge?: string;
+    tsp_bridge?: "US_TSP_TB" | "EU_TSP_TB";
     tsp_enabled?: boolean;
     tsp_provider?: string;
 };
@@ -3103,11 +3451,11 @@ type TSPListUsersTSPAccountsResponse = {
             code?: string;
             country_label?: string;
             number?: string;
-            type?: string;
+            type?: "toll" | "tollfree" | "media_link";
         }[];
-        id?: string;
+        id?: "1" | "2";
         leader_pin: string;
-        tsp_bridge?: string;
+        tsp_bridge?: "US_TSP_TB" | "EU_TSP_TB";
     }[];
 };
 type TSPAddUsersTSPAccountPathParams = {
@@ -3119,10 +3467,10 @@ type TSPAddUsersTSPAccountRequestBody = {
         code?: string;
         country_label?: string;
         number?: string;
-        type?: string;
+        type?: "toll" | "tollfree" | "media_link";
     }[];
     leader_pin: string;
-    tsp_bridge?: string;
+    tsp_bridge?: "US_TSP_TB" | "EU_TSP_TB";
 };
 type TSPAddUsersTSPAccountResponse = {
     id?: string;
@@ -3132,10 +3480,10 @@ type TSPAddUsersTSPAccountResponse = {
         code?: string;
         country_label?: string;
         number?: string;
-        type?: string;
+        type?: "toll" | "tollfree" | "media_link";
     }[];
     leader_pin: string;
-    tsp_bridge?: string;
+    tsp_bridge?: "US_TSP_TB" | "EU_TSP_TB";
 };
 type TSPSetGlobalDialInURLForTSPUserPathParams = {
     userId: string;
@@ -3145,7 +3493,7 @@ type TSPSetGlobalDialInURLForTSPUserRequestBody = {
 };
 type TSPGetUsersTSPAccountPathParams = {
     userId: string;
-    tspId: string;
+    tspId: "1" | "2";
 };
 type TSPGetUsersTSPAccountResponse = {
     conference_code: string;
@@ -3153,19 +3501,19 @@ type TSPGetUsersTSPAccountResponse = {
         code?: string;
         country_label?: string;
         number?: string;
-        type?: string;
+        type?: "toll" | "tollfree" | "media_link";
     }[];
     id?: string;
     leader_pin: string;
-    tsp_bridge?: string;
+    tsp_bridge?: "US_TSP_TB" | "EU_TSP_TB";
 };
 type TSPDeleteUsersTSPAccountPathParams = {
     userId: string;
-    tspId: string;
+    tspId: "1" | "2";
 };
 type TSPUpdateTSPAccountPathParams = {
     userId: string;
-    tspId: string;
+    tspId: "1" | "2";
 };
 type TSPUpdateTSPAccountRequestBody = {
     conference_code: string;
@@ -3173,21 +3521,20 @@ type TSPUpdateTSPAccountRequestBody = {
         code?: string;
         country_label?: string;
         number?: string;
-        type?: string;
+        type?: "toll" | "tollfree" | "media_link";
     }[];
     leader_pin: string;
-    tsp_bridge?: string;
+    tsp_bridge?: "US_TSP_TB" | "EU_TSP_TB";
 };
 type TrackingFieldListTrackingFieldsResponse = {
     total_records?: number;
-    tracking_fields?: ({
+    tracking_fields?: {
         id?: string;
-    } & {
         field?: string;
         recommended_values?: string[];
         required?: boolean;
         visible?: boolean;
-    })[];
+    }[];
 };
 type TrackingFieldCreateTrackingFieldRequestBody = {
     field?: string;
@@ -3208,7 +3555,6 @@ type TrackingFieldGetTrackingFieldPathParams = {
 };
 type TrackingFieldGetTrackingFieldResponse = {
     id?: string;
-} & {
     field?: string;
     recommended_values?: string[];
     required?: boolean;
@@ -3264,13 +3610,13 @@ type WebinarsGetWebinarAbsenteesResponse = {
         industry?: string;
         job_title?: string;
         last_name?: string;
-        no_of_employees?: string;
+        no_of_employees?: "" | "1-20" | "21-50" | "51-100" | "101-250" | "251-500" | "501-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
         org?: string;
         phone?: string;
-        purchasing_time_frame?: string;
-        role_in_purchase_process?: string;
+        purchasing_time_frame?: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+        role_in_purchase_process?: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
         state?: string;
-        status?: string;
+        status?: "approved" | "denied" | "pending";
         zip?: string;
     } & {
         create_time?: string;
@@ -3308,7 +3654,7 @@ type WebinarsListWebinarParticipantsResponse = {
         leave_time?: string;
         duration?: number;
         failover?: boolean;
-        status?: string;
+        status?: "in_meeting" | "in_waiting_room";
         internal_user?: boolean;
     }[];
     total_records?: number;
@@ -3375,7 +3721,7 @@ type WebinarsListWebinarsPathParams = {
     userId: string;
 };
 type WebinarsListWebinarsQueryParams = {
-    type?: string;
+    type?: "scheduled" | "upcoming";
     page_size?: number;
     page_number?: number;
 };
@@ -3396,7 +3742,7 @@ type WebinarsListWebinarsResponse = {
         start_time?: string;
         timezone?: string;
         topic?: string;
-        type?: number;
+        type?: 5 | 6 | 9;
         uuid?: string;
         is_simulive?: boolean;
     }[];
@@ -3413,10 +3759,10 @@ type WebinarsCreateWebinarRequestBody = {
         end_date_time?: string;
         end_times?: number;
         monthly_day?: number;
-        monthly_week?: number;
-        monthly_week_day?: number;
+        monthly_week?: -1 | 1 | 2 | 3 | 4;
+        monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
         repeat_interval?: number;
-        type: number;
+        type: 1 | 2 | 3;
         weekly_days?: string;
     };
     schedule_for?: string;
@@ -3424,16 +3770,16 @@ type WebinarsCreateWebinarRequestBody = {
         allow_multiple_devices?: boolean;
         alternative_hosts?: string;
         alternative_host_update_polls?: boolean;
-        approval_type?: number;
+        approval_type?: 0 | 1 | 2;
         attendees_and_panelists_reminder_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
-        audio?: string;
+        audio?: "both" | "telephony" | "voip" | "thirdParty";
         audio_conference_info?: string;
         authentication_domains?: string;
         authentication_option?: string;
-        auto_recording?: string;
+        auto_recording?: "local" | "cloud" | "none";
         close_registration?: boolean;
         contact_email?: string;
         contact_name?: string;
@@ -3442,11 +3788,11 @@ type WebinarsCreateWebinarRequestBody = {
         enforce_login_domains?: string;
         follow_up_absentees_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
         follow_up_attendees_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
         global_dial_in_countries?: string[];
         hd_video?: boolean;
@@ -3457,6 +3803,7 @@ type WebinarsCreateWebinarRequestBody = {
             interpreters?: {
                 email?: string;
                 languages?: string;
+                interpreter_languages?: string;
             }[];
         };
         sign_language_interpretation?: {
@@ -3478,7 +3825,7 @@ type WebinarsCreateWebinarRequestBody = {
         question_and_answer?: {
             allow_submit_questions?: boolean;
             allow_anonymous_questions?: boolean;
-            answer_questions?: string;
+            answer_questions?: "only" | "all";
             attendees_can_comment?: boolean;
             attendees_can_upvote?: boolean;
             allow_auto_reply?: boolean;
@@ -3487,11 +3834,13 @@ type WebinarsCreateWebinarRequestBody = {
         };
         registrants_email_notification?: boolean;
         registrants_restrict_number?: number;
-        registration_type?: number;
+        registration_type?: 1 | 2 | 3;
         send_1080p_video_to_attendees?: boolean;
         show_share_button?: boolean;
         survey_url?: string;
         enable_session_branding?: boolean;
+        allow_host_control_participant_mute_state?: boolean;
+        email_in_attendee_report?: boolean;
     };
     start_time?: string;
     template_id?: string;
@@ -3501,9 +3850,15 @@ type WebinarsCreateWebinarRequestBody = {
         field: string;
         value?: string;
     }[];
-    type?: number;
+    type?: 5 | 6 | 9;
     is_simulive?: boolean;
     record_file_id?: string;
+    transition_to_live?: boolean;
+    simulive_delay_start?: {
+        enable?: boolean;
+        time?: number;
+        timeunit?: "second" | "minute";
+    };
 };
 type WebinarsCreateWebinarResponse = {
     host_email?: string;
@@ -3520,7 +3875,7 @@ type WebinarsCreateWebinarResponse = {
         duration?: number;
         occurrence_id?: string;
         start_time?: string;
-        status?: string;
+        status?: "available" | "deleted";
     }[];
     password?: string;
     encrypted_passcode?: string;
@@ -3529,27 +3884,27 @@ type WebinarsCreateWebinarResponse = {
         end_date_time?: string;
         end_times?: number;
         monthly_day?: number;
-        monthly_week?: number;
-        monthly_week_day?: number;
+        monthly_week?: -1 | 1 | 2 | 3 | 4;
+        monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
         repeat_interval?: number;
-        type: number;
+        type: 1 | 2 | 3;
         weekly_days?: string;
     };
     settings?: {
         allow_multiple_devices?: boolean;
         alternative_hosts?: string;
         alternative_host_update_polls?: boolean;
-        approval_type?: number;
+        approval_type?: 0 | 1 | 2;
         attendees_and_panelists_reminder_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
-        audio?: string;
+        audio?: "both" | "telephony" | "voip" | "thirdParty";
         audio_conference_info?: string;
         authentication_domains?: string;
         authentication_name?: string;
         authentication_option?: string;
-        auto_recording?: string;
+        auto_recording?: "local" | "cloud" | "none";
         close_registration?: boolean;
         contact_email?: string;
         contact_name?: string;
@@ -3558,13 +3913,20 @@ type WebinarsCreateWebinarResponse = {
         enforce_login_domains?: string;
         follow_up_absentees_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
         follow_up_attendees_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
         global_dial_in_countries?: string[];
+        global_dial_in_numbers?: {
+            city?: string;
+            country?: string;
+            country_name?: string;
+            number?: string;
+            type?: "toll" | "tollfree" | "premium";
+        }[];
         hd_video?: boolean;
         hd_video_for_attendees?: boolean;
         host_video?: boolean;
@@ -3573,6 +3935,7 @@ type WebinarsCreateWebinarResponse = {
             interpreters?: {
                 email?: string;
                 languages?: string;
+                interpreter_languages?: string;
             }[];
         };
         sign_language_interpretation?: {
@@ -3586,7 +3949,6 @@ type WebinarsCreateWebinarResponse = {
         meeting_authentication?: boolean;
         add_watermark?: boolean;
         add_audio_watermark?: boolean;
-        notify_registrants?: boolean;
         on_demand?: boolean;
         panelists_invitation_email_notification?: boolean;
         panelists_video?: boolean;
@@ -3595,7 +3957,7 @@ type WebinarsCreateWebinarResponse = {
         question_and_answer?: {
             allow_submit_questions?: boolean;
             allow_anonymous_questions?: boolean;
-            answer_questions?: string;
+            answer_questions?: "only" | "all";
             attendees_can_comment?: boolean;
             attendees_can_upvote?: boolean;
             allow_auto_reply?: boolean;
@@ -3605,11 +3967,13 @@ type WebinarsCreateWebinarResponse = {
         registrants_confirmation_email?: boolean;
         registrants_email_notification?: boolean;
         registrants_restrict_number?: number;
-        registration_type?: number;
+        registration_type?: 1 | 2 | 3;
         send_1080p_video_to_attendees?: boolean;
         show_share_button?: boolean;
         survey_url?: string;
         enable_session_branding?: boolean;
+        allow_host_control_participant_mute_state?: boolean;
+        email_in_attendee_report?: boolean;
     };
     start_time?: string;
     start_url?: string;
@@ -3619,10 +3983,16 @@ type WebinarsCreateWebinarResponse = {
         field?: string;
         value?: string;
     }[];
-    type?: number;
+    type?: 5 | 6 | 9;
     is_simulive?: boolean;
     record_file_id?: string;
-    creation_source?: string;
+    transition_to_live?: boolean;
+    simulive_delay_start?: {
+        enable?: boolean;
+        time?: number;
+        timeunit?: string;
+    };
+    creation_source?: "other" | "open_api" | "web_portal";
 };
 type WebinarsGetWebinarPathParams = {
     webinarId: string;
@@ -3644,7 +4014,7 @@ type WebinarsGetWebinarResponse = {
         duration?: number;
         occurrence_id?: string;
         start_time?: string;
-        status?: string;
+        status?: "available" | "deleted";
     }[];
     password?: string;
     encrypted_passcode?: string;
@@ -3653,27 +4023,27 @@ type WebinarsGetWebinarResponse = {
         end_date_time?: string;
         end_times?: number;
         monthly_day?: number;
-        monthly_week?: number;
-        monthly_week_day?: number;
+        monthly_week?: -1 | 1 | 2 | 3 | 4;
+        monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
         repeat_interval?: number;
-        type: number;
+        type: 1 | 2 | 3;
         weekly_days?: string;
     };
     settings?: {
         allow_multiple_devices?: boolean;
         alternative_hosts?: string;
         alternative_host_update_polls?: boolean;
-        approval_type?: number;
+        approval_type?: 0 | 1 | 2;
         attendees_and_panelists_reminder_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
-        audio?: string;
+        audio?: "both" | "telephony" | "voip" | "thirdParty";
         audio_conference_info?: string;
         authentication_domains?: string;
         authentication_name?: string;
         authentication_option?: string;
-        auto_recording?: string;
+        auto_recording?: "local" | "cloud" | "none";
         close_registration?: boolean;
         contact_email?: string;
         contact_name?: string;
@@ -3682,13 +4052,20 @@ type WebinarsGetWebinarResponse = {
         enforce_login_domains?: string;
         follow_up_absentees_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
         follow_up_attendees_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
         global_dial_in_countries?: string[];
+        global_dial_in_numbers?: {
+            city?: string;
+            country?: string;
+            country_name?: string;
+            number?: string;
+            type?: "toll" | "tollfree" | "premium";
+        }[];
         hd_video?: boolean;
         hd_video_for_attendees?: boolean;
         host_video?: boolean;
@@ -3697,6 +4074,7 @@ type WebinarsGetWebinarResponse = {
             interpreters?: {
                 email?: string;
                 languages?: string;
+                interpreter_languages?: string;
             }[];
         };
         sign_language_interpretation?: {
@@ -3710,7 +4088,6 @@ type WebinarsGetWebinarResponse = {
         meeting_authentication?: boolean;
         add_watermark?: boolean;
         add_audio_watermark?: boolean;
-        notify_registrants?: boolean;
         on_demand?: boolean;
         panelists_invitation_email_notification?: boolean;
         panelists_video?: boolean;
@@ -3719,7 +4096,7 @@ type WebinarsGetWebinarResponse = {
         question_and_answer?: {
             allow_submit_questions?: boolean;
             allow_anonymous_questions?: boolean;
-            answer_questions?: string;
+            answer_questions?: "only" | "all";
             attendees_can_comment?: boolean;
             attendees_can_upvote?: boolean;
             allow_auto_reply?: boolean;
@@ -3729,11 +4106,13 @@ type WebinarsGetWebinarResponse = {
         registrants_confirmation_email?: boolean;
         registrants_email_notification?: boolean;
         registrants_restrict_number?: number;
-        registration_type?: number;
+        registration_type?: 1 | 2 | 3;
         send_1080p_video_to_attendees?: boolean;
         show_share_button?: boolean;
         survey_url?: string;
         enable_session_branding?: boolean;
+        allow_host_control_participant_mute_state?: boolean;
+        email_in_attendee_report?: boolean;
     };
     start_time?: string;
     start_url?: string;
@@ -3743,10 +4122,16 @@ type WebinarsGetWebinarResponse = {
         field?: string;
         value?: string;
     }[];
-    type?: number;
+    type?: 5 | 6 | 9;
     is_simulive?: boolean;
     record_file_id?: string;
-    creation_source?: string;
+    transition_to_live?: boolean;
+    simulive_delay_start?: {
+        enable?: boolean;
+        time?: number;
+        timeunit?: "second" | "minute";
+    };
+    creation_source?: "other" | "open_api" | "web_portal";
 };
 type WebinarsDeleteWebinarPathParams = {
     webinarId: number;
@@ -3770,27 +4155,27 @@ type WebinarsUpdateWebinarRequestBody = {
         end_date_time?: string;
         end_times?: number;
         monthly_day?: number;
-        monthly_week?: number;
-        monthly_week_day?: number;
+        monthly_week?: -1 | 1 | 2 | 3 | 4;
+        monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
         repeat_interval?: number;
-        type: number;
-        weekly_days?: string;
+        type: 1 | 2 | 3;
+        weekly_days?: "1" | "2" | "3" | "4" | "5" | "6" | "7";
     };
     settings?: {
         allow_multiple_devices?: boolean;
         alternative_hosts?: string;
         alternative_host_update_polls?: boolean;
-        approval_type?: number;
+        approval_type?: 0 | 1 | 2;
         attendees_and_panelists_reminder_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
-        audio?: string;
+        audio?: "both" | "telephony" | "voip" | "thirdParty";
         audio_conference_info?: string;
         authentication_domains?: string;
         authentication_name?: string;
         authentication_option?: string;
-        auto_recording?: string;
+        auto_recording?: "local" | "cloud" | "none";
         close_registration?: boolean;
         contact_email?: string;
         contact_name?: string;
@@ -3799,11 +4184,11 @@ type WebinarsUpdateWebinarRequestBody = {
         enforce_login_domains?: string;
         follow_up_absentees_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
         follow_up_attendees_email_notification?: {
             enable?: boolean;
-            type?: number;
+            type?: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
         };
         global_dial_in_countries?: string[];
         hd_video?: boolean;
@@ -3814,6 +4199,7 @@ type WebinarsUpdateWebinarRequestBody = {
             interpreters?: {
                 email?: string;
                 languages?: string;
+                interpreter_languages?: string;
             }[];
         };
         sign_language_interpretation?: {
@@ -3836,7 +4222,7 @@ type WebinarsUpdateWebinarRequestBody = {
         question_and_answer?: {
             allow_submit_questions?: boolean;
             allow_anonymous_questions?: boolean;
-            answer_questions?: string;
+            answer_questions?: "only" | "all";
             attendees_can_comment?: boolean;
             attendees_can_upvote?: boolean;
             allow_auto_reply?: boolean;
@@ -3846,11 +4232,13 @@ type WebinarsUpdateWebinarRequestBody = {
         registrants_confirmation_email?: boolean;
         registrants_email_notification?: boolean;
         registrants_restrict_number?: number;
-        registration_type?: number;
+        registration_type?: 1 | 2 | 3;
         send_1080p_video_to_attendees?: boolean;
         show_share_button?: boolean;
         survey_url?: string;
         enable_session_branding?: boolean;
+        allow_host_control_participant_mute_state?: boolean;
+        email_in_attendee_report?: boolean;
     };
     start_time?: string;
     timezone?: string;
@@ -3859,9 +4247,15 @@ type WebinarsUpdateWebinarRequestBody = {
         field?: string;
         value?: string;
     }[];
-    type?: number;
+    type?: 5 | 6 | 9;
     is_simulive?: boolean;
     record_file_id?: string;
+    transition_to_live?: boolean;
+    simulive_delay_start?: {
+        enable?: boolean;
+        time?: number;
+        timeunit?: "second" | "minute";
+    };
 };
 type WebinarsPerformBatchRegistrationPathParams = {
     webinarId: string;
@@ -3952,7 +4346,7 @@ type WebinarsUploadWebinarsBrandingVirtualBackgroundResponse = {
     name?: string;
     is_default?: boolean;
     size?: number;
-    type?: string;
+    type?: "image";
 };
 type WebinarsDeleteWebinarsBrandingVirtualBackgroundsPathParams = {
     webinarId: number;
@@ -3977,7 +4371,7 @@ type WebinarsUploadWebinarsBrandingWallpaperResponse = {
     id?: string;
     name?: string;
     size?: number;
-    type?: string;
+    type?: "image";
 };
 type WebinarsDeleteWebinarsBrandingWallpaperPathParams = {
     webinarId: number;
@@ -3988,6 +4382,8 @@ type WebinarsCreateWebinarsInviteLinksPathParams = {
 type WebinarsCreateWebinarsInviteLinksRequestBody = {
     attendees?: {
         name: string;
+        disable_video?: boolean;
+        disable_audio?: boolean;
     }[];
     ttl?: number;
 };
@@ -4001,21 +4397,21 @@ type WebinarsGetWebinarsJoinTokenForLiveStreamingPathParams = {
     webinarId: number;
 };
 type WebinarsGetWebinarsJoinTokenForLiveStreamingResponse = {
-    expire_in?: number;
+    expire_in?: 120;
     token?: string;
 };
 type WebinarsGetWebinarsArchiveTokenForLocalArchivingPathParams = {
     webinarId: number;
 };
 type WebinarsGetWebinarsArchiveTokenForLocalArchivingResponse = {
-    expire_in?: number;
+    expire_in?: 120;
     token?: string;
 };
 type WebinarsGetWebinarsJoinTokenForLocalRecordingPathParams = {
     webinarId: number;
 };
 type WebinarsGetWebinarsJoinTokenForLocalRecordingResponse = {
-    expire_in?: number;
+    expire_in?: 120;
     token?: string;
 };
 type WebinarsGetLiveStreamDetailsPathParams = {
@@ -4040,7 +4436,7 @@ type WebinarsUpdateLiveStreamStatusPathParams = {
     webinarId: number;
 };
 type WebinarsUpdateLiveStreamStatusRequestBody = {
-    action?: string;
+    action?: "start" | "stop";
     settings?: {
         active_speaker_name?: boolean;
         display_name?: string;
@@ -4101,10 +4497,10 @@ type WebinarsListWebinarsPollsQueryParams = {
 type WebinarsListWebinarsPollsResponse = {
     polls?: ({
         id?: string;
-        status?: string;
+        status?: "notstart" | "started" | "ended" | "sharing" | "deactivated";
     } & {
         anonymous?: boolean;
-        poll_type?: number;
+        poll_type?: 1 | 2 | 3;
         questions?: {
             answer_max_character?: number;
             answer_min_character?: number;
@@ -4122,7 +4518,7 @@ type WebinarsListWebinarsPollsResponse = {
             rating_min_value?: number;
             right_answers?: string[];
             show_as_dropdown?: boolean;
-            type?: string;
+            type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
         }[];
         title?: string;
     })[];
@@ -4133,7 +4529,7 @@ type WebinarsCreateWebinarsPollPathParams = {
 };
 type WebinarsCreateWebinarsPollRequestBody = {
     anonymous?: boolean;
-    poll_type?: number;
+    poll_type?: 1 | 2 | 3;
     questions?: {
         answer_max_character?: number;
         answer_min_character?: number;
@@ -4151,16 +4547,16 @@ type WebinarsCreateWebinarsPollRequestBody = {
         rating_min_value?: number;
         right_answers?: string[];
         show_as_dropdown?: boolean;
-        type?: string;
+        type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
     }[];
     title?: string;
 };
 type WebinarsCreateWebinarsPollResponse = {
     id?: string;
-    status?: string;
+    status?: "notstart" | "started" | "ended" | "sharing";
 } & {
     anonymous?: boolean;
-    poll_type?: number;
+    poll_type?: 1 | 2 | 3;
     questions?: {
         answer_max_character?: number;
         answer_min_character?: number;
@@ -4178,7 +4574,7 @@ type WebinarsCreateWebinarsPollResponse = {
         rating_min_value?: number;
         right_answers?: string[];
         show_as_dropdown?: boolean;
-        type?: string;
+        type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
     }[];
     title?: string;
 };
@@ -4188,10 +4584,10 @@ type WebinarsGetWebinarPollPathParams = {
 };
 type WebinarsGetWebinarPollResponse = {
     id?: string;
-    status?: string;
+    status?: "notstart" | "started" | "ended" | "sharing" | "deactivated";
 } & {
     anonymous?: boolean;
-    poll_type?: number;
+    poll_type?: 1 | 2 | 3;
     questions?: {
         answer_max_character?: number;
         answer_min_character?: number;
@@ -4209,7 +4605,7 @@ type WebinarsGetWebinarPollResponse = {
         rating_min_value?: number;
         right_answers?: string[];
         show_as_dropdown?: boolean;
-        type?: string;
+        type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
     }[];
     title?: string;
 };
@@ -4219,7 +4615,7 @@ type WebinarsUpdateWebinarPollPathParams = {
 };
 type WebinarsUpdateWebinarPollRequestBody = {
     anonymous?: boolean;
-    poll_type?: number;
+    poll_type?: 1 | 2 | 3;
     questions?: {
         answer_max_character?: number;
         answer_min_character?: number;
@@ -4237,7 +4633,7 @@ type WebinarsUpdateWebinarPollRequestBody = {
         rating_min_value?: number;
         right_answers?: string[];
         show_as_dropdown?: boolean;
-        type?: string;
+        type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
     }[];
     title?: string;
 };
@@ -4250,7 +4646,7 @@ type WebinarsListWebinarRegistrantsPathParams = {
 };
 type WebinarsListWebinarRegistrantsQueryParams = {
     occurrence_id?: string;
-    status?: string;
+    status?: "pending" | "approved" | "denied";
     tracking_source_id?: string;
     page_size?: number;
     page_number?: number;
@@ -4279,13 +4675,13 @@ type WebinarsListWebinarRegistrantsResponse = {
         industry?: string;
         job_title?: string;
         last_name?: string;
-        no_of_employees?: string;
+        no_of_employees?: "" | "1-20" | "21-50" | "51-100" | "101-250" | "251-500" | "501-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
         org?: string;
         phone?: string;
-        purchasing_time_frame?: string;
-        role_in_purchase_process?: string;
+        purchasing_time_frame?: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+        role_in_purchase_process?: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
         state?: string;
-        status?: string;
+        status?: "approved" | "denied" | "pending";
         zip?: string;
     } & {
         create_time?: string;
@@ -4316,12 +4712,11 @@ type WebinarsAddWebinarRegistrantRequestBody = {
     }[];
     industry?: string;
     job_title?: string;
-    no_of_employees?: string;
+    no_of_employees?: "" | "1-20" | "21-50" | "51-100" | "101-500" | "500-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
     org?: string;
-    purchasing_time_frame?: string;
-    role_in_purchase_process?: string;
-} & {
-    language?: string;
+    purchasing_time_frame?: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+    role_in_purchase_process?: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
+    language?: "en-US" | "de-DE" | "es-ES" | "fr-FR" | "jp-JP" | "pt-PT" | "ru-RU" | "zh-CN" | "zh-TW" | "ko-KO" | "it-IT" | "vi-VN" | "pl-PL" | "Tr-TR";
     source_id?: string;
 };
 type WebinarsAddWebinarRegistrantResponse = {
@@ -4345,10 +4740,10 @@ type WebinarsListRegistrationQuestionsResponse = {
         answers?: string[];
         required?: boolean;
         title?: string;
-        type?: string;
+        type?: "short" | "single_radio" | "single_dropdown" | "multiple";
     }[];
     questions?: {
-        field_name?: string;
+        field_name?: "last_name" | "address" | "city" | "country" | "zip" | "state" | "phone" | "industry" | "org" | "job_title" | "purchasing_time_frame" | "role_in_purchase_process" | "no_of_employees" | "comments";
         required?: boolean;
     }[];
 };
@@ -4360,10 +4755,10 @@ type WebinarsUpdateRegistrationQuestionsRequestBody = {
         answers?: string[];
         required?: boolean;
         title?: string;
-        type?: string;
+        type?: "short" | "single_radio" | "single_dropdown" | "multiple";
     }[];
     questions?: {
-        field_name?: string;
+        field_name?: "last_name" | "address" | "city" | "country" | "zip" | "state" | "phone" | "industry" | "org" | "job_title" | "purchasing_time_frame" | "role_in_purchase_process" | "no_of_employees" | "comments";
         required?: boolean;
     }[];
 };
@@ -4374,7 +4769,7 @@ type WebinarsUpdateRegistrantsStatusQueryParams = {
     occurrence_id?: string;
 };
 type WebinarsUpdateRegistrantsStatusRequestBody = {
-    action: string;
+    action: "approve" | "deny" | "cancel";
     registrants?: {
         email?: string;
         id?: string;
@@ -4403,16 +4798,16 @@ type WebinarsGetWebinarRegistrantResponse = {
     industry?: string;
     job_title?: string;
     last_name?: string;
-    no_of_employees?: string;
+    no_of_employees?: "" | "1-20" | "21-50" | "51-100" | "101-250" | "251-500" | "501-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
     org?: string;
     phone?: string;
-    purchasing_time_frame?: string;
-    role_in_purchase_process?: string;
+    purchasing_time_frame?: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+    role_in_purchase_process?: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
     state?: string;
-    status?: string;
+    status?: "approved" | "denied" | "pending";
     zip?: string;
 } & {
-    language?: string;
+    language?: "en-US" | "de-DE" | "es-ES" | "fr-FR" | "jp-JP" | "pt-PT" | "ru-RU" | "zh-CN" | "zh-TW" | "ko-KO" | "it-IT" | "vi-VN" | "pl-PL" | "Tr-TR";
 }) & {
     create_time?: string;
     join_url?: string;
@@ -4441,7 +4836,7 @@ type WebinarsUpdateWebinarStatusPathParams = {
     webinarId: number;
 };
 type WebinarsUpdateWebinarStatusRequestBody = {
-    action?: string;
+    action?: "end";
 };
 type WebinarsGetWebinarSurveyPathParams = {
     webinarId: number;
@@ -4455,7 +4850,7 @@ type WebinarsGetWebinarSurveyResponse = {
         feedback?: string;
         questions?: {
             name?: string;
-            type?: string;
+            type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
             answer_required?: boolean;
             show_as_dropdown?: boolean;
             answers?: string[];
@@ -4489,7 +4884,7 @@ type WebinarsUpdateWebinarSurveyRequestBody = {
         feedback?: string;
         questions?: {
             name?: string;
-            type?: string;
+            type?: "single" | "multiple" | "matching" | "rank_order" | "short_answer" | "long_answer" | "fill_in_the_blank" | "rating_scale";
             answer_required?: boolean;
             show_as_dropdown?: boolean;
             answers?: string[];
@@ -4512,7 +4907,7 @@ type WebinarsGetWebinarsTokenPathParams = {
     webinarId: number;
 };
 type WebinarsGetWebinarsTokenQueryParams = {
-    type?: string;
+    type?: "closed_caption_token";
 };
 type WebinarsGetWebinarsTokenResponse = {
     token?: string;
@@ -4612,6 +5007,12 @@ declare class MeetingsEndpoints extends WebEndpoints {
         } & {
             body?: CloudRecordingRecoverSingleRecordingRequestBody;
         } & object) => Promise<BaseResponse<unknown>>;
+        getMeetingTranscript: (_: {
+            path: CloudRecordingGetMeetingTranscriptPathParams;
+        } & object) => Promise<BaseResponse<CloudRecordingGetMeetingTranscriptResponse>>;
+        deleteMeetingOrWebinarTranscript: (_: {
+            path: CloudRecordingDeleteMeetingOrWebinarTranscriptPathParams;
+        } & object) => Promise<BaseResponse<unknown>>;
         recoverMeetingRecordings: (_: {
             path: CloudRecordingRecoverMeetingRecordingsPathParams;
         } & {
@@ -4636,8 +5037,11 @@ declare class MeetingsEndpoints extends WebEndpoints {
         assignDeviceToUserOrCommonarea: (_: object & {
             body: DevicesAssignDeviceToUserOrCommonareaRequestBody;
         }) => Promise<BaseResponse<unknown>>;
-        upgradeZpaOsApp: (_: object & {
-            body: DevicesUpgradeZpaOsAppRequestBody;
+        getZoomPhoneApplianceSettingsByUserID: (_: object & {
+            query?: DevicesGetZoomPhoneApplianceSettingsByUserIDQueryParams;
+        }) => Promise<BaseResponse<DevicesGetZoomPhoneApplianceSettingsByUserIDResponse>>;
+        upgradeZPAFirmwareOrApp: (_: object & {
+            body: DevicesUpgradeZPAFirmwareOrAppRequestBody;
         }) => Promise<BaseResponse<unknown>>;
         deleteZPADeviceByVendorAndMacAddress: (_: {
             path: DevicesDeleteZPADeviceByVendorAndMacAddressPathParams;
@@ -4656,6 +5060,11 @@ declare class MeetingsEndpoints extends WebEndpoints {
         } & {
             body: DevicesChangeDeviceRequestBody;
         } & object) => Promise<BaseResponse<unknown>>;
+        assignDeviceToGroup: (_: {
+            path: DevicesAssignDeviceToGroupPathParams;
+        } & object & {
+            query: DevicesAssignDeviceToGroupQueryParams;
+        }) => Promise<BaseResponse<unknown>>;
         changeDeviceAssociation: (_: {
             path: DevicesChangeDeviceAssociationPathParams;
         } & {
@@ -4694,9 +5103,14 @@ declare class MeetingsEndpoints extends WebEndpoints {
         } & {
             body?: MeetingsUseInMeetingControlsRequestBody;
         } & object) => Promise<BaseResponse<unknown>>;
-        listMeetingSummariesOfAccount: (_: object & {
-            query?: MeetingsListMeetingSummariesOfAccountQueryParams;
-        }) => Promise<BaseResponse<MeetingsListMeetingSummariesOfAccountResponse>>;
+        updateParticipantRealTimeMediaStreamsRTMSAppStatus: (_: {
+            path: MeetingsUpdateParticipantRealTimeMediaStreamsRTMSAppStatusPathParams;
+        } & {
+            body?: MeetingsUpdateParticipantRealTimeMediaStreamsRTMSAppStatusRequestBody;
+        } & object) => Promise<BaseResponse<unknown>>;
+        listAccountsMeetingOrWebinarSummaries: (_: object & {
+            query?: MeetingsListAccountsMeetingOrWebinarSummariesQueryParams;
+        }) => Promise<BaseResponse<MeetingsListAccountsMeetingOrWebinarSummariesResponse>>;
         getMeeting: (_: {
             path: MeetingsGetMeetingPathParams;
         } & object & {
@@ -4756,9 +5170,12 @@ declare class MeetingsEndpoints extends WebEndpoints {
         } & {
             body?: MeetingsUpdateLivestreamStatusRequestBody;
         } & object) => Promise<BaseResponse<unknown>>;
-        getMeetingSummary: (_: {
-            path: MeetingsGetMeetingSummaryPathParams;
-        } & object) => Promise<BaseResponse<MeetingsGetMeetingSummaryResponse>>;
+        getMeetingOrWebinarSummary: (_: {
+            path: MeetingsGetMeetingOrWebinarSummaryPathParams;
+        } & object) => Promise<BaseResponse<MeetingsGetMeetingOrWebinarSummaryResponse>>;
+        deleteMeetingOrWebinarSummary: (_: {
+            path: MeetingsDeleteMeetingOrWebinarSummaryPathParams;
+        } & object) => Promise<BaseResponse<unknown>>;
         addMeetingApp: (_: {
             path: MeetingsAddMeetingAppPathParams;
         } & object) => Promise<BaseResponse<MeetingsAddMeetingAppResponse>>;
@@ -4905,6 +5322,9 @@ declare class MeetingsEndpoints extends WebEndpoints {
         getDailyUsageReport: (_: object & {
             query?: ReportsGetDailyUsageReportQueryParams;
         }) => Promise<BaseResponse<ReportsGetDailyUsageReportResponse>>;
+        getHistoryMeetingAndWebinarList: (_: object & {
+            query: ReportsGetHistoryMeetingAndWebinarListQueryParams;
+        }) => Promise<BaseResponse<ReportsGetHistoryMeetingAndWebinarListResponse>>;
         getMeetingActivitiesReport: (_: object & {
             query: ReportsGetMeetingActivitiesReportQueryParams;
         }) => Promise<BaseResponse<ReportsGetMeetingActivitiesReportResponse>>;
@@ -4973,7 +5393,7 @@ declare class MeetingsEndpoints extends WebEndpoints {
         updateSIPPhone: (_: {
             path: SIPPhoneUpdateSIPPhonePathParams;
         } & {
-            body: SIPPhoneUpdateSIPPhoneRequestBody;
+            body?: SIPPhoneUpdateSIPPhoneRequestBody;
         } & object) => Promise<BaseResponse<unknown>>;
     };
     readonly tSP: {
@@ -5260,35 +5680,6 @@ declare class MeetingsEndpoints extends WebEndpoints {
     };
 }
 
-type WebinarSharingStartedEvent = Event<"webinar.sharing_started"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-            participant: {
-                user_id: string;
-                user_name?: string;
-                id?: string;
-                sharing_details: {
-                    content: string;
-                    link_source: string;
-                    file_link: string;
-                    date_time: string;
-                    source: string;
-                };
-            };
-        };
-    };
-};
 type MeetingParticipantJbhWaitingEvent = Event<"meeting.participant_jbh_waiting"> & {
     event: string;
     event_ts: number;
@@ -5299,7 +5690,7 @@ type MeetingParticipantJbhWaitingEvent = Event<"meeting.participant_jbh_waiting"
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time?: string;
             timezone?: string;
             duration: number;
@@ -5307,57 +5698,6 @@ type MeetingParticipantJbhWaitingEvent = Event<"meeting.participant_jbh_waiting"
                 id?: string;
                 user_name: string;
                 customer_key?: string;
-            };
-        };
-    };
-};
-type MeetingRegistrationCreatedEvent = Event<"meeting.registration_created"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            uuid: string;
-            id: number;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            duration: number;
-            timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
-            registrant: {
-                id: string;
-                first_name: string;
-                last_name?: string;
-                email: string;
-                address?: string;
-                city?: string;
-                country?: string;
-                zip?: string;
-                state?: string;
-                phone?: string;
-                industry?: string;
-                org?: string;
-                job_title?: string;
-                purchasing_time_frame?: string;
-                role_in_purchase_process?: string;
-                no_of_employees?: string;
-                comments?: string;
-                custom_questions?: ExactlyOneOf<[
-                    {
-                        title: string;
-                        value: string;
-                    }
-                ]>[];
-                status: string;
-                join_url: string;
-                participant_pin_code?: number;
             };
         };
     };
@@ -5385,102 +5725,6 @@ type MeetingSummaryRecoveredEvent = Event<"meeting.summary_recovered"> & {
         };
     };
 };
-type RecordingRecoveredEvent = Event<"recording.recovered"> & {
-    event: string;
-    event_ts: number;
-    download_token?: string;
-    payload: {
-        account_id: string;
-        operator: string;
-        operator_id: string;
-        object: {
-            id: number;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            account_id: string;
-            timezone?: string;
-            duration: number;
-            share_url: string;
-            total_size: number;
-            recording_count: number;
-            recording_files: {
-                id: string;
-                meeting_id: string;
-                recording_start: string;
-                recording_end: string;
-                file_type: string;
-                file_size: number;
-                file_extension: string;
-                file_name?: string;
-                play_url?: string;
-                download_url: string;
-                status: string;
-                recording_type: string;
-            }[];
-            participant_audio_files?: {
-                id: string;
-                recording_start: string;
-                recording_end: string;
-                file_type: string;
-                file_name: string;
-                file_size: number;
-                file_extension: string;
-                play_url?: string;
-                download_url: string;
-                file_path?: string;
-                status: string;
-            }[];
-        };
-    };
-};
-type MeetingSharingEndedEvent = Event<"meeting.sharing_ended"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-            participant: {
-                user_id: string;
-                user_name?: string;
-                id?: string;
-                sharing_details: {
-                    content: string;
-                    link_source: string;
-                    file_link: string;
-                    date_time: string;
-                    source: string;
-                };
-            };
-        };
-    };
-};
-type RecordingCloudStorageUsageUpdatedEvent = Event<"recording.cloud_storage_usage_updated"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            free_storage: string;
-            plan_storage: string;
-            plan_type: string;
-            storage_used: string;
-            storage_used_percentage: number;
-            storage_exceed: string;
-            max_exceed_date?: string;
-        };
-    };
-};
 type MeetingParticipantLeftBreakoutRoomEvent = Event<"meeting.participant_left_breakout_room"> & {
     event: string;
     event_ts: number;
@@ -5492,7 +5736,7 @@ type MeetingParticipantLeftBreakoutRoomEvent = Event<"meeting.participant_left_b
             breakout_room_uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -5524,9 +5768,9 @@ type MeetingDeviceTestedEvent = Event<"meeting.device_tested"> & {
             test_result: {
                 user_id: string;
                 user_name: string;
-                camera_status: number;
-                speaker_status: number;
-                microphone_status: number;
+                camera_status: 0 | 1 | 2;
+                speaker_status: 0 | 1 | 2;
+                microphone_status: 0 | 1 | 2;
                 os?: string;
             };
         };
@@ -5558,6 +5802,1367 @@ type MeetingSummarySharedEvent = Event<"meeting.summary_shared"> & {
         };
     };
 };
+type WebinarChatMessageFileDownloadedEvent = Event<"webinar.chat_message_file_downloaded"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id?: string;
+        operator: string;
+        operator_id?: string;
+        object: {
+            id: number;
+            uuid: string;
+            host_account_id: string;
+            chat_message_file: {
+                file_id: string;
+                file_name: string;
+                file_size: number;
+                file_type: string;
+                file_owner_id?: string;
+            };
+        };
+    };
+};
+type WebinarDeletedEvent = Event<"webinar.deleted"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id?: string;
+        operation?: "all" | "single";
+        object: {
+            uuid: string;
+            id: number;
+            host_id: string;
+            topic?: string;
+            type: 5 | 6 | 9;
+            start_time?: string;
+            duration?: number;
+            timezone?: string;
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
+        };
+    };
+};
+type RecordingRegistrationApprovedEvent = Event<"recording.registration_approved"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id: string;
+        object: {
+            id: number;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+            registrant: {
+                id?: string;
+                email: string;
+                first_name: string;
+                last_name: string;
+            };
+        };
+    };
+};
+type MeetingRiskAlertEvent = Event<"meeting.risk_alert"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: number;
+            uuid: string;
+            host_id: string;
+            host_email: string;
+            topic?: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time?: string;
+            timezone?: string;
+            armn_details: {
+                post_platform?: string;
+                social_link?: string;
+                post_time?: string;
+                post_user?: string;
+                meeting_url?: string;
+                recommended_enable_settings?: ("enablePassword" | "enableWaitingRoom" | "enableOnlyAuthenticated" | "enableRegistration" | "enableScreenShareLock" | "enableScreenShareHostOnly" | "enableSpecifiedDomain")[];
+                recommended_disable_settings?: ("enableAnnotation" | "enableMeetingChat" | "enableScreenShare" | "enableMultipleShare")[];
+            };
+        };
+    };
+};
+type WebinarParticipantFeedbackEvent = Event<"webinar.participant_feedback"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            participant: {
+                participant_uuid: string;
+                participant_user_id: string;
+                user_name: string;
+                feedback: {
+                    satisfied: boolean;
+                    feedback_details?: {
+                        id: string;
+                        name: string;
+                    }[];
+                    comments?: string;
+                };
+            };
+        };
+    };
+};
+type MeetingParticipantJoinedWaitingRoomEvent = Event<"meeting.participant_joined_waiting_room"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+            participant: {
+                user_id: string;
+                user_name?: string;
+                id?: string;
+                participant_uuid?: string;
+                date_time: string;
+                email: string;
+                phone_number?: string;
+                participant_user_id?: string;
+                customer_key?: string;
+                registrant_id?: string;
+            };
+        };
+    };
+};
+type WebinarConvertedToMeetingEvent = Event<"webinar.converted_to_meeting"> & {
+    event: string;
+    event_ts?: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id?: string;
+        object: {
+            uuid: string;
+            id: number;
+            host_id: string;
+            topic?: string;
+            type: 2 | 3 | 8;
+            start_time?: string;
+            duration?: number;
+            timezone?: string;
+        };
+    };
+};
+type MeetingParticipantPhoneCalloutRingingEvent = Event<"meeting.participant_phone_callout_ringing"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: number;
+            uuid: string;
+            host_id: string;
+            participant: {
+                invitee_name: string;
+                phone_number: number;
+            };
+        };
+    };
+};
+type MeetingParticipantJbhJoinedEvent = Event<"meeting.participant_jbh_joined"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time?: string;
+            timezone?: string;
+            duration: number;
+            participant: {
+                id?: string;
+                user_name?: string;
+                customer_key?: string;
+                registrant_id?: string;
+            };
+        };
+    };
+};
+type MeetingInvitationAcceptedEvent = Event<"meeting.invitation_accepted"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            participant: {
+                participant_user_id: string;
+                email: string;
+            };
+        };
+    };
+};
+type RecordingArchiveFilesCompletedEvent = Event<"recording.archive_files_completed"> & {
+    event: string;
+    event_ts: number;
+    download_token: string;
+    payload: {
+        account_id?: string;
+        object?: {
+            uuid?: string;
+            id?: number;
+            host_id?: string;
+            topic?: string;
+            type?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 100;
+            start_time?: string;
+            timezone?: string;
+            duration?: number;
+            duration_in_second?: number;
+            total_size?: number;
+            recording_count?: number;
+            meeting_type?: "internal" | "external";
+            account_name?: string;
+            complete_time?: string;
+            is_breakout_room?: boolean;
+            parent_meeting_id?: string;
+            archive_files?: {
+                id?: string;
+                file_type?: "MP4" | "M4A" | "TRANSCRIPT" | "CHAT" | "CC" | "CHAT_MESSAGE";
+                file_extension?: string;
+                file_name?: string;
+                file_size?: number;
+                download_url?: string;
+                status?: "completed" | "processing" | "failed";
+                recording_type?: "shared_screen_with_speaker_view" | "audio_only" | "chat_file" | "closed_caption" | "chat_message";
+                individual?: boolean;
+                participant_email?: string;
+                participant_join_time?: string;
+                participant_leave_time?: string;
+                encryption_fingerprint?: string;
+                number_of_messages?: number;
+                storage_location?: "US" | "AU" | "BR" | "CA" | "EU" | "IN" | "JP" | "SG" | "CH";
+            }[];
+            status?: "completed" | "processing";
+            group_id?: string;
+        };
+    };
+};
+type MeetingAlertEvent = Event<"meeting.alert"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+            issues: ("Unstable audio quality" | "Unstable video quality" | "Unstable screen share quality" | "High CPU occupation" | "Call Reconnection")[];
+        };
+    };
+};
+type MeetingChatMessageFileSentEvent = Event<"meeting.chat_message_file_sent"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            meeting_id: number;
+            meeting_uuid: string;
+            chat_message_file: {
+                date_time: string;
+                sender_session_id: string;
+                sender_name: string;
+                sender_email?: string;
+                sender_type: "host" | "guest";
+                recipient_session_id?: string;
+                recipient_name?: string;
+                recipient_email?: string;
+                recipient_type: "everyone" | "host" | "guest" | "group";
+                message_id: string;
+                file_id: string;
+                file_name: string;
+                file_size: number;
+                file_type: string;
+                download_url: string;
+            };
+        };
+    };
+};
+type MeetingDeletedEvent = Event<"meeting.deleted"> & {
+    event: string;
+    event_ts?: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id?: string;
+        operation?: "all" | "single";
+        object: {
+            uuid: string;
+            id: number;
+            host_id: string;
+            topic?: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time?: string;
+            duration?: number;
+            timezone?: string;
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
+        };
+    };
+};
+type MeetingParticipantJoinedEvent = Event<"meeting.participant_joined"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id?: string;
+            uuid: string;
+            host_id: string;
+            topic?: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time?: string;
+            timezone?: string;
+            duration: number;
+            participant: {
+                user_id: string;
+                user_name: string;
+                id?: string;
+                participant_uuid?: string;
+                join_time: string;
+                email: string;
+                registrant_id?: string;
+                participant_user_id?: string;
+                customer_key?: string;
+                phone_number?: string;
+            };
+        };
+    };
+};
+type UserTspDeletedEvent = Event<"user.tsp_deleted"> & {
+    event?: string;
+    event_ts?: number;
+    payload?: {
+        account_id?: string;
+        operator?: string;
+        operator_id?: string;
+        object?: {
+            id?: string;
+            email?: string;
+            tsp_credentials?: {
+                conference_code?: string;
+                leader_pin?: string;
+                tsp_bridge?: string;
+                dial_in_numbers?: {
+                    code?: string;
+                    number?: string;
+                    type?: "toll" | "tollfree" | "media_link";
+                    country_label?: "US_TSP_TB" | "EU_TSP_TB";
+                }[];
+            };
+        };
+    };
+};
+type MeetingInvitationDispatchedEvent = Event<"meeting.invitation_dispatched"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            participant: {
+                participant_user_id: string;
+                email: string;
+            };
+        };
+    };
+};
+type WebinarEndedEvent = Event<"webinar.ended"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 5 | 6 | 9;
+            start_time: string;
+            timezone: string;
+            end_time?: string;
+            duration: number;
+            practice_session?: boolean;
+        };
+    };
+};
+type MeetingConvertedToWebinarEvent = Event<"meeting.converted_to_webinar"> & {
+    event: string;
+    event_ts?: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id?: string;
+        object: {
+            uuid: string;
+            id: number;
+            host_id: string;
+            topic?: string;
+            type: 5 | 6 | 9;
+            start_time?: string;
+            duration?: number;
+            timezone?: string;
+        };
+    };
+};
+type WebinarRecoveredEvent = Event<"webinar.recovered"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id: string;
+        operation?: "all" | "single";
+        object: {
+            uuid: string;
+            id: number;
+            host_id: string;
+            topic: string;
+            type: 5 | 6 | 9;
+            start_time: string;
+            duration: number;
+            timezone: string;
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
+        };
+    };
+};
+type WebinarParticipantRoleChangedEvent = Event<"webinar.participant_role_changed"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 5 | 6 | 9;
+            start_time: string;
+            timezone: string;
+            duration: number;
+            participant: {
+                user_id: string;
+                user_name: string;
+                email: string;
+                registrant_id?: string;
+                participant_user_id?: string;
+                participant_uuid?: string;
+                date_time: string;
+                old_role: "host" | "co-host" | "attendee";
+                new_role: "host" | "co-host" | "attendee";
+            };
+        };
+    };
+};
+type MeetingParticipantJbhWaitingLeftEvent = Event<"meeting.participant_jbh_waiting_left"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: number;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+            participant: {
+                id?: string;
+                user_name: string;
+                customer_key?: string;
+                registrant_id?: string;
+            };
+        };
+    };
+};
+type UserTspCreatedEvent = Event<"user.tsp_created"> & {
+    event?: string;
+    event_ts?: number;
+    payload?: {
+        account_id?: string;
+        operator?: string;
+        operator_id?: string;
+        object?: {
+            id?: string;
+            email?: string;
+            tsp_credentials?: {
+                conference_code?: string;
+                leader_pin?: string;
+                tsp_bridge?: string;
+                dial_in_numbers?: {
+                    code?: string;
+                    number?: string;
+                    type?: "toll" | "tollfree" | "media_link";
+                    country_label?: "US_TSP_TB" | "EU_TSP_TB";
+                }[];
+            };
+        };
+    };
+};
+type MeetingBreakoutRoomSharingEndedEvent = Event<"meeting.breakout_room_sharing_ended"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            breakout_room_uuid: string;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+            participant: {
+                user_id: string;
+                parent_user_id?: string;
+                user_name?: string;
+                id?: string;
+                sharing_details: {
+                    content: "application" | "whiteboard" | "desktop" | "airplay" | "camera" | "unknown";
+                    link_source: "" | "deep_link" | "in_meeting";
+                    file_link: string;
+                    date_time: string;
+                    source: "" | "dropbox";
+                };
+            };
+        };
+    };
+};
+type MeetingUpdatedEvent = Event<"meeting.updated"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id: string;
+        scope?: "single" | "all";
+        object: {
+            id: number;
+            uuid?: string;
+            host_id?: string;
+            topic?: string;
+            type?: 0 | 1 | 2 | 3 | 4 | 7 | 8 | 10;
+            start_time?: string;
+            duration?: number;
+            timezone?: string;
+            join_url?: string;
+            password?: string;
+            agenda?: string;
+            registration_url?: string;
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+                duration?: number;
+                status?: "available" | "deleted";
+            }[];
+            settings?: {
+                host_video?: boolean;
+                participant_video?: boolean;
+                join_before_host?: boolean;
+                jbh_time?: 0 | 5 | 10;
+                mute_upon_entry?: boolean;
+                audio?: "telephony" | "voip" | "both";
+                auto_recording?: "local" | "cloud" | "none";
+                use_pmi?: boolean;
+                waiting_room?: boolean;
+                watermark?: boolean;
+                enforce_login?: boolean;
+                enforce_login_domains?: string;
+                approval_type?: 0 | 1 | 2;
+                registration_type?: 1 | 2 | 3;
+                alternative_hosts?: string;
+                meeting_authentication?: boolean;
+                authentication_option?: string;
+                authentication_name?: string;
+                authentication_domains?: string;
+                meeting_invitees?: {
+                    email?: string;
+                }[];
+                language_interpretation?: {
+                    enable: boolean;
+                    interpreters?: {
+                        email?: string;
+                        languages?: string;
+                        interpreter_languages?: string;
+                    }[];
+                };
+                sign_language_interpretation?: {
+                    enable: boolean;
+                    interpreters?: {
+                        email?: string;
+                        sign_language?: string;
+                    }[];
+                };
+                continuous_meeting_chat?: {
+                    enable?: boolean;
+                    auto_add_invited_external_users?: boolean;
+                    auto_add_meeting_participants?: boolean;
+                    channel_id?: string;
+                };
+                auto_start_meeting_summary?: boolean;
+                who_will_receive_summary?: 1 | 2 | 3 | 4;
+                auto_start_ai_companion_questions?: boolean;
+                who_can_ask_questions?: 1 | 2 | 3 | 4 | 5;
+                summary_template_id?: string;
+                allow_host_control_participant_mute_state?: boolean;
+                email_in_attendee_report?: boolean;
+            };
+            recurrence?: {
+                type?: 1 | 2 | 3;
+                repeat_interval?: number;
+                weekly_days?: "1" | "2" | "3" | "4" | "5" | "6" | "7";
+                monthly_day?: number;
+                monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+                end_times?: number;
+                end_date_time?: string;
+                monthly_week?: -1 | 1 | 2 | 3 | 4;
+            };
+            tracking_fields?: {
+                field?: string;
+                value?: string;
+            }[];
+        };
+        time_stamp: number;
+        old_object: {
+            id: number;
+            uuid?: string;
+            host_id?: string;
+            topic?: string;
+            type?: 0 | 1 | 2 | 3 | 4 | 7 | 8 | 10;
+            start_time?: string;
+            duration?: number;
+            timezone?: string;
+            join_url?: string;
+            password?: string;
+            agenda?: string;
+            registration_url?: string;
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+                duration?: number;
+                status?: "available" | "deleted";
+            }[];
+            settings?: {
+                host_video?: boolean;
+                participant_video?: boolean;
+                join_before_host?: boolean;
+                jbh_time?: 0 | 5 | 10;
+                mute_upon_entry?: boolean;
+                audio?: "telephony" | "voip" | "both";
+                auto_recording?: "local" | "cloud" | "none";
+                use_pmi?: boolean;
+                waiting_room?: boolean;
+                watermark?: boolean;
+                enforce_login?: boolean;
+                enforce_login_domains?: string;
+                approval_type?: 0 | 1 | 2;
+                registration_type?: 1 | 2 | 3;
+                alternative_hosts?: string;
+                meeting_authentication?: boolean;
+                authentication_option?: string;
+                authentication_name?: string;
+                authentication_domains?: string;
+                meeting_invitees?: {
+                    email?: string;
+                }[];
+                language_interpretation?: {
+                    enable: boolean;
+                    interpreters?: {
+                        email?: string;
+                        languages?: string;
+                        interpreter_languages?: string;
+                    }[];
+                };
+                sign_language_interpretation?: {
+                    enable: boolean;
+                    interpreters?: {
+                        email?: string;
+                        sign_language?: string;
+                    }[];
+                };
+                continuous_meeting_chat?: {
+                    enable?: boolean;
+                    auto_add_invited_external_users?: boolean;
+                    auto_add_meeting_participants?: boolean;
+                    channel_id?: string;
+                };
+                auto_start_meeting_summary?: boolean;
+                who_will_receive_summary?: 1 | 2 | 3 | 4;
+                auto_start_ai_companion_questions?: boolean;
+                who_can_ask_questions?: 1 | 2 | 3 | 4 | 5;
+                summary_template_id?: string;
+                allow_host_control_participant_mute_state?: boolean;
+                email_in_attendee_report?: boolean;
+            };
+            recurrence?: {
+                type?: 1 | 2 | 3;
+                repeat_interval?: number;
+                weekly_days?: "1" | "2" | "3" | "4" | "5" | "6" | "7";
+                monthly_day?: number;
+                monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+                end_times?: number;
+                end_date_time?: string;
+                monthly_week?: -1 | 1 | 2 | 3 | 4;
+            };
+            tracking_fields?: {
+                field?: string;
+                value?: string;
+            }[];
+        };
+    };
+};
+type MeetingRegistrationDeniedEvent = Event<"meeting.registration_denied"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id: string;
+        object: {
+            uuid: string;
+            id: number;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            duration: number;
+            timezone: string;
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
+            registrant: {
+                id: string;
+                first_name: string;
+                last_name?: string;
+                email: string;
+            };
+        };
+    };
+};
+type WebinarRegistrationDeniedEvent = Event<"webinar.registration_denied"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id: string;
+        object: {
+            uuid: string;
+            id: number;
+            host_id: string;
+            topic: string;
+            type: 5 | 6 | 9;
+            start_time: string;
+            duration: number;
+            timezone: string;
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
+            registrant: {
+                id: string;
+                first_name: string;
+                last_name?: string;
+                email: string;
+                tracking_source?: {
+                    id: string;
+                    source_name: string;
+                    tracking_url: string;
+                };
+            };
+        };
+    };
+};
+type MeetingRegistrationApprovedEvent = Event<"meeting.registration_approved"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id: string;
+        object: {
+            uuid: string;
+            id: number;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            duration: number;
+            timezone: string;
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
+            registrant: {
+                id: string;
+                first_name: string;
+                last_name?: string;
+                email: string;
+                join_url: string;
+                participant_pin_code?: number;
+            };
+        };
+    };
+};
+type WebinarParticipantLeftEvent = Event<"webinar.participant_left"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 5 | 6 | 9;
+            start_time: string;
+            timezone: string;
+            duration: number;
+            participant: {
+                user_id: string;
+                user_name?: string;
+                id?: string;
+                leave_time?: string;
+                leave_reason?: string;
+                email: string;
+                registrant_id?: string;
+                participant_user_id?: string;
+                participant_uuid?: string;
+                customer_key?: string;
+                phone_number?: string;
+            };
+        };
+    };
+};
+type RecordingBatchDeletedEvent = Event<"recording.batch_deleted"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id: string;
+        object?: {
+            meetings: {
+                meeting_uuid?: string;
+                recording_file_ids?: string[];
+            }[];
+        };
+    };
+};
+type WebinarAlertEvent = Event<"webinar.alert"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 5 | 6 | 9;
+            start_time: string;
+            timezone: string;
+            duration: number;
+            issues: ("Unstable audio quality" | "Unstable video quality" | "Unstable screen share quality" | "High CPU occupation" | "Call Reconnection")[];
+        };
+    };
+};
+type WebinarChatMessageSentEvent = Event<"webinar.chat_message_sent"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: number;
+            uuid: string;
+            chat_message: {
+                date_time: string;
+                sender_session_id: string;
+                sender_name: string;
+                sender_email?: string;
+                sender_type: "host" | "alternative-host" | "panelist" | "guest";
+                recipient_session_id?: string;
+                recipient_name?: string;
+                recipient_email?: string;
+                recipient_type: "everyone" | "host" | "guest" | "group";
+                message_id: string;
+                message_content: string;
+                file_ids?: string[];
+            };
+        };
+    };
+};
+type WebinarChatMessageFileSentEvent = Event<"webinar.chat_message_file_sent"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            webinar_id: number;
+            webinar_uuid: string;
+            chat_message_file: {
+                date_time: string;
+                sender_session_id: string;
+                sender_name: string;
+                sender_email?: string;
+                sender_type: "host" | "guest";
+                recipient_session_id?: string;
+                recipient_name?: string;
+                recipient_email?: string;
+                recipient_type: "everyone" | "host" | "guest" | "group";
+                message_id: string;
+                file_id: string;
+                file_name: string;
+                file_size: number;
+                file_type: string;
+                download_url: string;
+            };
+        };
+    };
+};
+type MeetingEndedEvent = Event<"meeting.ended"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+            end_time: string;
+        };
+    };
+};
+type MeetingParticipantJoinedBreakoutRoomEvent = Event<"meeting.participant_joined_breakout_room"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            breakout_room_uuid: string;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+            participant: {
+                user_id: string;
+                parent_user_id?: string;
+                user_name: string;
+                id?: string;
+                participant_uuid?: string;
+                join_time: string;
+                email: string;
+                registrant_id?: string;
+                participant_user_id?: string;
+                phone_number?: string;
+                customer_key?: string;
+            };
+        };
+    };
+};
+type MeetingParticipantLeftWaitingRoomEvent = Event<"meeting.participant_left_waiting_room"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+            participant: {
+                user_id: string;
+                user_name?: string;
+                id?: string;
+                participant_uuid?: string;
+                date_time: string;
+                email: string;
+                phone_number?: string;
+                participant_user_id?: string;
+                customer_key?: string;
+                registrant_id?: string;
+            };
+        };
+    };
+};
+type MeetingStartedEvent = Event<"meeting.started"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+        };
+    };
+};
+type MeetingRegistrationCancelledEvent = Event<"meeting.registration_cancelled"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id?: string;
+        object: {
+            uuid: string;
+            id: number;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            duration: number;
+            timezone: string;
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
+            registrant: {
+                id: string;
+                first_name: string;
+                last_name?: string;
+                email: string;
+            };
+        };
+    };
+};
+type MeetingSummaryCompletedEvent = Event<"meeting.summary_completed"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            meeting_host_id: string;
+            meeting_host_email: string;
+            meeting_uuid: string;
+            meeting_id: number;
+            meeting_topic: string;
+            meeting_start_time: string;
+            meeting_end_time: string;
+            summary_start_time: string;
+            summary_end_time: string;
+            summary_created_time: string;
+            summary_last_modified_time: string;
+            summary_title: string;
+            summary_overview?: string;
+            summary_details: {
+                label: string;
+                summary: string;
+            }[];
+            next_steps: string[];
+            summary_content?: string;
+            summary_doc_url?: string;
+        };
+    };
+};
+type MeetingParticipantLeftEvent = Event<"meeting.participant_left"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+            participant: {
+                user_id: string;
+                user_name?: string;
+                id?: string;
+                participant_uuid?: string;
+                leave_time: string;
+                leave_reason?: string;
+                email: string;
+                registrant_id?: string;
+                participant_user_id?: string;
+                customer_key?: string;
+                phone_number?: string;
+            };
+        };
+    };
+};
+type MeetingParticipantPhoneCalloutRejectedEvent = Event<"meeting.participant_phone_callout_rejected"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: number;
+            uuid: string;
+            host_id: string;
+            participant: {
+                invitee_name: string;
+                phone_number: number;
+            };
+        };
+    };
+};
+type MeetingParticipantPhoneCalloutAcceptedEvent = Event<"meeting.participant_phone_callout_accepted"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: number;
+            uuid: string;
+            host_id: string;
+            participant: {
+                invitee_name: string;
+                phone_number: number;
+            };
+        };
+    };
+};
+type WebinarSharingStartedEvent = Event<"webinar.sharing_started"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 5 | 6 | 9;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+            participant: {
+                user_id: string;
+                user_name?: string;
+                id?: string;
+                sharing_details: {
+                    content: "application" | "whiteboard" | "desktop" | "airplay" | "camera" | "unknown";
+                    link_source: "" | "deep_link" | "in_meeting";
+                    file_link: string;
+                    date_time: string;
+                    source: "" | "dropbox";
+                };
+            };
+        };
+    };
+};
+type MeetingRegistrationCreatedEvent = Event<"meeting.registration_created"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            uuid: string;
+            id: number;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            duration: number;
+            timezone: string;
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
+            registrant: {
+                id: string;
+                first_name: string;
+                last_name?: string;
+                email: string;
+                address?: string;
+                city?: string;
+                country?: string;
+                zip?: string;
+                state?: string;
+                phone?: string;
+                industry?: string;
+                org?: string;
+                job_title?: string;
+                purchasing_time_frame?: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+                role_in_purchase_process?: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
+                no_of_employees?: "" | "1-20" | "21-50" | "51-100" | "101-250" | "251-500" | "501-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
+                comments?: string;
+                custom_questions?: {
+                    title: string;
+                    value: string;
+                }[];
+                status: "approved" | "pending";
+                join_url: string;
+                participant_pin_code?: number;
+            };
+        };
+    };
+};
+type RecordingRecoveredEvent = Event<"recording.recovered"> & {
+    event: string;
+    event_ts: number;
+    download_token?: string;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id: string;
+        object: {
+            id: number;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
+            start_time: string;
+            account_id: string;
+            timezone?: string;
+            duration: number;
+            share_url: string;
+            total_size: number;
+            recording_count: number;
+            recording_files: {
+                id: string;
+                meeting_id: string;
+                recording_start: string;
+                recording_end: string;
+                file_type: "MP4" | "M4A" | "CHAT" | "TRANSCRIPT" | "CSV" | "TB" | "CC" | "CHAT_MESSAGE" | "SUMMARY" | "TIMELINE";
+                file_size: number;
+                file_extension: "MP4" | "M4A" | "TXT" | "VTT" | "CSV" | "JSON" | "JPG";
+                file_name?: string;
+                play_url?: string;
+                download_url: string;
+                status: "completed" | "processing";
+                recording_type: "shared_screen_with_speaker_view(CC)" | "shared_screen_with_speaker_view" | "shared_screen_with_gallery_view" | "gallery_view" | "shared_screen" | "audio_only" | "audio_transcript" | "chat_file" | "active_speaker" | "host_video" | "audio_only_each_participant" | "cc_transcript" | "closed_caption" | "poll" | "timeline" | "thumbnail" | "audio_interpretation" | "summary" | "summary_next_steps" | "summary_smart_chapters" | "sign_interpretation" | "production_sutdio";
+            }[];
+            participant_audio_files?: {
+                id: string;
+                recording_start: string;
+                recording_end: string;
+                file_type: string;
+                file_name: string;
+                file_size: number;
+                file_extension: string;
+                play_url?: string;
+                download_url: string;
+                file_path?: string;
+                status: "completed" | "processing";
+            }[];
+        };
+    };
+};
+type MeetingSharingEndedEvent = Event<"meeting.sharing_ended"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
+            start_time: string;
+            timezone?: string;
+            duration: number;
+            participant: {
+                user_id: string;
+                user_name?: string;
+                id?: string;
+                sharing_details: {
+                    content: "application" | "whiteboard" | "desktop" | "airplay" | "camera" | "unknown";
+                    link_source: "" | "deep_link" | "in_meeting";
+                    file_link: string;
+                    date_time: string;
+                    source: "" | "dropbox";
+                };
+            };
+        };
+    };
+};
+type RecordingCloudStorageUsageUpdatedEvent = Event<"recording.cloud_storage_usage_updated"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            free_storage: string;
+            plan_storage: string;
+            plan_type: string;
+            storage_used: string;
+            storage_used_percentage: number;
+            storage_exceed: string;
+            max_exceed_date?: string;
+        };
+    };
+};
 type RecordingTranscriptCompletedEvent = Event<"recording.transcript_completed"> & {
     event: string;
     event_ts: number;
@@ -5570,7 +7175,7 @@ type RecordingTranscriptCompletedEvent = Event<"recording.transcript_completed">
             host_id: string;
             account_id: string;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             start_time: string;
             timezone?: string;
             host_email: string;
@@ -5591,8 +7196,8 @@ type RecordingTranscriptCompletedEvent = Event<"recording.transcript_completed">
                 play_url?: string;
                 download_url: string;
                 file_path?: string;
-                status: string;
-                recording_type: string;
+                status: "completed" | "processing";
+                recording_type: "shared_screen_with_speaker_view(CC)" | "shared_screen_with_speaker_view" | "shared_screen_with_gallery_view" | "gallery_view" | "shared_screen" | "audio_only" | "audio_transcript" | "chat_file" | "active_speaker" | "host_video" | "audio_only_each_participant" | "cc_transcript" | "closed_caption" | "poll" | "timeline" | "thumbnail";
             }[];
         };
     };
@@ -5607,7 +7212,7 @@ type RecordingStoppedEvent = Event<"recording.stopped"> & {
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -5625,7 +7230,7 @@ type RecordingBatchTrashedEvent = Event<"recording.batch_trashed"> & {
         account_id: string;
         operator: string;
         operator_id: string;
-        operation: string;
+        operation: "trash_user_recordings" | "trash_account_recordings";
         object?: {
             meeting_uuids: string[];
         };
@@ -5641,10 +7246,31 @@ type WebinarStartedEvent = Event<"webinar.started"> & {
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 5 | 6 | 9;
             start_time: string;
             timezone: string;
             duration: number;
+        };
+    };
+};
+type MeetingChatMessageFileDownloadedEvent = Event<"meeting.chat_message_file_downloaded"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id?: string;
+        operator: string;
+        operator_id?: string;
+        object: {
+            id: number;
+            uuid: string;
+            host_account_id: string;
+            chat_message_file: {
+                file_id: string;
+                file_name: string;
+                file_size: number;
+                file_type: string;
+                file_owner_id?: string;
+            };
         };
     };
 };
@@ -5658,7 +7284,7 @@ type WebinarSharingEndedEvent = Event<"webinar.sharing_ended"> & {
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 5 | 6 | 9;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -5667,11 +7293,11 @@ type WebinarSharingEndedEvent = Event<"webinar.sharing_ended"> & {
                 user_name?: string;
                 id?: string;
                 sharing_details: {
-                    content: string;
-                    link_source: string;
+                    content: "application" | "whiteboard" | "desktop" | "airplay" | "camera" | "unknown";
+                    link_source: "" | "deep_link" | "in_meeting";
                     file_link: string;
                     date_time: string;
-                    source: string;
+                    source: "" | "dropbox";
                 };
             };
         };
@@ -5700,57 +7326,6 @@ type MeetingSummaryTrashedEvent = Event<"meeting.summary_trashed"> & {
         };
     };
 };
-type WebinarDeletedEvent = Event<"webinar.deleted"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        operator: string;
-        operator_id?: string;
-        operation?: string;
-        object: {
-            uuid: string;
-            id: number;
-            host_id: string;
-            topic?: string;
-            type: number;
-            start_time?: string;
-            duration?: number;
-            timezone?: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
-        };
-    };
-};
-type RecordingRegistrationApprovedEvent = Event<"recording.registration_approved"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        operator: string;
-        operator_id: string;
-        object: {
-            id: number;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-            registrant: {
-                id?: string;
-                email: string;
-                first_name: string;
-                last_name: string;
-            };
-        };
-    };
-};
 type MeetingSharingStartedEvent = Event<"meeting.sharing_started"> & {
     event: string;
     event_ts: number;
@@ -5761,7 +7336,7 @@ type MeetingSharingStartedEvent = Event<"meeting.sharing_started"> & {
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -5770,11 +7345,11 @@ type MeetingSharingStartedEvent = Event<"meeting.sharing_started"> & {
                 user_name?: string;
                 id?: string;
                 sharing_details: {
-                    content: string;
-                    link_source: string;
+                    content: "application" | "whiteboard" | "desktop" | "airplay" | "camera" | "unknown";
+                    link_source: "" | "deep_link" | "in_meeting";
                     file_link: string;
                     date_time: string;
-                    source: string;
+                    source: "" | "dropbox";
                 };
             };
         };
@@ -5790,16 +7365,14 @@ type WebinarRegistrationCreatedEvent = Event<"webinar.registration_created"> & {
             id: number;
             host_id: string;
             topic: string;
-            type: number;
+            type: 5 | 6 | 9;
             start_time: string;
             duration: number;
             timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
             registrant: {
                 id: string;
                 first_name: string;
@@ -5814,17 +7387,15 @@ type WebinarRegistrationCreatedEvent = Event<"webinar.registration_created"> & {
                 industry?: string;
                 org?: string;
                 job_title?: string;
-                purchasing_time_frame?: string;
-                role_in_purchase_process?: string;
-                no_of_employees?: string;
+                purchasing_time_frame?: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+                role_in_purchase_process?: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
+                no_of_employees?: "" | "1-20" | "21-50" | "51-100" | "101-250" | "251-500" | "501-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
                 comments?: string;
-                custom_questions?: ExactlyOneOf<[
-                    {
-                        title: string;
-                        value: string;
-                    }
-                ]>[];
-                status: string;
+                custom_questions?: {
+                    title: string;
+                    value: string;
+                }[];
+                status: "approved" | "pending";
                 join_url: string;
                 tracking_source?: {
                     id: string;
@@ -5848,14 +7419,33 @@ type MeetingChatMessageSentEvent = Event<"meeting.chat_message_sent"> & {
                 sender_session_id: string;
                 sender_name: string;
                 sender_email?: string;
-                sender_type: string;
+                sender_type: "host" | "guest";
                 recipient_session_id?: string;
                 recipient_name?: string;
                 recipient_email?: string;
-                recipient_type: string;
+                recipient_type: "everyone" | "host" | "guest" | "group";
                 message_id: string;
                 message_content: string;
                 file_ids?: string[];
+            };
+        };
+    };
+};
+type MeetingInvitationRejectedEvent = Event<"meeting.invitation_rejected"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        operator: string;
+        operator_id: string;
+        object: {
+            id: string;
+            uuid: string;
+            host_id: string;
+            topic: string;
+            participant: {
+                participant_user_id: string;
+                email: string;
             };
         };
     };
@@ -5870,7 +7460,7 @@ type MeetingParticipantRoleChangedEvent = Event<"meeting.participant_role_change
             uuid: string;
             host_id: string;
             topic?: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time?: string;
             timezone?: string;
             duration: number;
@@ -5882,34 +7472,8 @@ type MeetingParticipantRoleChangedEvent = Event<"meeting.participant_role_change
                 participant_user_id?: string;
                 participant_uuid?: string;
                 date_time: string;
-                old_role: string;
-                new_role: string;
-            };
-        };
-    };
-};
-type MeetingRiskAlertEvent = Event<"meeting.risk_alert"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: number;
-            uuid: string;
-            host_id: string;
-            host_email: string;
-            topic?: string;
-            type: number;
-            start_time?: string;
-            timezone?: string;
-            armn_details: {
-                post_platform?: string;
-                social_link?: string;
-                post_time?: string;
-                post_user?: string;
-                meeting_url?: string;
-                recommended_enable_settings?: string[];
-                recommended_disable_settings?: string[];
+                old_role: "host" | "co-host" | "attendee";
+                new_role: "host" | "co-host" | "attendee";
             };
         };
     };
@@ -5921,46 +7485,20 @@ type MeetingPermanentlyDeletedEvent = Event<"meeting.permanently_deleted"> & {
         account_id: string;
         operator: string;
         operator_id: string;
-        operation?: string;
+        operation?: "all" | "single";
         object: {
             uuid: string;
             id: number;
             host_id: string;
             topic: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time: string;
             duration: number;
             timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
-        };
-    };
-};
-type WebinarParticipantFeedbackEvent = Event<"webinar.participant_feedback"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            participant: {
-                participant_uuid: string;
-                participant_user_id: string;
-                user_name: string;
-                feedback: {
-                    satisfied: boolean;
-                    feedback_details?: {
-                        id: string;
-                        name: string;
-                    }[];
-                    comments?: string;
-                };
-            };
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
         };
     };
 };
@@ -5974,14 +7512,14 @@ type RecordingRegistrationCreatedEvent = Event<"recording.registration_created">
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             start_time: string;
             timezone?: string;
             duration: number;
             registrant: {
                 id?: string;
                 email: string;
-                status: string;
+                status: "approved" | "denied" | "pending" | "all";
                 first_name: string;
                 last_name: string;
                 address: string;
@@ -5993,59 +7531,14 @@ type RecordingRegistrationCreatedEvent = Event<"recording.registration_created">
                 industry: string;
                 org: string;
                 job_title: string;
-                purchasing_time_frame: string;
-                role_in_purchase_process: string;
-                no_of_employees: string;
+                purchasing_time_frame: "" | "Within a month" | "1-3 months" | "4-6 months" | "More than 6 months" | "No timeframe";
+                role_in_purchase_process: "" | "Decision Maker" | "Evaluator/Recommender" | "Influencer" | "Not involved";
+                no_of_employees: "" | "1-20" | "21-50" | "51-100" | "101-250" | "251-500" | "501-1,000" | "1,001-5,000" | "5,001-10,000" | "More than 10,000";
                 comments: string;
                 custom_questions?: {
                     title?: string;
                     value?: string;
                 }[];
-            };
-        };
-    };
-};
-type MeetingParticipantJoinedWaitingRoomEvent = Event<"meeting.participant_joined_waiting_room"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-            participant: {
-                user_id: string;
-                user_name?: string;
-                id?: string;
-                participant_uuid?: string;
-                date_time: string;
-                email: string;
-                phone_number?: string;
-                participant_user_id?: string;
-                customer_key?: string;
-                registrant_id?: string;
-            };
-        };
-    };
-};
-type MeetingParticipantPhoneCalloutRingingEvent = Event<"meeting.participant_phone_callout_ringing"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: number;
-            uuid: string;
-            host_id: string;
-            participant: {
-                invitee_name: string;
-                phone_number: number;
             };
         };
     };
@@ -6057,13 +7550,13 @@ type MeetingCreatedEvent = Event<"meeting.created"> & {
         account_id: string;
         operator: string;
         operator_id: string;
-        operation?: string;
+        operation?: "all" | "single";
         object: {
             uuid: string;
             id: number;
             host_id: string;
             topic: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8 | 10;
             start_time?: string;
             duration: number;
             timezone?: string;
@@ -6074,7 +7567,7 @@ type MeetingCreatedEvent = Event<"meeting.created"> & {
                 occurrence_id: string;
                 start_time: string;
                 duration?: number;
-                status?: string;
+                status?: "available" | "deleted";
             }[];
             settings: {
                 use_pmi: boolean;
@@ -6083,17 +7576,17 @@ type MeetingCreatedEvent = Event<"meeting.created"> & {
                     email?: string;
                 }[];
                 join_before_host?: boolean;
-                jbh_time?: number;
+                jbh_time?: 0 | 5 | 10 | 15;
             };
             recurrence?: {
-                type?: number;
+                type?: 1 | 2 | 3;
                 repeat_interval?: number;
                 weekly_days?: string;
                 monthly_day?: number;
-                monthly_week_day?: number;
+                monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
                 end_times?: number;
                 end_date_time?: string;
-                monthly_week?: number;
+                monthly_week?: -1 | 1 | 2 | 3 | 4;
             };
             tracking_fields?: {
                 field?: string;
@@ -6115,12 +7608,12 @@ type MeetingLiveStreamingStartedEvent = Event<"meeting.live_streaming_started"> 
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time: string;
             timezone?: string;
             duration: number;
             live_streaming: {
-                service: string;
+                service: "Facebook" | "Workplace_by_Facebook" | "YouTube" | "Twitch" | "Custom_Live_Streaming_Service";
                 custom_live_streaming_settings?: {
                     stream_url: string;
                     stream_key: string;
@@ -6162,16 +7655,14 @@ type WebinarRegistrationApprovedEvent = Event<"webinar.registration_approved"> &
             id: number;
             host_id: string;
             topic: string;
-            type: number;
+            type: 5 | 6 | 9;
             start_time: string;
             duration: number;
             timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
             registrant: {
                 id: string;
                 first_name: string;
@@ -6187,74 +7678,6 @@ type WebinarRegistrationApprovedEvent = Event<"webinar.registration_approved"> &
         };
     };
 };
-type MeetingParticipantJbhJoinedEvent = Event<"meeting.participant_jbh_joined"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time?: string;
-            timezone?: string;
-            duration: number;
-            participant: {
-                id?: string;
-                user_name?: string;
-                customer_key?: string;
-                registrant_id?: string;
-            };
-        };
-    };
-};
-type RecordingArchiveFilesCompletedEvent = Event<"recording.archive_files_completed"> & {
-    event: string;
-    event_ts: number;
-    download_token: string;
-    payload: {
-        account_id?: string;
-        object?: {
-            uuid?: string;
-            id?: number;
-            host_id?: string;
-            topic?: string;
-            type?: number;
-            start_time?: string;
-            timezone?: string;
-            duration?: number;
-            duration_in_second?: number;
-            total_size?: number;
-            recording_count?: number;
-            meeting_type?: string;
-            account_name?: string;
-            complete_time?: string;
-            is_breakout_room?: boolean;
-            parent_meeting_id?: string;
-            archive_files?: {
-                id?: string;
-                file_type?: string;
-                file_extension?: string;
-                file_name?: string;
-                file_size?: number;
-                download_url?: string;
-                status?: string;
-                recording_type?: string;
-                individual?: boolean;
-                participant_email?: string;
-                participant_join_time?: string;
-                participant_leave_time?: string;
-                encryption_fingerprint?: string;
-                number_of_messages?: number;
-                storage_location?: string;
-            }[];
-            status?: string;
-            group_id?: string;
-        };
-    };
-};
 type MeetingBreakoutRoomSharingStartedEvent = Event<"meeting.breakout_room_sharing_started"> & {
     event: string;
     event_ts: number;
@@ -6266,7 +7689,7 @@ type MeetingBreakoutRoomSharingStartedEvent = Event<"meeting.breakout_room_shari
             breakout_room_uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -6276,58 +7699,12 @@ type MeetingBreakoutRoomSharingStartedEvent = Event<"meeting.breakout_room_shari
                 user_name?: string;
                 id?: string;
                 sharing_details: {
-                    content: string;
-                    link_source: string;
+                    content: "application" | "whiteboard" | "desktop" | "airplay" | "camera" | "unknown";
+                    link_source: "" | "deep_link" | "in_meeting";
                     file_link: string;
                     date_time: string;
-                    source: string;
+                    source: "" | "dropbox";
                 };
-            };
-        };
-    };
-};
-type MeetingAlertEvent = Event<"meeting.alert"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-            issues: string[];
-        };
-    };
-};
-type MeetingChatMessageFileSentEvent = Event<"meeting.chat_message_file_sent"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            meeting_id: number;
-            meeting_uuid: string;
-            chat_message_file: {
-                date_time: string;
-                sender_session_id: string;
-                sender_name: string;
-                sender_email?: string;
-                sender_type: string;
-                recipient_session_id?: string;
-                recipient_name?: string;
-                recipient_email?: string;
-                recipient_type: string;
-                message_id: string;
-                file_id: string;
-                file_name: string;
-                file_size: number;
-                file_type: string;
-                download_url: string;
             };
         };
     };
@@ -6342,7 +7719,7 @@ type MeetingParticipantBindEvent = Event<"meeting.participant_bind"> & {
             uuid: string;
             host_id: string;
             topic?: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time?: string;
             timezone?: string;
             duration?: number;
@@ -6353,36 +7730,12 @@ type MeetingParticipantBindEvent = Event<"meeting.participant_bind"> & {
                 id?: string;
                 participant_uuid?: string;
                 bind_participant_uuid?: string;
-                join_time: string;
+                date_time?: string;
+                email?: string;
+                participant_user_id?: string;
                 registrant_id?: string;
                 phone_number: string;
             };
-        };
-    };
-};
-type MeetingDeletedEvent = Event<"meeting.deleted"> & {
-    event: string;
-    event_ts?: number;
-    payload: {
-        account_id: string;
-        operator: string;
-        operator_id?: string;
-        operation?: string;
-        object: {
-            uuid: string;
-            id: number;
-            host_id: string;
-            topic?: string;
-            type: number;
-            start_time?: string;
-            duration?: number;
-            timezone?: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
         };
     };
 };
@@ -6410,59 +7763,6 @@ type MeetingParticipantFeedbackEvent = Event<"meeting.participant_feedback"> & {
         };
     };
 };
-type MeetingParticipantJoinedEvent = Event<"meeting.participant_joined"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id?: string;
-            uuid: string;
-            host_id: string;
-            topic?: string;
-            type: number;
-            start_time?: string;
-            timezone?: string;
-            duration: number;
-            participant: {
-                user_id: string;
-                user_name: string;
-                id?: string;
-                participant_uuid?: string;
-                join_time: string;
-                email: string;
-                registrant_id?: string;
-                participant_user_id?: string;
-                customer_key?: string;
-                phone_number?: string;
-            };
-        };
-    };
-};
-type UserTspDeletedEvent = Event<"user.tsp_deleted"> & {
-    event?: string;
-    event_ts?: number;
-    payload?: {
-        account_id?: string;
-        operator?: string;
-        operator_id?: string;
-        object?: {
-            id?: string;
-            email?: string;
-            tsp_credentials?: {
-                conference_code?: string;
-                leader_pin?: string;
-                tsp_bridge?: string;
-                dial_in_numbers?: {
-                    code?: string;
-                    number?: string;
-                    type?: string;
-                    country_label?: string;
-                }[];
-            };
-        };
-    };
-};
 type RecordingDeletedEvent = Event<"recording.deleted"> & {
     event: string;
     event_ts: number;
@@ -6476,7 +7776,7 @@ type RecordingDeletedEvent = Event<"recording.deleted"> & {
             host_id: string;
             account_id: string;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -6488,14 +7788,14 @@ type RecordingDeletedEvent = Event<"recording.deleted"> & {
                 meeting_id: string;
                 recording_start: string;
                 recording_end: string;
-                file_type: string;
+                file_type: "MP4" | "M4A" | "CHAT" | "TRANSCRIPT" | "CSV" | "TB" | "CC" | "CHAT_MESSAGE" | "SUMMARY" | "TIMELINE";
                 file_size: number;
-                file_extension: string;
+                file_extension: "MP4" | "M4A" | "TXT" | "VTT" | "CSV" | "JSON" | "JPG";
                 file_name?: string;
                 play_url?: string;
                 download_url: string;
-                status: string;
-                recording_type: string;
+                status: "completed" | "processing";
+                recording_type: "shared_screen_with_speaker_view(CC)" | "shared_screen_with_speaker_view" | "shared_screen_with_gallery_view" | "gallery_view" | "shared_screen" | "audio_only" | "audio_transcript" | "chat_file" | "active_speaker" | "host_video" | "audio_only_each_participant" | "cc_transcript" | "closed_caption" | "poll" | "timeline" | "thumbnail" | "audio_interpretation" | "summary" | "summary_next_steps" | "summary_smart_chapters" | "sign_interpretation" | "production_sutdio";
             }[];
             participant_audio_files?: {
                 id: string;
@@ -6508,7 +7808,7 @@ type RecordingDeletedEvent = Event<"recording.deleted"> & {
                 play_url?: string;
                 download_url: string;
                 file_path?: string;
-                status: string;
+                status: "completed" | "processing";
             }[];
         };
     };
@@ -6523,7 +7823,7 @@ type RecordingPausedEvent = Event<"recording.paused"> & {
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -6562,7 +7862,7 @@ type RecordingStartedEvent = Event<"recording.started"> & {
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -6590,54 +7890,40 @@ type UserTspUpdatedEvent = Event<"user.tsp_updated"> & {
                 dial_in_numbers?: {
                     code?: string;
                     number?: string;
-                    type?: string;
-                    country_label?: string;
+                    type?: "toll" | "tollfree" | "media_link";
+                    country_label?: "US_TSP_TB" | "EU_TSP_TB";
                 }[];
             };
         };
-    };
-};
-type WebinarEndedEvent = Event<"webinar.ended"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone: string;
-            end_time?: string;
-            duration: number;
+        old_object?: {
+            conference_code?: string;
+            leader_pin?: string;
+            tsp_bridge?: string;
+            dial_in_numbers?: {
+                code?: string;
+                number?: string;
+                type?: "toll" | "tollfree" | "media_link";
+                country_label?: "US_TSP_TB" | "EU_TSP_TB";
+            }[];
         };
     };
 };
-type WebinarRecoveredEvent = Event<"webinar.recovered"> & {
+type MeetingInvitationTimeoutEvent = Event<"meeting.invitation_timeout"> & {
     event: string;
     event_ts: number;
     payload: {
         account_id: string;
         operator: string;
         operator_id: string;
-        operation?: string;
         object: {
+            id: string;
             uuid: string;
-            id: number;
             host_id: string;
             topic: string;
-            type: number;
-            start_time: string;
-            duration: number;
-            timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
+            participant: {
+                participant_user_id: string;
+                email: string;
+            };
         };
     };
 };
@@ -6651,7 +7937,7 @@ type MeetingParticipantAdmittedEvent = Event<"meeting.participant_admitted"> & {
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -6660,6 +7946,8 @@ type MeetingParticipantAdmittedEvent = Event<"meeting.participant_admitted"> & {
                 user_name?: string;
                 id?: string;
                 participant_uuid?: string;
+                participant_user_id?: string;
+                phone_number?: string;
                 date_time: string;
                 email: string;
                 customer_key?: string;
@@ -6679,7 +7967,7 @@ type MeetingParticipantRoomSystemCalloutFailedEvent = Event<"meeting.participant
             host_id: string;
             message_id: string;
             inviter_name: string;
-            reason_type: number;
+            reason_type: 0 | 1 | 2 | 3 | 4 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
             participant: {
                 call_type: string;
                 device_ip: string;
@@ -6697,41 +7985,13 @@ type RecordingResumedEvent = Event<"recording.resumed"> & {
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             start_time: string;
             timezone?: string;
             duration: number;
             recording_file: {
                 recording_start: string;
                 recording_end: string;
-            };
-        };
-    };
-};
-type WebinarParticipantRoleChangedEvent = Event<"webinar.participant_role_changed"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone: string;
-            duration: number;
-            participant: {
-                user_id: string;
-                user_name: string;
-                email: string;
-                registrant_id?: string;
-                participant_user_id?: string;
-                participant_uuid?: string;
-                date_time: string;
-                old_role: string;
-                new_role: string;
             };
         };
     };
@@ -6771,6 +8031,8 @@ type MeetingSummaryUpdatedEvent = Event<"meeting.summary_updated"> & {
             summary_end_time: string;
             summary_created_time: string;
             summary_last_modified_time: string;
+            summary_last_modified_user_id: string;
+            summary_last_modified_user_email: string;
             summary_title: string;
             summary_overview?: string;
             summary_details: {
@@ -6779,9 +8041,12 @@ type MeetingSummaryUpdatedEvent = Event<"meeting.summary_updated"> & {
             }[];
             next_steps: string[];
             edited_summary: {
+                summary_overview?: string;
                 summary_details?: string;
                 next_steps?: string[];
             };
+            summary_content?: string;
+            summary_doc_url?: string;
         };
     };
 };
@@ -6795,7 +8060,7 @@ type WebinarParticipantJoinedEvent = Event<"webinar.participant_joined"> & {
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 5 | 6 | 9;
             start_time: string;
             timezone: string;
             duration: number;
@@ -6826,262 +8091,15 @@ type RecordingRenamedEvent = Event<"recording.renamed"> & {
             uuid: string;
             id: number;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             host_id: string;
         };
         old_object: {
             uuid: string;
             id: number;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             host_id: string;
-        };
-    };
-};
-type MeetingParticipantJbhWaitingLeftEvent = Event<"meeting.participant_jbh_waiting_left"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: number;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-            participant: {
-                id?: string;
-                user_name: string;
-                customer_key?: string;
-                registrant_id?: string;
-            };
-        };
-    };
-};
-type UserTspCreatedEvent = Event<"user.tsp_created"> & {
-    event?: string;
-    event_ts?: number;
-    payload?: {
-        account_id?: string;
-        operator?: string;
-        operator_id?: string;
-        object?: {
-            id?: string;
-            email?: string;
-            tsp_credentials?: {
-                conference_code?: string;
-                leader_pin?: string;
-                tsp_bridge?: string;
-                dial_in_numbers?: {
-                    code?: string;
-                    number?: string;
-                    type?: string;
-                    country_label?: string;
-                }[];
-            };
-        };
-    };
-};
-type MeetingBreakoutRoomSharingEndedEvent = Event<"meeting.breakout_room_sharing_ended"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            breakout_room_uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-            participant: {
-                user_id: string;
-                parent_user_id?: string;
-                user_name?: string;
-                id?: string;
-                sharing_details: {
-                    content: string;
-                    link_source: string;
-                    file_link: string;
-                    date_time: string;
-                    source: string;
-                };
-            };
-        };
-    };
-};
-type MeetingUpdatedEvent = Event<"meeting.updated"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        operator: string;
-        operator_id: string;
-        scope?: string;
-        object: {
-            id: number;
-            uuid?: string;
-            host_id?: string;
-            topic?: string;
-            type?: number;
-            start_time?: string;
-            duration?: number;
-            timezone?: string;
-            join_url?: string;
-            password?: string;
-            agenda?: string;
-            registration_url?: string;
-            occurrences?: {
-                occurrence_id: string;
-                start_time: string;
-                duration?: number;
-                status?: string;
-            }[];
-            settings?: {
-                host_video?: boolean;
-                participant_video?: boolean;
-                join_before_host?: boolean;
-                jbh_time?: number;
-                mute_upon_entry?: boolean;
-                audio?: string;
-                auto_recording?: string;
-                use_pmi?: boolean;
-                waiting_room?: boolean;
-                watermark?: boolean;
-                enforce_login?: boolean;
-                enforce_login_domains?: string;
-                approval_type?: number;
-                registration_type?: number;
-                alternative_hosts?: string;
-                meeting_authentication?: boolean;
-                authentication_option?: string;
-                authentication_name?: string;
-                authentication_domains?: string;
-                meeting_invitees?: {
-                    email?: string;
-                }[];
-                language_interpretation?: {
-                    enable: boolean;
-                    interpreters?: {
-                        email?: string;
-                        languages?: string;
-                    }[];
-                };
-                sign_language_interpretation?: {
-                    enable: boolean;
-                    interpreters?: {
-                        email?: string;
-                        sign_language?: string;
-                    }[];
-                };
-                continuous_meeting_chat?: {
-                    enable?: boolean;
-                    auto_add_invited_external_users?: boolean;
-                    auto_add_meeting_participants?: boolean;
-                };
-                auto_start_meeting_summary?: boolean;
-                auto_start_ai_companion_questions?: boolean;
-            };
-            recurrence?: {
-                type?: number;
-                repeat_interval?: number;
-                weekly_days?: string;
-                monthly_day?: number;
-                monthly_week_day?: number;
-                end_times?: number;
-                end_date_time?: string;
-                monthly_week?: number;
-            };
-            tracking_fields?: {
-                field?: string;
-                value?: string;
-            }[];
-        };
-        time_stamp: number;
-        old_object: {
-            id: number;
-            uuid?: string;
-            host_id?: string;
-            topic?: string;
-            type?: number;
-            start_time?: string;
-            duration?: number;
-            timezone?: string;
-            join_url?: string;
-            password?: string;
-            agenda?: string;
-            registration_url?: string;
-            occurrences?: {
-                occurrence_id: string;
-                start_time: string;
-                duration?: number;
-                status?: string;
-            }[];
-            settings?: {
-                host_video?: boolean;
-                participant_video?: boolean;
-                join_before_host?: boolean;
-                jbh_time?: number;
-                mute_upon_entry?: boolean;
-                audio?: string;
-                auto_recording?: string;
-                use_pmi?: boolean;
-                waiting_room?: boolean;
-                watermark?: boolean;
-                enforce_login?: boolean;
-                enforce_login_domains?: string;
-                approval_type?: number;
-                registration_type?: number;
-                alternative_hosts?: string;
-                meeting_authentication?: boolean;
-                authentication_option?: string;
-                authentication_name?: string;
-                authentication_domains?: string;
-                meeting_invitees?: {
-                    email?: string;
-                }[];
-                language_interpretation?: {
-                    enable: boolean;
-                    interpreters?: {
-                        email?: string;
-                        languages?: string;
-                    }[];
-                };
-                sign_language_interpretation?: {
-                    enable: boolean;
-                    interpreters?: {
-                        email?: string;
-                        sign_language?: string;
-                    }[];
-                };
-                continuous_meeting_chat?: {
-                    enable?: boolean;
-                    auto_add_invited_external_users?: boolean;
-                    auto_add_meeting_participants?: boolean;
-                };
-                auto_start_meeting_summary?: boolean;
-                auto_start_ai_companion_questions?: boolean;
-            };
-            recurrence?: {
-                type?: number;
-                repeat_interval?: number;
-                weekly_days?: string;
-                monthly_day?: number;
-                monthly_week_day?: number;
-                end_times?: number;
-                end_date_time?: string;
-                monthly_week?: number;
-            };
-            tracking_fields?: {
-                field?: string;
-                value?: string;
-            }[];
         };
     };
 };
@@ -7103,37 +8121,6 @@ type MeetingParticipantRoomSystemCalloutMissedEvent = Event<"meeting.participant
         };
     };
 };
-type MeetingRegistrationDeniedEvent = Event<"meeting.registration_denied"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        operator: string;
-        operator_id: string;
-        object: {
-            uuid: string;
-            id: number;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            duration: number;
-            timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
-            registrant: {
-                id: string;
-                first_name: string;
-                last_name?: string;
-                email: string;
-            };
-        };
-    };
-};
 type WebinarCreatedEvent = Event<"webinar.created"> & {
     event: string;
     event_ts: number;
@@ -7141,173 +8128,39 @@ type WebinarCreatedEvent = Event<"webinar.created"> & {
         account_id: string;
         operator: string;
         operator_id: string;
-        operation?: string;
+        operation?: "all" | "single";
         object: {
             uuid: string;
             id: number;
             host_id: string;
             topic: string;
-            type: number;
+            type: 5 | 6 | 9;
             start_time?: string;
             duration: number;
             timezone: string;
             join_url: string;
             password?: string;
-            creation_source: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                    duration?: number;
-                    status?: string;
-                }
-            ]>[];
+            creation_source: "other" | "open_api" | "web_portal";
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+                duration?: number;
+                status?: "available" | "deleted";
+            }[];
             settings: {
                 use_pmi: boolean;
                 alternative_hosts: string;
             };
             recurrence?: {
-                type?: number;
+                type?: 1 | 2 | 3;
                 repeat_interval?: number;
                 weekly_days?: string;
                 monthly_day?: number;
-                monthly_week_day?: number;
+                monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
                 end_times?: number;
                 end_date_time?: string;
-                monthly_week?: number;
+                monthly_week?: -1 | 1 | 2 | 3 | 4;
             };
-        };
-    };
-};
-type WebinarRegistrationDeniedEvent = Event<"webinar.registration_denied"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        operator: string;
-        operator_id: string;
-        object: {
-            uuid: string;
-            id: number;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            duration: number;
-            timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
-            registrant: {
-                id: string;
-                first_name: string;
-                last_name?: string;
-                email: string;
-                tracking_source?: {
-                    id: string;
-                    source_name: string;
-                    tracking_url: string;
-                };
-            };
-        };
-    };
-};
-type MeetingRegistrationApprovedEvent = Event<"meeting.registration_approved"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        operator: string;
-        operator_id: string;
-        object: {
-            uuid: string;
-            id: number;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            duration: number;
-            timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
-            registrant: {
-                id: string;
-                first_name: string;
-                last_name?: string;
-                email: string;
-                join_url: string;
-                participant_pin_code?: number;
-            };
-        };
-    };
-};
-type WebinarParticipantLeftEvent = Event<"webinar.participant_left"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone: string;
-            duration: number;
-            participant: {
-                user_id: string;
-                user_name?: string;
-                id?: string;
-                leave_time?: string;
-                leave_reason?: string;
-                email: string;
-                registrant_id?: string;
-                participant_user_id?: string;
-                participant_uuid?: string;
-                customer_key?: string;
-                phone_number?: string;
-            };
-        };
-    };
-};
-type RecordingBatchDeletedEvent = Event<"recording.batch_deleted"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        operator: string;
-        operator_id: string;
-        object?: {
-            meetings: {
-                meeting_uuid?: string;
-                recording_file_ids?: any[];
-            }[];
-        };
-    };
-};
-type WebinarAlertEvent = Event<"webinar.alert"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone: string;
-            duration: number;
-            issues: string[];
         };
     };
 };
@@ -7323,7 +8176,7 @@ type RecordingRegistrationDeniedEvent = Event<"recording.registration_denied"> &
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -7332,31 +8185,6 @@ type RecordingRegistrationDeniedEvent = Event<"recording.registration_denied"> &
                 email: string;
                 first_name: string;
                 last_name: string;
-            };
-        };
-    };
-};
-type WebinarChatMessageSentEvent = Event<"webinar.chat_message_sent"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: number;
-            uuid: string;
-            chat_message: {
-                date_time: string;
-                sender_session_id: string;
-                sender_name: string;
-                sender_email?: string;
-                sender_type: string;
-                recipient_session_id?: string;
-                recipient_name?: string;
-                recipient_email?: string;
-                recipient_type: string;
-                message_id: string;
-                message_content: string;
-                file_ids?: string[];
             };
         };
     };
@@ -7373,12 +8201,12 @@ type MeetingLiveStreamingStoppedEvent = Event<"meeting.live_streaming_stopped"> 
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time: string;
             timezone?: string;
             duration: number;
             live_streaming: {
-                service: string;
+                service: "Facebook" | "Workplace_by_Facebook" | "YouTube" | "Twitch" | "Custom_Live_Streaming_Service";
                 custom_live_streaming_settings?: {
                     stream_url: string;
                     stream_key: string;
@@ -7387,52 +8215,6 @@ type MeetingLiveStreamingStoppedEvent = Event<"meeting.live_streaming_stopped"> 
                 };
                 date_time: string;
             };
-        };
-    };
-};
-type WebinarChatMessageFileSentEvent = Event<"webinar.chat_message_file_sent"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            webinar_id: number;
-            webinar_uuid: string;
-            chat_message_file: {
-                date_time: string;
-                sender_session_id: string;
-                sender_name: string;
-                sender_email?: string;
-                sender_type: string;
-                recipient_session_id?: string;
-                recipient_name?: string;
-                recipient_email?: string;
-                recipient_type: string;
-                message_id: string;
-                file_id: string;
-                file_name: string;
-                file_size: number;
-                file_type: string;
-                download_url: string;
-            };
-        };
-    };
-};
-type MeetingEndedEvent = Event<"meeting.ended"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-            end_time: string;
         };
     };
 };
@@ -7448,16 +8230,14 @@ type WebinarRegistrationCancelledEvent = Event<"webinar.registration_cancelled">
             id: number;
             host_id: string;
             topic: string;
-            type: number;
+            type: 5 | 6 | 9;
             start_time: string;
             duration: number;
             timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
             registrant: {
                 id: string;
                 first_name: string;
@@ -7472,171 +8252,6 @@ type WebinarRegistrationCancelledEvent = Event<"webinar.registration_cancelled">
         };
     };
 };
-type MeetingParticipantJoinedBreakoutRoomEvent = Event<"meeting.participant_joined_breakout_room"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            breakout_room_uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-            participant: {
-                user_id: string;
-                parent_user_id?: string;
-                user_name: string;
-                id?: string;
-                participant_uuid?: string;
-                join_time: string;
-                email: string;
-                registrant_id?: string;
-                participant_user_id?: string;
-                phone_number?: string;
-                customer_key?: string;
-            };
-        };
-    };
-};
-type MeetingParticipantLeftWaitingRoomEvent = Event<"meeting.participant_left_waiting_room"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-            participant: {
-                user_id: string;
-                user_name?: string;
-                id?: string;
-                participant_uuid?: string;
-                date_time: string;
-                email: string;
-                phone_number?: string;
-                participant_user_id?: string;
-                customer_key?: string;
-                registrant_id?: string;
-            };
-        };
-    };
-};
-type MeetingStartedEvent = Event<"meeting.started"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-        };
-    };
-};
-type MeetingRegistrationCancelledEvent = Event<"meeting.registration_cancelled"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        operator: string;
-        operator_id?: string;
-        object: {
-            uuid: string;
-            id: number;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            duration: number;
-            timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
-            registrant: {
-                id: string;
-                first_name: string;
-                last_name?: string;
-                email: string;
-            };
-        };
-    };
-};
-type MeetingSummaryCompletedEvent = Event<"meeting.summary_completed"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            meeting_host_id: string;
-            meeting_host_email: string;
-            meeting_uuid: string;
-            meeting_id: number;
-            meeting_topic: string;
-            meeting_start_time: string;
-            meeting_end_time: string;
-            summary_start_time: string;
-            summary_end_time: string;
-            summary_created_time: string;
-            summary_last_modified_time: string;
-            summary_title: string;
-            summary_overview?: string;
-            summary_details: {
-                label: string;
-                summary: string;
-            }[];
-            next_steps: string[];
-        };
-    };
-};
-type MeetingParticipantLeftEvent = Event<"meeting.participant_left"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: string;
-            uuid: string;
-            host_id: string;
-            topic: string;
-            type: number;
-            start_time: string;
-            timezone?: string;
-            duration: number;
-            participant: {
-                user_id: string;
-                user_name?: string;
-                id?: string;
-                participant_uuid?: string;
-                leave_time: string;
-                leave_reason?: string;
-                email: string;
-                registrant_id?: string;
-                participant_user_id?: string;
-                customer_key?: string;
-                phone_number?: string;
-            };
-        };
-    };
-};
 type MeetingRecoveredEvent = Event<"meeting.recovered"> & {
     event: string;
     event_ts: number;
@@ -7644,38 +8259,20 @@ type MeetingRecoveredEvent = Event<"meeting.recovered"> & {
         account_id: string;
         operator: string;
         operator_id: string;
-        operation?: string;
+        operation?: "all" | "single";
         object: {
             uuid: string;
             id: number;
             host_id: string;
             topic: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time: string;
             duration: number;
             timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
-        };
-    };
-};
-type MeetingParticipantPhoneCalloutRejectedEvent = Event<"meeting.participant_phone_callout_rejected"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: number;
-            uuid: string;
-            host_id: string;
-            participant: {
-                invitee_name: string;
-                phone_number: number;
-            };
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
         };
     };
 };
@@ -7686,22 +8283,20 @@ type WebinarPermanentlyDeletedEvent = Event<"webinar.permanently_deleted"> & {
         account_id: string;
         operator: string;
         operator_id: string;
-        operation?: string;
+        operation?: "all" | "single";
         object: {
             uuid: string;
             id: number;
             host_id: string;
             topic: string;
-            type: number;
+            type: 5 | 6 | 9;
             start_time: string;
             duration: number;
             timezone: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                }
-            ]>[];
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+            }[];
         };
     };
 };
@@ -7717,7 +8312,7 @@ type RecordingCompletedEvent = Event<"recording.completed"> & {
             host_id: string;
             account_id: string;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             start_time: string;
             password: string;
             timezone?: string;
@@ -7735,15 +8330,15 @@ type RecordingCompletedEvent = Event<"recording.completed"> & {
                 meeting_id: string;
                 recording_start: string;
                 recording_end: string;
-                file_type: string;
+                file_type: "MP4" | "M4A" | "CHAT" | "TRANSCRIPT" | "CSV" | "TB" | "CC" | "CHAT_MESSAGE" | "SUMMARY" | "TIMELINE";
                 file_size: number;
-                file_extension: string;
+                file_extension: "MP4" | "M4A" | "TXT" | "VTT" | "CSV" | "JSON" | "JPG";
                 file_name?: string;
                 play_url?: string;
                 download_url: string;
                 file_path?: string;
-                status: string;
-                recording_type: string;
+                status: "completed" | "processing";
+                recording_type: "shared_screen_with_speaker_view(CC)" | "shared_screen_with_speaker_view" | "shared_screen_with_gallery_view" | "gallery_view" | "shared_screen" | "audio_only" | "chat_file" | "active_speaker" | "host_video" | "audio_only_each_participant" | "cc_transcript" | "closed_caption" | "poll" | "timeline" | "thumbnail" | "audio_interpretation" | "summary" | "summary_next_steps" | "summary_smart_chapters" | "sign_interpretation" | "production_studio";
             }[];
             participant_audio_files?: {
                 id: string;
@@ -7756,24 +8351,8 @@ type RecordingCompletedEvent = Event<"recording.completed"> & {
                 play_url?: string;
                 download_url: string;
                 file_path?: string;
-                status: string;
+                status: "completed" | "processing";
             }[];
-        };
-    };
-};
-type MeetingParticipantPhoneCalloutAcceptedEvent = Event<"meeting.participant_phone_callout_accepted"> & {
-    event: string;
-    event_ts: number;
-    payload: {
-        account_id: string;
-        object: {
-            id: number;
-            uuid: string;
-            host_id: string;
-            participant: {
-                invitee_name: string;
-                phone_number: number;
-            };
         };
     };
 };
@@ -7787,7 +8366,7 @@ type MeetingParticipantPutInWaitingRoomEvent = Event<"meeting.participant_put_in
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -7798,6 +8377,7 @@ type MeetingParticipantPutInWaitingRoomEvent = Event<"meeting.participant_put_in
                 participant_uuid?: string;
                 date_time: string;
                 email: string;
+                phone_number?: string;
                 participant_user_id?: string;
                 customer_key?: string;
                 registrant_id?: string;
@@ -7818,7 +8398,7 @@ type RecordingTrashedEvent = Event<"recording.trashed"> & {
             uuid: string;
             host_id: string;
             topic: string;
-            type: number;
+            type: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 99;
             start_time: string;
             timezone?: string;
             duration: number;
@@ -7831,14 +8411,14 @@ type RecordingTrashedEvent = Event<"recording.trashed"> & {
                 meeting_id: string;
                 recording_start: string;
                 recording_end: string;
-                file_type: string;
-                file_extension: string;
+                file_type: "MP4" | "M4A" | "CHAT" | "TRANSCRIPT" | "CSV" | "TB" | "CC" | "CHAT_MESSAGE" | "SUMMARY" | "TIMELINE";
+                file_extension: "MP4" | "M4A" | "TXT" | "VTT" | "CSV" | "JSON" | "JPG";
                 file_name?: string;
                 file_size: number;
                 play_url?: string;
                 download_url: string;
-                status: string;
-                recording_type: string;
+                status: "completed" | "processing";
+                recording_type: "shared_screen_with_speaker_view(CC)" | "shared_screen_with_speaker_view" | "shared_screen_with_gallery_view" | "gallery_view" | "shared_screen" | "audio_only" | "audio_transcript" | "chat_file" | "active_speaker" | "host_video" | "audio_only_each_participant" | "cc_transcript" | "closed_caption" | "poll" | "timeline" | "thumbnail" | "audio_interpretation" | "summary" | "summary_next_steps" | "summary_smart_chapters" | "production_sutdio";
             }[];
             participant_audio_files?: {
                 id: string;
@@ -7851,7 +8431,7 @@ type RecordingTrashedEvent = Event<"recording.trashed"> & {
                 play_url?: string;
                 download_url: string;
                 file_path?: string;
-                status: string;
+                status: "completed" | "processing";
             }[];
         };
     };
@@ -7889,7 +8469,7 @@ type WebinarParticipantBindEvent = Event<"webinar.participant_bind"> & {
             uuid: string;
             host_id: string;
             topic?: string;
-            type: number;
+            type: 0 | 1 | 2 | 3 | 4 | 7 | 8;
             start_time?: string;
             timezone?: string;
             duration?: number;
@@ -7914,50 +8494,64 @@ type WebinarUpdatedEvent = Event<"webinar.updated"> & {
         account_id: string;
         operator: string;
         operator_id: string;
-        scope?: string;
+        scope?: "single" | "all";
         object: {
             id: number;
             uuid?: string;
             host_id?: string;
             topic?: string;
-            type?: number;
+            type?: 5 | 6 | 9;
             start_time?: string;
             duration?: number;
             timezone?: string;
             password?: string;
             agenda?: string;
             registration_url?: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                    duration?: number;
-                    status?: string;
-                }
-            ]>[];
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+                duration?: number;
+                status?: "available" | "deleted";
+            }[];
             settings?: {
                 host_video?: boolean;
                 panelists_video?: boolean;
                 practice_session?: boolean;
-                approval_type?: number;
-                registration_type?: number;
-                audio?: string;
-                auto_recording?: string;
+                approval_type?: 0 | 1 | 2;
+                registration_type?: 1 | 2 | 3;
+                audio?: "telephony" | "voip" | "both";
+                auto_recording?: "local" | "cloud" | "none";
                 enforce_login?: boolean;
                 meeting_authentication?: boolean;
                 authentication_option?: string;
                 authentication_name?: string;
                 authentication_domains?: string;
+                language_interpretation?: {
+                    enable?: boolean;
+                    interpreters?: {
+                        email?: string;
+                        interpreter_languages?: string;
+                    }[];
+                };
+                sign_language_interpretation?: {
+                    enable?: boolean;
+                    interpreters?: {
+                        email?: string;
+                        sign_language?: string;
+                    }[];
+                };
+                allow_host_control_participant_mute_state?: boolean;
+                email_in_attendee_report?: boolean;
             };
             recurrence?: {
-                type?: number;
+                type?: 1 | 2 | 3;
                 repeat_interval?: number;
                 weekly_days?: string;
                 monthly_day?: number;
-                monthly_week_day?: number;
+                monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
                 end_times?: number;
                 end_date_time?: string;
-                monthly_week?: number;
+                monthly_week?: -1 | 1 | 2 | 3 | 4;
             };
         };
         time_stamp: number;
@@ -7966,44 +8560,58 @@ type WebinarUpdatedEvent = Event<"webinar.updated"> & {
             uuid?: string;
             host_id?: string;
             topic?: string;
-            type?: number;
+            type?: 5 | 6 | 9;
             start_time?: string;
             duration?: number;
             timezone?: string;
             password?: string;
             agenda?: string;
             registration_url?: string;
-            occurrences?: ExactlyOneOf<[
-                {
-                    occurrence_id: string;
-                    start_time: string;
-                    duration?: number;
-                    status?: string;
-                }
-            ]>[];
+            occurrences?: {
+                occurrence_id: string;
+                start_time: string;
+                duration?: number;
+                status?: "available" | "deleted";
+            }[];
             settings?: {
                 host_video?: boolean;
                 panelists_video?: boolean;
                 practice_session?: boolean;
-                approval_type?: number;
-                registration_type?: number;
-                audio?: string;
-                auto_recording?: string;
+                approval_type?: 0 | 1 | 2;
+                registration_type?: 1 | 2 | 3;
+                audio?: "telephony" | "voip" | "both";
+                auto_recording?: "local" | "cloud" | "none";
                 enforce_login?: boolean;
                 meeting_authentication?: boolean;
                 authentication_option?: string;
                 authentication_name?: string;
                 authentication_domains?: string;
+                language_interpretation?: {
+                    enable?: boolean;
+                    interpreters?: {
+                        email?: string;
+                        interpreter_languages?: string;
+                    }[];
+                };
+                sign_language_interpretation?: {
+                    enable?: boolean;
+                    interpreters?: {
+                        email?: string;
+                        sign_language?: string;
+                    }[];
+                };
+                allow_host_control_participant_mute_state?: boolean;
+                email_in_attendee_report?: boolean;
             };
             recurrence?: {
-                type?: number;
+                type?: 1 | 2 | 3;
                 repeat_interval?: number;
                 weekly_days?: string;
                 monthly_day?: number;
-                monthly_week_day?: number;
+                monthly_week_day?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
                 end_times?: number;
                 end_date_time?: string;
-                monthly_week?: number;
+                monthly_week?: -1 | 1 | 2 | 3 | 4;
             };
         };
     };
@@ -8018,7 +8626,7 @@ type RecordingBatchRecoveredEvent = Event<"recording.batch_recovered"> & {
         object?: {
             meetings: {
                 meeting_uuid?: string;
-                recording_file_ids?: any[];
+                recording_file_ids?: string[];
             }[];
         };
     };
@@ -8041,35 +8649,8 @@ type MeetingParticipantRoomSystemCalloutRejectedEvent = Event<"meeting.participa
         };
     };
 };
-type MeetingsEvents = WebinarSharingStartedEvent | MeetingParticipantJbhWaitingEvent | MeetingRegistrationCreatedEvent | MeetingSummaryRecoveredEvent | RecordingRecoveredEvent | MeetingSharingEndedEvent | RecordingCloudStorageUsageUpdatedEvent | MeetingParticipantLeftBreakoutRoomEvent | MeetingDeviceTestedEvent | MeetingSummarySharedEvent | RecordingTranscriptCompletedEvent | RecordingStoppedEvent | RecordingBatchTrashedEvent | WebinarStartedEvent | WebinarSharingEndedEvent | MeetingSummaryTrashedEvent | WebinarDeletedEvent | RecordingRegistrationApprovedEvent | MeetingSharingStartedEvent | WebinarRegistrationCreatedEvent | MeetingChatMessageSentEvent | MeetingParticipantRoleChangedEvent | MeetingRiskAlertEvent | MeetingPermanentlyDeletedEvent | WebinarParticipantFeedbackEvent | RecordingRegistrationCreatedEvent | MeetingParticipantJoinedWaitingRoomEvent | MeetingParticipantPhoneCalloutRingingEvent | MeetingCreatedEvent | MeetingLiveStreamingStartedEvent | MeetingParticipantRoomSystemCalloutAcceptedEvent | WebinarRegistrationApprovedEvent | MeetingParticipantJbhJoinedEvent | RecordingArchiveFilesCompletedEvent | MeetingBreakoutRoomSharingStartedEvent | MeetingAlertEvent | MeetingChatMessageFileSentEvent | MeetingParticipantBindEvent | MeetingDeletedEvent | MeetingParticipantFeedbackEvent | MeetingParticipantJoinedEvent | UserTspDeletedEvent | RecordingDeletedEvent | RecordingPausedEvent | MeetingParticipantRoomSystemCalloutRingingEvent | RecordingStartedEvent | UserTspUpdatedEvent | WebinarEndedEvent | WebinarRecoveredEvent | MeetingParticipantAdmittedEvent | MeetingParticipantRoomSystemCalloutFailedEvent | RecordingResumedEvent | WebinarParticipantRoleChangedEvent | MeetingParticipantPhoneCalloutMissedEvent | MeetingSummaryUpdatedEvent | WebinarParticipantJoinedEvent | RecordingRenamedEvent | MeetingParticipantJbhWaitingLeftEvent | UserTspCreatedEvent | MeetingBreakoutRoomSharingEndedEvent | MeetingUpdatedEvent | MeetingParticipantRoomSystemCalloutMissedEvent | MeetingRegistrationDeniedEvent | WebinarCreatedEvent | WebinarRegistrationDeniedEvent | MeetingRegistrationApprovedEvent | WebinarParticipantLeftEvent | RecordingBatchDeletedEvent | WebinarAlertEvent | RecordingRegistrationDeniedEvent | WebinarChatMessageSentEvent | MeetingLiveStreamingStoppedEvent | WebinarChatMessageFileSentEvent | MeetingEndedEvent | WebinarRegistrationCancelledEvent | MeetingParticipantJoinedBreakoutRoomEvent | MeetingParticipantLeftWaitingRoomEvent | MeetingStartedEvent | MeetingRegistrationCancelledEvent | MeetingSummaryCompletedEvent | MeetingParticipantLeftEvent | MeetingRecoveredEvent | MeetingParticipantPhoneCalloutRejectedEvent | WebinarPermanentlyDeletedEvent | RecordingCompletedEvent | MeetingParticipantPhoneCalloutAcceptedEvent | MeetingParticipantPutInWaitingRoomEvent | RecordingTrashedEvent | MeetingSummaryDeletedEvent | WebinarParticipantBindEvent | WebinarUpdatedEvent | RecordingBatchRecoveredEvent | MeetingParticipantRoomSystemCalloutRejectedEvent;
+type MeetingsEvents = MeetingParticipantJbhWaitingEvent | MeetingSummaryRecoveredEvent | MeetingParticipantLeftBreakoutRoomEvent | MeetingDeviceTestedEvent | MeetingSummarySharedEvent | WebinarChatMessageFileDownloadedEvent | WebinarDeletedEvent | RecordingRegistrationApprovedEvent | MeetingRiskAlertEvent | WebinarParticipantFeedbackEvent | MeetingParticipantJoinedWaitingRoomEvent | WebinarConvertedToMeetingEvent | MeetingParticipantPhoneCalloutRingingEvent | MeetingParticipantJbhJoinedEvent | MeetingInvitationAcceptedEvent | RecordingArchiveFilesCompletedEvent | MeetingAlertEvent | MeetingChatMessageFileSentEvent | MeetingDeletedEvent | MeetingParticipantJoinedEvent | UserTspDeletedEvent | MeetingInvitationDispatchedEvent | WebinarEndedEvent | MeetingConvertedToWebinarEvent | WebinarRecoveredEvent | WebinarParticipantRoleChangedEvent | MeetingParticipantJbhWaitingLeftEvent | UserTspCreatedEvent | MeetingBreakoutRoomSharingEndedEvent | MeetingUpdatedEvent | MeetingRegistrationDeniedEvent | WebinarRegistrationDeniedEvent | MeetingRegistrationApprovedEvent | WebinarParticipantLeftEvent | RecordingBatchDeletedEvent | WebinarAlertEvent | WebinarChatMessageSentEvent | WebinarChatMessageFileSentEvent | MeetingEndedEvent | MeetingParticipantJoinedBreakoutRoomEvent | MeetingParticipantLeftWaitingRoomEvent | MeetingStartedEvent | MeetingRegistrationCancelledEvent | MeetingSummaryCompletedEvent | MeetingParticipantLeftEvent | MeetingParticipantPhoneCalloutRejectedEvent | MeetingParticipantPhoneCalloutAcceptedEvent | WebinarSharingStartedEvent | MeetingRegistrationCreatedEvent | RecordingRecoveredEvent | MeetingSharingEndedEvent | RecordingCloudStorageUsageUpdatedEvent | RecordingTranscriptCompletedEvent | RecordingStoppedEvent | RecordingBatchTrashedEvent | WebinarStartedEvent | MeetingChatMessageFileDownloadedEvent | WebinarSharingEndedEvent | MeetingSummaryTrashedEvent | MeetingSharingStartedEvent | WebinarRegistrationCreatedEvent | MeetingChatMessageSentEvent | MeetingInvitationRejectedEvent | MeetingParticipantRoleChangedEvent | MeetingPermanentlyDeletedEvent | RecordingRegistrationCreatedEvent | MeetingCreatedEvent | MeetingLiveStreamingStartedEvent | MeetingParticipantRoomSystemCalloutAcceptedEvent | WebinarRegistrationApprovedEvent | MeetingBreakoutRoomSharingStartedEvent | MeetingParticipantBindEvent | MeetingParticipantFeedbackEvent | RecordingDeletedEvent | RecordingPausedEvent | MeetingParticipantRoomSystemCalloutRingingEvent | RecordingStartedEvent | UserTspUpdatedEvent | MeetingInvitationTimeoutEvent | MeetingParticipantAdmittedEvent | MeetingParticipantRoomSystemCalloutFailedEvent | RecordingResumedEvent | MeetingParticipantPhoneCalloutMissedEvent | MeetingSummaryUpdatedEvent | WebinarParticipantJoinedEvent | RecordingRenamedEvent | MeetingParticipantRoomSystemCalloutMissedEvent | WebinarCreatedEvent | RecordingRegistrationDeniedEvent | MeetingLiveStreamingStoppedEvent | WebinarRegistrationCancelledEvent | MeetingRecoveredEvent | WebinarPermanentlyDeletedEvent | RecordingCompletedEvent | MeetingParticipantPutInWaitingRoomEvent | RecordingTrashedEvent | MeetingSummaryDeletedEvent | WebinarParticipantBindEvent | WebinarUpdatedEvent | RecordingBatchRecoveredEvent | MeetingParticipantRoomSystemCalloutRejectedEvent;
 declare class MeetingsEventProcessor extends EventManager<MeetingsEndpoints, MeetingsEvents> {
-}
-
-/**
- * Credentials for access token & refresh token, which are used to access Zoom's APIs.
- *
- * As access token is short-lived (usually a single hour), its expiration time is checked
- * first. If it's possible to use the access token, it's used; however, if it has expired
- * or is close to expiring, the refresh token should be used to generate a new access token
- * before the API call is made. Refresh tokens are generally valid for 90 days.
- *
- * If neither the access token nor the refresh token is available, {@link OAuthTokenRefreshFailedError}
- * shall be thrown, informing the developer that neither value can be used, and the user must re-authorize.
- * It's likely that this error will be rare, but it _can_ be thrown.
- */
-interface OAuthToken {
-    accessToken: string;
-    expirationTimeIso: string;
-    refreshToken: string;
-    scopes: string[];
-}
-declare class OAuth extends InteractiveAuth<OAuthToken> {
-    private assertResponseAccessToken;
-    private fetchAccessToken;
-    getToken(): Promise<string>;
-    initRedirectCode(code: string): Promise<void>;
-    private mapOAuthToken;
-    private refreshAccessToken;
 }
 
 type MeetingsOptions<R extends Receiver> = CommonClientOptions<OAuth, R>;
@@ -8086,4 +8667,5 @@ declare class MeetingsS2SAuthClient<ReceiverType extends Receiver = HttpReceiver
     protected initEventProcessor(endpoints: MeetingsEndpoints): MeetingsEventProcessor;
 }
 
-export { ApiResponseError, type ArchivingDeleteMeetingsArchivedFilesPathParams, type ArchivingGetArchivedFileStatisticsQueryParams, type ArchivingGetArchivedFileStatisticsResponse, type ArchivingGetMeetingsArchivedFilesPathParams, type ArchivingGetMeetingsArchivedFilesResponse, type ArchivingListArchivedFilesQueryParams, type ArchivingListArchivedFilesResponse, type ArchivingUpdateArchivedFilesAutoDeleteStatusPathParams, type ArchivingUpdateArchivedFilesAutoDeleteStatusRequestBody, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, type CloudRecordingCreateRecordingRegistrantPathParams, type CloudRecordingCreateRecordingRegistrantRequestBody, type CloudRecordingCreateRecordingRegistrantResponse, type CloudRecordingDeleteMeetingOrWebinarRecordingsPathParams, type CloudRecordingDeleteMeetingOrWebinarRecordingsQueryParams, type CloudRecordingDeleteRecordingFileForMeetingOrWebinarPathParams, type CloudRecordingDeleteRecordingFileForMeetingOrWebinarQueryParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsPathParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsQueryParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsResponse, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryPathParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryQueryParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryResponse, type CloudRecordingGetMeetingRecordingSettingsPathParams, type CloudRecordingGetMeetingRecordingSettingsResponse, type CloudRecordingGetMeetingRecordingsPathParams, type CloudRecordingGetMeetingRecordingsQueryParams, type CloudRecordingGetMeetingRecordingsResponse, type CloudRecordingGetRegistrationQuestionsPathParams, type CloudRecordingGetRegistrationQuestionsResponse, type CloudRecordingListAllRecordingsPathParams, type CloudRecordingListAllRecordingsQueryParams, type CloudRecordingListAllRecordingsResponse, type CloudRecordingListRecordingRegistrantsPathParams, type CloudRecordingListRecordingRegistrantsQueryParams, type CloudRecordingListRecordingRegistrantsResponse, type CloudRecordingRecoverMeetingRecordingsPathParams, type CloudRecordingRecoverMeetingRecordingsRequestBody, type CloudRecordingRecoverSingleRecordingPathParams, type CloudRecordingRecoverSingleRecordingRequestBody, type CloudRecordingUpdateMeetingRecordingSettingsPathParams, type CloudRecordingUpdateMeetingRecordingSettingsRequestBody, type CloudRecordingUpdateRegistrantsStatusPathParams, type CloudRecordingUpdateRegistrantsStatusRequestBody, type CloudRecordingUpdateRegistrationQuestionsPathParams, type CloudRecordingUpdateRegistrationQuestionsRequestBody, CommonHttpRequestError, ConsoleLogger, type DevicesAddNewDeviceRequestBody, type DevicesAssignDeviceToUserOrCommonareaRequestBody, type DevicesChangeDeviceAssociationPathParams, type DevicesChangeDeviceAssociationRequestBody, type DevicesChangeDevicePathParams, type DevicesChangeDeviceRequestBody, type DevicesDeleteDevicePathParams, type DevicesDeleteZPADeviceByVendorAndMacAddressPathParams, type DevicesGetDeviceDetailPathParams, type DevicesGetDeviceDetailResponse, type DevicesGetZDMGroupInfoQueryParams, type DevicesGetZDMGroupInfoResponse, type DevicesGetZPAVersionInfoPathParams, type DevicesGetZPAVersionInfoResponse, type DevicesListDevicesQueryParams, type DevicesListDevicesResponse, type DevicesUpgradeZpaOsAppRequestBody, type H323DevicesCreateHSIPDeviceRequestBody, type H323DevicesCreateHSIPDeviceResponse, type H323DevicesDeleteHSIPDevicePathParams, type H323DevicesListHSIPDevicesQueryParams, type H323DevicesListHSIPDevicesResponse, type H323DevicesUpdateHSIPDevicePathParams, type H323DevicesUpdateHSIPDeviceRequestBody, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, LogLevel, type Logger, type MeetingAlertEvent, type MeetingBreakoutRoomSharingEndedEvent, type MeetingBreakoutRoomSharingStartedEvent, type MeetingChatMessageFileSentEvent, type MeetingChatMessageSentEvent, type MeetingCreatedEvent, type MeetingDeletedEvent, type MeetingDeviceTestedEvent, type MeetingEndedEvent, type MeetingLiveStreamingStartedEvent, type MeetingLiveStreamingStoppedEvent, type MeetingParticipantAdmittedEvent, type MeetingParticipantBindEvent, type MeetingParticipantFeedbackEvent, type MeetingParticipantJbhJoinedEvent, type MeetingParticipantJbhWaitingEvent, type MeetingParticipantJbhWaitingLeftEvent, type MeetingParticipantJoinedBreakoutRoomEvent, type MeetingParticipantJoinedEvent, type MeetingParticipantJoinedWaitingRoomEvent, type MeetingParticipantLeftBreakoutRoomEvent, type MeetingParticipantLeftEvent, type MeetingParticipantLeftWaitingRoomEvent, type MeetingParticipantPhoneCalloutAcceptedEvent, type MeetingParticipantPhoneCalloutMissedEvent, type MeetingParticipantPhoneCalloutRejectedEvent, type MeetingParticipantPhoneCalloutRingingEvent, type MeetingParticipantPutInWaitingRoomEvent, type MeetingParticipantRoleChangedEvent, type MeetingParticipantRoomSystemCalloutAcceptedEvent, type MeetingParticipantRoomSystemCalloutFailedEvent, type MeetingParticipantRoomSystemCalloutMissedEvent, type MeetingParticipantRoomSystemCalloutRejectedEvent, type MeetingParticipantRoomSystemCalloutRingingEvent, type MeetingPermanentlyDeletedEvent, type MeetingRecoveredEvent, type MeetingRegistrationApprovedEvent, type MeetingRegistrationCancelledEvent, type MeetingRegistrationCreatedEvent, type MeetingRegistrationDeniedEvent, type MeetingRiskAlertEvent, type MeetingSharingEndedEvent, type MeetingSharingStartedEvent, type MeetingStartedEvent, type MeetingSummaryCompletedEvent, type MeetingSummaryDeletedEvent, type MeetingSummaryRecoveredEvent, type MeetingSummarySharedEvent, type MeetingSummaryTrashedEvent, type MeetingSummaryUpdatedEvent, type MeetingUpdatedEvent, type MeetingsAddMeetingAppPathParams, type MeetingsAddMeetingAppResponse, type MeetingsAddMeetingRegistrantPathParams, type MeetingsAddMeetingRegistrantQueryParams, type MeetingsAddMeetingRegistrantRequestBody, type MeetingsAddMeetingRegistrantResponse, type MeetingsCreateMeetingPathParams, type MeetingsCreateMeetingPollPathParams, type MeetingsCreateMeetingPollRequestBody, type MeetingsCreateMeetingPollResponse, type MeetingsCreateMeetingRequestBody, type MeetingsCreateMeetingResponse, type MeetingsCreateMeetingTemplateFromExistingMeetingPathParams, type MeetingsCreateMeetingTemplateFromExistingMeetingRequestBody, type MeetingsCreateMeetingTemplateFromExistingMeetingResponse, type MeetingsCreateMeetingsInviteLinksPathParams, type MeetingsCreateMeetingsInviteLinksRequestBody, type MeetingsCreateMeetingsInviteLinksResponse, type MeetingsDeleteLiveMeetingMessagePathParams, type MeetingsDeleteLiveMeetingMessageQueryParams, type MeetingsDeleteMeetingAppPathParams, type MeetingsDeleteMeetingPathParams, type MeetingsDeleteMeetingPollPathParams, type MeetingsDeleteMeetingQueryParams, type MeetingsDeleteMeetingRegistrantPathParams, type MeetingsDeleteMeetingRegistrantQueryParams, type MeetingsDeleteMeetingSurveyPathParams, MeetingsEndpoints, MeetingsEventProcessor, type MeetingsGetLivestreamDetailsPathParams, type MeetingsGetLivestreamDetailsResponse, type MeetingsGetMeetingInvitationPathParams, type MeetingsGetMeetingInvitationResponse, type MeetingsGetMeetingPathParams, type MeetingsGetMeetingPollPathParams, type MeetingsGetMeetingPollResponse, type MeetingsGetMeetingQueryParams, type MeetingsGetMeetingRegistrantPathParams, type MeetingsGetMeetingRegistrantResponse, type MeetingsGetMeetingResponse, type MeetingsGetMeetingSIPURIWithPasscodePathParams, type MeetingsGetMeetingSIPURIWithPasscodeRequestBody, type MeetingsGetMeetingSIPURIWithPasscodeResponse, type MeetingsGetMeetingSummaryPathParams, type MeetingsGetMeetingSummaryResponse, type MeetingsGetMeetingSurveyPathParams, type MeetingsGetMeetingSurveyResponse, type MeetingsGetMeetingsArchiveTokenForLocalArchivingPathParams, type MeetingsGetMeetingsArchiveTokenForLocalArchivingResponse, type MeetingsGetMeetingsJoinTokenForLiveStreamingPathParams, type MeetingsGetMeetingsJoinTokenForLiveStreamingResponse, type MeetingsGetMeetingsJoinTokenForLocalRecordingPathParams, type MeetingsGetMeetingsJoinTokenForLocalRecordingQueryParams, type MeetingsGetMeetingsJoinTokenForLocalRecordingResponse, type MeetingsGetMeetingsTokenPathParams, type MeetingsGetMeetingsTokenQueryParams, type MeetingsGetMeetingsTokenResponse, type MeetingsGetPastMeetingDetailsPathParams, type MeetingsGetPastMeetingDetailsResponse, type MeetingsGetPastMeetingParticipantsPathParams, type MeetingsGetPastMeetingParticipantsQueryParams, type MeetingsGetPastMeetingParticipantsResponse, type MeetingsListMeetingPollsPathParams, type MeetingsListMeetingPollsQueryParams, type MeetingsListMeetingPollsResponse, type MeetingsListMeetingRegistrantsPathParams, type MeetingsListMeetingRegistrantsQueryParams, type MeetingsListMeetingRegistrantsResponse, type MeetingsListMeetingSummariesOfAccountQueryParams, type MeetingsListMeetingSummariesOfAccountResponse, type MeetingsListMeetingTemplatesPathParams, type MeetingsListMeetingTemplatesResponse, type MeetingsListMeetingsPathParams, type MeetingsListMeetingsQueryParams, type MeetingsListMeetingsResponse, type MeetingsListPastMeetingInstancesPathParams, type MeetingsListPastMeetingInstancesResponse, type MeetingsListPastMeetingsPollResultsPathParams, type MeetingsListPastMeetingsPollResultsResponse, type MeetingsListPastMeetingsQAPathParams, type MeetingsListPastMeetingsQAResponse, type MeetingsListRegistrationQuestionsPathParams, type MeetingsListRegistrationQuestionsResponse, type MeetingsListUpcomingMeetingsPathParams, type MeetingsListUpcomingMeetingsResponse, MeetingsOAuthClient, type MeetingsOptions, type MeetingsPerformBatchPollCreationPathParams, type MeetingsPerformBatchPollCreationRequestBody, type MeetingsPerformBatchPollCreationResponse, type MeetingsPerformBatchRegistrationPathParams, type MeetingsPerformBatchRegistrationRequestBody, type MeetingsPerformBatchRegistrationResponse, MeetingsS2SAuthClient, type MeetingsS2SAuthOptions, type MeetingsUpdateLiveMeetingMessagePathParams, type MeetingsUpdateLiveMeetingMessageRequestBody, type MeetingsUpdateLivestreamPathParams, type MeetingsUpdateLivestreamRequestBody, type MeetingsUpdateLivestreamStatusPathParams, type MeetingsUpdateLivestreamStatusRequestBody, type MeetingsUpdateMeetingPathParams, type MeetingsUpdateMeetingPollPathParams, type MeetingsUpdateMeetingPollRequestBody, type MeetingsUpdateMeetingQueryParams, type MeetingsUpdateMeetingRequestBody, type MeetingsUpdateMeetingStatusPathParams, type MeetingsUpdateMeetingStatusRequestBody, type MeetingsUpdateMeetingSurveyPathParams, type MeetingsUpdateMeetingSurveyRequestBody, type MeetingsUpdateRegistrantsStatusPathParams, type MeetingsUpdateRegistrantsStatusQueryParams, type MeetingsUpdateRegistrantsStatusRequestBody, type MeetingsUpdateRegistrationQuestionsPathParams, type MeetingsUpdateRegistrationQuestionsRequestBody, type MeetingsUseInMeetingControlsPathParams, type MeetingsUseInMeetingControlsRequestBody, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, type PACListUsersPACAccountsPathParams, type PACListUsersPACAccountsResponse, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, type RecordingArchiveFilesCompletedEvent, type RecordingBatchDeletedEvent, type RecordingBatchRecoveredEvent, type RecordingBatchTrashedEvent, type RecordingCloudStorageUsageUpdatedEvent, type RecordingCompletedEvent, type RecordingDeletedEvent, type RecordingPausedEvent, type RecordingRecoveredEvent, type RecordingRegistrationApprovedEvent, type RecordingRegistrationCreatedEvent, type RecordingRegistrationDeniedEvent, type RecordingRenamedEvent, type RecordingResumedEvent, type RecordingStartedEvent, type RecordingStoppedEvent, type RecordingTranscriptCompletedEvent, type RecordingTrashedEvent, type ReportsGetActiveOrInactiveHostReportsQueryParams, type ReportsGetActiveOrInactiveHostReportsResponse, type ReportsGetBillingInvoiceReportsQueryParams, type ReportsGetBillingInvoiceReportsResponse, type ReportsGetBillingReportsResponse, type ReportsGetCloudRecordingUsageReportQueryParams, type ReportsGetCloudRecordingUsageReportResponse, type ReportsGetDailyUsageReportQueryParams, type ReportsGetDailyUsageReportResponse, type ReportsGetMeetingActivitiesReportQueryParams, type ReportsGetMeetingActivitiesReportResponse, type ReportsGetMeetingDetailReportsPathParams, type ReportsGetMeetingDetailReportsResponse, type ReportsGetMeetingParticipantReportsPathParams, type ReportsGetMeetingParticipantReportsQueryParams, type ReportsGetMeetingParticipantReportsResponse, type ReportsGetMeetingPollReportsPathParams, type ReportsGetMeetingPollReportsResponse, type ReportsGetMeetingQAReportPathParams, type ReportsGetMeetingQAReportResponse, type ReportsGetMeetingReportsPathParams, type ReportsGetMeetingReportsQueryParams, type ReportsGetMeetingReportsResponse, type ReportsGetMeetingSurveyReportPathParams, type ReportsGetMeetingSurveyReportResponse, type ReportsGetOperationLogsReportQueryParams, type ReportsGetOperationLogsReportResponse, type ReportsGetSignInSignOutActivityReportQueryParams, type ReportsGetSignInSignOutActivityReportResponse, type ReportsGetTelephoneReportsQueryParams, type ReportsGetTelephoneReportsResponse, type ReportsGetUpcomingEventsReportQueryParams, type ReportsGetUpcomingEventsReportResponse, type ReportsGetWebinarDetailReportsPathParams, type ReportsGetWebinarDetailReportsResponse, type ReportsGetWebinarParticipantReportsPathParams, type ReportsGetWebinarParticipantReportsQueryParams, type ReportsGetWebinarParticipantReportsResponse, type ReportsGetWebinarPollReportsPathParams, type ReportsGetWebinarPollReportsResponse, type ReportsGetWebinarQAReportPathParams, type ReportsGetWebinarQAReportResponse, type ReportsGetWebinarSurveyReportPathParams, type ReportsGetWebinarSurveyReportResponse, S2SRawResponseError, type SIPPhoneDeleteSIPPhonePathParams, type SIPPhoneEnableSIPPhoneRequestBody, type SIPPhoneEnableSIPPhoneResponse, type SIPPhoneListSIPPhonesQueryParams, type SIPPhoneListSIPPhonesResponse, type SIPPhoneUpdateSIPPhonePathParams, type SIPPhoneUpdateSIPPhoneRequestBody, type StateStore, StatusCode, type TSPAddUsersTSPAccountPathParams, type TSPAddUsersTSPAccountRequestBody, type TSPAddUsersTSPAccountResponse, type TSPDeleteUsersTSPAccountPathParams, type TSPGetAccountsTSPInformationResponse, type TSPGetUsersTSPAccountPathParams, type TSPGetUsersTSPAccountResponse, type TSPListUsersTSPAccountsPathParams, type TSPListUsersTSPAccountsResponse, type TSPSetGlobalDialInURLForTSPUserPathParams, type TSPSetGlobalDialInURLForTSPUserRequestBody, type TSPUpdateAccountsTSPInformationRequestBody, type TSPUpdateTSPAccountPathParams, type TSPUpdateTSPAccountRequestBody, type TokenStore, type TrackingFieldCreateTrackingFieldRequestBody, type TrackingFieldCreateTrackingFieldResponse, type TrackingFieldDeleteTrackingFieldPathParams, type TrackingFieldGetTrackingFieldPathParams, type TrackingFieldGetTrackingFieldResponse, type TrackingFieldListTrackingFieldsResponse, type TrackingFieldUpdateTrackingFieldPathParams, type TrackingFieldUpdateTrackingFieldRequestBody, type UserTspCreatedEvent, type UserTspDeletedEvent, type UserTspUpdatedEvent, type WebinarAlertEvent, type WebinarChatMessageFileSentEvent, type WebinarChatMessageSentEvent, type WebinarCreatedEvent, type WebinarDeletedEvent, type WebinarEndedEvent, type WebinarParticipantBindEvent, type WebinarParticipantFeedbackEvent, type WebinarParticipantJoinedEvent, type WebinarParticipantLeftEvent, type WebinarParticipantRoleChangedEvent, type WebinarPermanentlyDeletedEvent, type WebinarRecoveredEvent, type WebinarRegistrationApprovedEvent, type WebinarRegistrationCancelledEvent, type WebinarRegistrationCreatedEvent, type WebinarRegistrationDeniedEvent, type WebinarSharingEndedEvent, type WebinarSharingStartedEvent, type WebinarStartedEvent, type WebinarUpdatedEvent, type WebinarsAddPanelistsPathParams, type WebinarsAddPanelistsRequestBody, type WebinarsAddPanelistsResponse, type WebinarsAddWebinarRegistrantPathParams, type WebinarsAddWebinarRegistrantQueryParams, type WebinarsAddWebinarRegistrantRequestBody, type WebinarsAddWebinarRegistrantResponse, type WebinarsCreateWebinarPathParams, type WebinarsCreateWebinarRequestBody, type WebinarsCreateWebinarResponse, type WebinarsCreateWebinarTemplatePathParams, type WebinarsCreateWebinarTemplateRequestBody, type WebinarsCreateWebinarTemplateResponse, type WebinarsCreateWebinarsBrandingNameTagPathParams, type WebinarsCreateWebinarsBrandingNameTagRequestBody, type WebinarsCreateWebinarsBrandingNameTagResponse, type WebinarsCreateWebinarsInviteLinksPathParams, type WebinarsCreateWebinarsInviteLinksRequestBody, type WebinarsCreateWebinarsInviteLinksResponse, type WebinarsCreateWebinarsPollPathParams, type WebinarsCreateWebinarsPollRequestBody, type WebinarsCreateWebinarsPollResponse, type WebinarsDeleteLiveWebinarMessagePathParams, type WebinarsDeleteLiveWebinarMessageQueryParams, type WebinarsDeleteWebinarPathParams, type WebinarsDeleteWebinarPollPathParams, type WebinarsDeleteWebinarQueryParams, type WebinarsDeleteWebinarRegistrantPathParams, type WebinarsDeleteWebinarRegistrantQueryParams, type WebinarsDeleteWebinarSurveyPathParams, type WebinarsDeleteWebinarsBrandingNameTagPathParams, type WebinarsDeleteWebinarsBrandingNameTagQueryParams, type WebinarsDeleteWebinarsBrandingVirtualBackgroundsPathParams, type WebinarsDeleteWebinarsBrandingVirtualBackgroundsQueryParams, type WebinarsDeleteWebinarsBrandingWallpaperPathParams, type WebinarsGetLiveStreamDetailsPathParams, type WebinarsGetLiveStreamDetailsResponse, type WebinarsGetWebinarAbsenteesPathParams, type WebinarsGetWebinarAbsenteesQueryParams, type WebinarsGetWebinarAbsenteesResponse, type WebinarsGetWebinarPathParams, type WebinarsGetWebinarPollPathParams, type WebinarsGetWebinarPollResponse, type WebinarsGetWebinarQueryParams, type WebinarsGetWebinarRegistrantPathParams, type WebinarsGetWebinarRegistrantQueryParams, type WebinarsGetWebinarRegistrantResponse, type WebinarsGetWebinarResponse, type WebinarsGetWebinarSIPURIWithPasscodePathParams, type WebinarsGetWebinarSIPURIWithPasscodeRequestBody, type WebinarsGetWebinarSIPURIWithPasscodeResponse, type WebinarsGetWebinarSurveyPathParams, type WebinarsGetWebinarSurveyResponse, type WebinarsGetWebinarTrackingSourcesPathParams, type WebinarsGetWebinarTrackingSourcesResponse, type WebinarsGetWebinarsArchiveTokenForLocalArchivingPathParams, type WebinarsGetWebinarsArchiveTokenForLocalArchivingResponse, type WebinarsGetWebinarsJoinTokenForLiveStreamingPathParams, type WebinarsGetWebinarsJoinTokenForLiveStreamingResponse, type WebinarsGetWebinarsJoinTokenForLocalRecordingPathParams, type WebinarsGetWebinarsJoinTokenForLocalRecordingResponse, type WebinarsGetWebinarsSessionBrandingPathParams, type WebinarsGetWebinarsSessionBrandingResponse, type WebinarsGetWebinarsTokenPathParams, type WebinarsGetWebinarsTokenQueryParams, type WebinarsGetWebinarsTokenResponse, type WebinarsListPanelistsPathParams, type WebinarsListPanelistsResponse, type WebinarsListPastWebinarInstancesPathParams, type WebinarsListPastWebinarInstancesResponse, type WebinarsListPastWebinarPollResultsPathParams, type WebinarsListPastWebinarPollResultsResponse, type WebinarsListQAsOfPastWebinarPathParams, type WebinarsListQAsOfPastWebinarResponse, type WebinarsListRegistrationQuestionsPathParams, type WebinarsListRegistrationQuestionsResponse, type WebinarsListWebinarParticipantsPathParams, type WebinarsListWebinarParticipantsQueryParams, type WebinarsListWebinarParticipantsResponse, type WebinarsListWebinarRegistrantsPathParams, type WebinarsListWebinarRegistrantsQueryParams, type WebinarsListWebinarRegistrantsResponse, type WebinarsListWebinarTemplatesPathParams, type WebinarsListWebinarTemplatesResponse, type WebinarsListWebinarsPathParams, type WebinarsListWebinarsPollsPathParams, type WebinarsListWebinarsPollsQueryParams, type WebinarsListWebinarsPollsResponse, type WebinarsListWebinarsQueryParams, type WebinarsListWebinarsResponse, type WebinarsPerformBatchRegistrationPathParams, type WebinarsPerformBatchRegistrationRequestBody, type WebinarsPerformBatchRegistrationResponse, type WebinarsRemoveAllPanelistsPathParams, type WebinarsRemovePanelistPathParams, type WebinarsSetWebinarsDefaultBrandingVirtualBackgroundPathParams, type WebinarsSetWebinarsDefaultBrandingVirtualBackgroundQueryParams, type WebinarsUpdateLiveStreamPathParams, type WebinarsUpdateLiveStreamRequestBody, type WebinarsUpdateLiveStreamStatusPathParams, type WebinarsUpdateLiveStreamStatusRequestBody, type WebinarsUpdateRegistrantsStatusPathParams, type WebinarsUpdateRegistrantsStatusQueryParams, type WebinarsUpdateRegistrantsStatusRequestBody, type WebinarsUpdateRegistrationQuestionsPathParams, type WebinarsUpdateRegistrationQuestionsRequestBody, type WebinarsUpdateWebinarPathParams, type WebinarsUpdateWebinarPollPathParams, type WebinarsUpdateWebinarPollRequestBody, type WebinarsUpdateWebinarQueryParams, type WebinarsUpdateWebinarRequestBody, type WebinarsUpdateWebinarStatusPathParams, type WebinarsUpdateWebinarStatusRequestBody, type WebinarsUpdateWebinarSurveyPathParams, type WebinarsUpdateWebinarSurveyRequestBody, type WebinarsUpdateWebinarsBrandingNameTagPathParams, type WebinarsUpdateWebinarsBrandingNameTagRequestBody, type WebinarsUploadWebinarsBrandingVirtualBackgroundPathParams, type WebinarsUploadWebinarsBrandingVirtualBackgroundRequestBody, type WebinarsUploadWebinarsBrandingVirtualBackgroundResponse, type WebinarsUploadWebinarsBrandingWallpaperPathParams, type WebinarsUploadWebinarsBrandingWallpaperRequestBody, type WebinarsUploadWebinarsBrandingWallpaperResponse, isCoreError, isStateStore };
+export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, LogLevel, MeetingsEndpoints, MeetingsEventProcessor, MeetingsOAuthClient, MeetingsS2SAuthClient, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, ReceiverInconsistentStateError, ReceiverOAuthFlowError, S2SRawResponseError, StatusCode, isCoreError, isStateStore };
+export type { ArchivingDeleteMeetingsArchivedFilesPathParams, ArchivingGetArchivedFileStatisticsQueryParams, ArchivingGetArchivedFileStatisticsResponse, ArchivingGetMeetingsArchivedFilesPathParams, ArchivingGetMeetingsArchivedFilesResponse, ArchivingListArchivedFilesQueryParams, ArchivingListArchivedFilesResponse, ArchivingUpdateArchivedFilesAutoDeleteStatusPathParams, ArchivingUpdateArchivedFilesAutoDeleteStatusRequestBody, ClientCredentialsToken, CloudRecordingCreateRecordingRegistrantPathParams, CloudRecordingCreateRecordingRegistrantRequestBody, CloudRecordingCreateRecordingRegistrantResponse, CloudRecordingDeleteMeetingOrWebinarRecordingsPathParams, CloudRecordingDeleteMeetingOrWebinarRecordingsQueryParams, CloudRecordingDeleteMeetingOrWebinarTranscriptPathParams, CloudRecordingDeleteRecordingFileForMeetingOrWebinarPathParams, CloudRecordingDeleteRecordingFileForMeetingOrWebinarQueryParams, CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsPathParams, CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsQueryParams, CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsResponse, CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryPathParams, CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryQueryParams, CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryResponse, CloudRecordingGetMeetingRecordingSettingsPathParams, CloudRecordingGetMeetingRecordingSettingsResponse, CloudRecordingGetMeetingRecordingsPathParams, CloudRecordingGetMeetingRecordingsQueryParams, CloudRecordingGetMeetingRecordingsResponse, CloudRecordingGetMeetingTranscriptPathParams, CloudRecordingGetMeetingTranscriptResponse, CloudRecordingGetRegistrationQuestionsPathParams, CloudRecordingGetRegistrationQuestionsResponse, CloudRecordingListAllRecordingsPathParams, CloudRecordingListAllRecordingsQueryParams, CloudRecordingListAllRecordingsResponse, CloudRecordingListRecordingRegistrantsPathParams, CloudRecordingListRecordingRegistrantsQueryParams, CloudRecordingListRecordingRegistrantsResponse, CloudRecordingRecoverMeetingRecordingsPathParams, CloudRecordingRecoverMeetingRecordingsRequestBody, CloudRecordingRecoverSingleRecordingPathParams, CloudRecordingRecoverSingleRecordingRequestBody, CloudRecordingUpdateMeetingRecordingSettingsPathParams, CloudRecordingUpdateMeetingRecordingSettingsRequestBody, CloudRecordingUpdateRegistrantsStatusPathParams, CloudRecordingUpdateRegistrantsStatusRequestBody, CloudRecordingUpdateRegistrationQuestionsPathParams, CloudRecordingUpdateRegistrationQuestionsRequestBody, DevicesAddNewDeviceRequestBody, DevicesAssignDeviceToGroupPathParams, DevicesAssignDeviceToGroupQueryParams, DevicesAssignDeviceToUserOrCommonareaRequestBody, DevicesChangeDeviceAssociationPathParams, DevicesChangeDeviceAssociationRequestBody, DevicesChangeDevicePathParams, DevicesChangeDeviceRequestBody, DevicesDeleteDevicePathParams, DevicesDeleteZPADeviceByVendorAndMacAddressPathParams, DevicesGetDeviceDetailPathParams, DevicesGetDeviceDetailResponse, DevicesGetZDMGroupInfoQueryParams, DevicesGetZDMGroupInfoResponse, DevicesGetZPAVersionInfoPathParams, DevicesGetZPAVersionInfoResponse, DevicesGetZoomPhoneApplianceSettingsByUserIDQueryParams, DevicesGetZoomPhoneApplianceSettingsByUserIDResponse, DevicesListDevicesQueryParams, DevicesListDevicesResponse, DevicesUpgradeZPAFirmwareOrAppRequestBody, H323DevicesCreateHSIPDeviceRequestBody, H323DevicesCreateHSIPDeviceResponse, H323DevicesDeleteHSIPDevicePathParams, H323DevicesListHSIPDevicesQueryParams, H323DevicesListHSIPDevicesResponse, H323DevicesUpdateHSIPDevicePathParams, H323DevicesUpdateHSIPDeviceRequestBody, HttpReceiverOptions, JwtToken, Logger, MeetingAlertEvent, MeetingBreakoutRoomSharingEndedEvent, MeetingBreakoutRoomSharingStartedEvent, MeetingChatMessageFileDownloadedEvent, MeetingChatMessageFileSentEvent, MeetingChatMessageSentEvent, MeetingConvertedToWebinarEvent, MeetingCreatedEvent, MeetingDeletedEvent, MeetingDeviceTestedEvent, MeetingEndedEvent, MeetingInvitationAcceptedEvent, MeetingInvitationDispatchedEvent, MeetingInvitationRejectedEvent, MeetingInvitationTimeoutEvent, MeetingLiveStreamingStartedEvent, MeetingLiveStreamingStoppedEvent, MeetingParticipantAdmittedEvent, MeetingParticipantBindEvent, MeetingParticipantFeedbackEvent, MeetingParticipantJbhJoinedEvent, MeetingParticipantJbhWaitingEvent, MeetingParticipantJbhWaitingLeftEvent, MeetingParticipantJoinedBreakoutRoomEvent, MeetingParticipantJoinedEvent, MeetingParticipantJoinedWaitingRoomEvent, MeetingParticipantLeftBreakoutRoomEvent, MeetingParticipantLeftEvent, MeetingParticipantLeftWaitingRoomEvent, MeetingParticipantPhoneCalloutAcceptedEvent, MeetingParticipantPhoneCalloutMissedEvent, MeetingParticipantPhoneCalloutRejectedEvent, MeetingParticipantPhoneCalloutRingingEvent, MeetingParticipantPutInWaitingRoomEvent, MeetingParticipantRoleChangedEvent, MeetingParticipantRoomSystemCalloutAcceptedEvent, MeetingParticipantRoomSystemCalloutFailedEvent, MeetingParticipantRoomSystemCalloutMissedEvent, MeetingParticipantRoomSystemCalloutRejectedEvent, MeetingParticipantRoomSystemCalloutRingingEvent, MeetingPermanentlyDeletedEvent, MeetingRecoveredEvent, MeetingRegistrationApprovedEvent, MeetingRegistrationCancelledEvent, MeetingRegistrationCreatedEvent, MeetingRegistrationDeniedEvent, MeetingRiskAlertEvent, MeetingSharingEndedEvent, MeetingSharingStartedEvent, MeetingStartedEvent, MeetingSummaryCompletedEvent, MeetingSummaryDeletedEvent, MeetingSummaryRecoveredEvent, MeetingSummarySharedEvent, MeetingSummaryTrashedEvent, MeetingSummaryUpdatedEvent, MeetingUpdatedEvent, MeetingsAddMeetingAppPathParams, MeetingsAddMeetingAppResponse, MeetingsAddMeetingRegistrantPathParams, MeetingsAddMeetingRegistrantQueryParams, MeetingsAddMeetingRegistrantRequestBody, MeetingsAddMeetingRegistrantResponse, MeetingsCreateMeetingPathParams, MeetingsCreateMeetingPollPathParams, MeetingsCreateMeetingPollRequestBody, MeetingsCreateMeetingPollResponse, MeetingsCreateMeetingRequestBody, MeetingsCreateMeetingResponse, MeetingsCreateMeetingTemplateFromExistingMeetingPathParams, MeetingsCreateMeetingTemplateFromExistingMeetingRequestBody, MeetingsCreateMeetingTemplateFromExistingMeetingResponse, MeetingsCreateMeetingsInviteLinksPathParams, MeetingsCreateMeetingsInviteLinksRequestBody, MeetingsCreateMeetingsInviteLinksResponse, MeetingsDeleteLiveMeetingMessagePathParams, MeetingsDeleteLiveMeetingMessageQueryParams, MeetingsDeleteMeetingAppPathParams, MeetingsDeleteMeetingOrWebinarSummaryPathParams, MeetingsDeleteMeetingPathParams, MeetingsDeleteMeetingPollPathParams, MeetingsDeleteMeetingQueryParams, MeetingsDeleteMeetingRegistrantPathParams, MeetingsDeleteMeetingRegistrantQueryParams, MeetingsDeleteMeetingSurveyPathParams, MeetingsEvents, MeetingsGetLivestreamDetailsPathParams, MeetingsGetLivestreamDetailsResponse, MeetingsGetMeetingInvitationPathParams, MeetingsGetMeetingInvitationResponse, MeetingsGetMeetingOrWebinarSummaryPathParams, MeetingsGetMeetingOrWebinarSummaryResponse, MeetingsGetMeetingPathParams, MeetingsGetMeetingPollPathParams, MeetingsGetMeetingPollResponse, MeetingsGetMeetingQueryParams, MeetingsGetMeetingRegistrantPathParams, MeetingsGetMeetingRegistrantResponse, MeetingsGetMeetingResponse, MeetingsGetMeetingSIPURIWithPasscodePathParams, MeetingsGetMeetingSIPURIWithPasscodeRequestBody, MeetingsGetMeetingSIPURIWithPasscodeResponse, MeetingsGetMeetingSurveyPathParams, MeetingsGetMeetingSurveyResponse, MeetingsGetMeetingsArchiveTokenForLocalArchivingPathParams, MeetingsGetMeetingsArchiveTokenForLocalArchivingResponse, MeetingsGetMeetingsJoinTokenForLiveStreamingPathParams, MeetingsGetMeetingsJoinTokenForLiveStreamingResponse, MeetingsGetMeetingsJoinTokenForLocalRecordingPathParams, MeetingsGetMeetingsJoinTokenForLocalRecordingQueryParams, MeetingsGetMeetingsJoinTokenForLocalRecordingResponse, MeetingsGetMeetingsTokenPathParams, MeetingsGetMeetingsTokenQueryParams, MeetingsGetMeetingsTokenResponse, MeetingsGetPastMeetingDetailsPathParams, MeetingsGetPastMeetingDetailsResponse, MeetingsGetPastMeetingParticipantsPathParams, MeetingsGetPastMeetingParticipantsQueryParams, MeetingsGetPastMeetingParticipantsResponse, MeetingsListAccountsMeetingOrWebinarSummariesQueryParams, MeetingsListAccountsMeetingOrWebinarSummariesResponse, MeetingsListMeetingPollsPathParams, MeetingsListMeetingPollsQueryParams, MeetingsListMeetingPollsResponse, MeetingsListMeetingRegistrantsPathParams, MeetingsListMeetingRegistrantsQueryParams, MeetingsListMeetingRegistrantsResponse, MeetingsListMeetingTemplatesPathParams, MeetingsListMeetingTemplatesResponse, MeetingsListMeetingsPathParams, MeetingsListMeetingsQueryParams, MeetingsListMeetingsResponse, MeetingsListPastMeetingInstancesPathParams, MeetingsListPastMeetingInstancesResponse, MeetingsListPastMeetingsPollResultsPathParams, MeetingsListPastMeetingsPollResultsResponse, MeetingsListPastMeetingsQAPathParams, MeetingsListPastMeetingsQAResponse, MeetingsListRegistrationQuestionsPathParams, MeetingsListRegistrationQuestionsResponse, MeetingsListUpcomingMeetingsPathParams, MeetingsListUpcomingMeetingsResponse, MeetingsOptions, MeetingsPerformBatchPollCreationPathParams, MeetingsPerformBatchPollCreationRequestBody, MeetingsPerformBatchPollCreationResponse, MeetingsPerformBatchRegistrationPathParams, MeetingsPerformBatchRegistrationRequestBody, MeetingsPerformBatchRegistrationResponse, MeetingsS2SAuthOptions, MeetingsUpdateLiveMeetingMessagePathParams, MeetingsUpdateLiveMeetingMessageRequestBody, MeetingsUpdateLivestreamPathParams, MeetingsUpdateLivestreamRequestBody, MeetingsUpdateLivestreamStatusPathParams, MeetingsUpdateLivestreamStatusRequestBody, MeetingsUpdateMeetingPathParams, MeetingsUpdateMeetingPollPathParams, MeetingsUpdateMeetingPollRequestBody, MeetingsUpdateMeetingQueryParams, MeetingsUpdateMeetingRequestBody, MeetingsUpdateMeetingStatusPathParams, MeetingsUpdateMeetingStatusRequestBody, MeetingsUpdateMeetingSurveyPathParams, MeetingsUpdateMeetingSurveyRequestBody, MeetingsUpdateParticipantRealTimeMediaStreamsRTMSAppStatusPathParams, MeetingsUpdateParticipantRealTimeMediaStreamsRTMSAppStatusRequestBody, MeetingsUpdateRegistrantsStatusPathParams, MeetingsUpdateRegistrantsStatusQueryParams, MeetingsUpdateRegistrantsStatusRequestBody, MeetingsUpdateRegistrationQuestionsPathParams, MeetingsUpdateRegistrationQuestionsRequestBody, MeetingsUseInMeetingControlsPathParams, MeetingsUseInMeetingControlsRequestBody, OAuthToken, PACListUsersPACAccountsPathParams, PACListUsersPACAccountsResponse, Receiver, ReceiverInitOptions, RecordingArchiveFilesCompletedEvent, RecordingBatchDeletedEvent, RecordingBatchRecoveredEvent, RecordingBatchTrashedEvent, RecordingCloudStorageUsageUpdatedEvent, RecordingCompletedEvent, RecordingDeletedEvent, RecordingPausedEvent, RecordingRecoveredEvent, RecordingRegistrationApprovedEvent, RecordingRegistrationCreatedEvent, RecordingRegistrationDeniedEvent, RecordingRenamedEvent, RecordingResumedEvent, RecordingStartedEvent, RecordingStoppedEvent, RecordingTranscriptCompletedEvent, RecordingTrashedEvent, ReportsGetActiveOrInactiveHostReportsQueryParams, ReportsGetActiveOrInactiveHostReportsResponse, ReportsGetBillingInvoiceReportsQueryParams, ReportsGetBillingInvoiceReportsResponse, ReportsGetBillingReportsResponse, ReportsGetCloudRecordingUsageReportQueryParams, ReportsGetCloudRecordingUsageReportResponse, ReportsGetDailyUsageReportQueryParams, ReportsGetDailyUsageReportResponse, ReportsGetHistoryMeetingAndWebinarListQueryParams, ReportsGetHistoryMeetingAndWebinarListResponse, ReportsGetMeetingActivitiesReportQueryParams, ReportsGetMeetingActivitiesReportResponse, ReportsGetMeetingDetailReportsPathParams, ReportsGetMeetingDetailReportsResponse, ReportsGetMeetingParticipantReportsPathParams, ReportsGetMeetingParticipantReportsQueryParams, ReportsGetMeetingParticipantReportsResponse, ReportsGetMeetingPollReportsPathParams, ReportsGetMeetingPollReportsResponse, ReportsGetMeetingQAReportPathParams, ReportsGetMeetingQAReportResponse, ReportsGetMeetingReportsPathParams, ReportsGetMeetingReportsQueryParams, ReportsGetMeetingReportsResponse, ReportsGetMeetingSurveyReportPathParams, ReportsGetMeetingSurveyReportResponse, ReportsGetOperationLogsReportQueryParams, ReportsGetOperationLogsReportResponse, ReportsGetSignInSignOutActivityReportQueryParams, ReportsGetSignInSignOutActivityReportResponse, ReportsGetTelephoneReportsQueryParams, ReportsGetTelephoneReportsResponse, ReportsGetUpcomingEventsReportQueryParams, ReportsGetUpcomingEventsReportResponse, ReportsGetWebinarDetailReportsPathParams, ReportsGetWebinarDetailReportsResponse, ReportsGetWebinarParticipantReportsPathParams, ReportsGetWebinarParticipantReportsQueryParams, ReportsGetWebinarParticipantReportsResponse, ReportsGetWebinarPollReportsPathParams, ReportsGetWebinarPollReportsResponse, ReportsGetWebinarQAReportPathParams, ReportsGetWebinarQAReportResponse, ReportsGetWebinarSurveyReportPathParams, ReportsGetWebinarSurveyReportResponse, S2SAuthToken, SIPPhoneDeleteSIPPhonePathParams, SIPPhoneEnableSIPPhoneRequestBody, SIPPhoneEnableSIPPhoneResponse, SIPPhoneListSIPPhonesQueryParams, SIPPhoneListSIPPhonesResponse, SIPPhoneUpdateSIPPhonePathParams, SIPPhoneUpdateSIPPhoneRequestBody, StateStore, TSPAddUsersTSPAccountPathParams, TSPAddUsersTSPAccountRequestBody, TSPAddUsersTSPAccountResponse, TSPDeleteUsersTSPAccountPathParams, TSPGetAccountsTSPInformationResponse, TSPGetUsersTSPAccountPathParams, TSPGetUsersTSPAccountResponse, TSPListUsersTSPAccountsPathParams, TSPListUsersTSPAccountsResponse, TSPSetGlobalDialInURLForTSPUserPathParams, TSPSetGlobalDialInURLForTSPUserRequestBody, TSPUpdateAccountsTSPInformationRequestBody, TSPUpdateTSPAccountPathParams, TSPUpdateTSPAccountRequestBody, TokenStore, TrackingFieldCreateTrackingFieldRequestBody, TrackingFieldCreateTrackingFieldResponse, TrackingFieldDeleteTrackingFieldPathParams, TrackingFieldGetTrackingFieldPathParams, TrackingFieldGetTrackingFieldResponse, TrackingFieldListTrackingFieldsResponse, TrackingFieldUpdateTrackingFieldPathParams, TrackingFieldUpdateTrackingFieldRequestBody, UserTspCreatedEvent, UserTspDeletedEvent, UserTspUpdatedEvent, WebinarAlertEvent, WebinarChatMessageFileDownloadedEvent, WebinarChatMessageFileSentEvent, WebinarChatMessageSentEvent, WebinarConvertedToMeetingEvent, WebinarCreatedEvent, WebinarDeletedEvent, WebinarEndedEvent, WebinarParticipantBindEvent, WebinarParticipantFeedbackEvent, WebinarParticipantJoinedEvent, WebinarParticipantLeftEvent, WebinarParticipantRoleChangedEvent, WebinarPermanentlyDeletedEvent, WebinarRecoveredEvent, WebinarRegistrationApprovedEvent, WebinarRegistrationCancelledEvent, WebinarRegistrationCreatedEvent, WebinarRegistrationDeniedEvent, WebinarSharingEndedEvent, WebinarSharingStartedEvent, WebinarStartedEvent, WebinarUpdatedEvent, WebinarsAddPanelistsPathParams, WebinarsAddPanelistsRequestBody, WebinarsAddPanelistsResponse, WebinarsAddWebinarRegistrantPathParams, WebinarsAddWebinarRegistrantQueryParams, WebinarsAddWebinarRegistrantRequestBody, WebinarsAddWebinarRegistrantResponse, WebinarsCreateWebinarPathParams, WebinarsCreateWebinarRequestBody, WebinarsCreateWebinarResponse, WebinarsCreateWebinarTemplatePathParams, WebinarsCreateWebinarTemplateRequestBody, WebinarsCreateWebinarTemplateResponse, WebinarsCreateWebinarsBrandingNameTagPathParams, WebinarsCreateWebinarsBrandingNameTagRequestBody, WebinarsCreateWebinarsBrandingNameTagResponse, WebinarsCreateWebinarsInviteLinksPathParams, WebinarsCreateWebinarsInviteLinksRequestBody, WebinarsCreateWebinarsInviteLinksResponse, WebinarsCreateWebinarsPollPathParams, WebinarsCreateWebinarsPollRequestBody, WebinarsCreateWebinarsPollResponse, WebinarsDeleteLiveWebinarMessagePathParams, WebinarsDeleteLiveWebinarMessageQueryParams, WebinarsDeleteWebinarPathParams, WebinarsDeleteWebinarPollPathParams, WebinarsDeleteWebinarQueryParams, WebinarsDeleteWebinarRegistrantPathParams, WebinarsDeleteWebinarRegistrantQueryParams, WebinarsDeleteWebinarSurveyPathParams, WebinarsDeleteWebinarsBrandingNameTagPathParams, WebinarsDeleteWebinarsBrandingNameTagQueryParams, WebinarsDeleteWebinarsBrandingVirtualBackgroundsPathParams, WebinarsDeleteWebinarsBrandingVirtualBackgroundsQueryParams, WebinarsDeleteWebinarsBrandingWallpaperPathParams, WebinarsGetLiveStreamDetailsPathParams, WebinarsGetLiveStreamDetailsResponse, WebinarsGetWebinarAbsenteesPathParams, WebinarsGetWebinarAbsenteesQueryParams, WebinarsGetWebinarAbsenteesResponse, WebinarsGetWebinarPathParams, WebinarsGetWebinarPollPathParams, WebinarsGetWebinarPollResponse, WebinarsGetWebinarQueryParams, WebinarsGetWebinarRegistrantPathParams, WebinarsGetWebinarRegistrantQueryParams, WebinarsGetWebinarRegistrantResponse, WebinarsGetWebinarResponse, WebinarsGetWebinarSIPURIWithPasscodePathParams, WebinarsGetWebinarSIPURIWithPasscodeRequestBody, WebinarsGetWebinarSIPURIWithPasscodeResponse, WebinarsGetWebinarSurveyPathParams, WebinarsGetWebinarSurveyResponse, WebinarsGetWebinarTrackingSourcesPathParams, WebinarsGetWebinarTrackingSourcesResponse, WebinarsGetWebinarsArchiveTokenForLocalArchivingPathParams, WebinarsGetWebinarsArchiveTokenForLocalArchivingResponse, WebinarsGetWebinarsJoinTokenForLiveStreamingPathParams, WebinarsGetWebinarsJoinTokenForLiveStreamingResponse, WebinarsGetWebinarsJoinTokenForLocalRecordingPathParams, WebinarsGetWebinarsJoinTokenForLocalRecordingResponse, WebinarsGetWebinarsSessionBrandingPathParams, WebinarsGetWebinarsSessionBrandingResponse, WebinarsGetWebinarsTokenPathParams, WebinarsGetWebinarsTokenQueryParams, WebinarsGetWebinarsTokenResponse, WebinarsListPanelistsPathParams, WebinarsListPanelistsResponse, WebinarsListPastWebinarInstancesPathParams, WebinarsListPastWebinarInstancesResponse, WebinarsListPastWebinarPollResultsPathParams, WebinarsListPastWebinarPollResultsResponse, WebinarsListQAsOfPastWebinarPathParams, WebinarsListQAsOfPastWebinarResponse, WebinarsListRegistrationQuestionsPathParams, WebinarsListRegistrationQuestionsResponse, WebinarsListWebinarParticipantsPathParams, WebinarsListWebinarParticipantsQueryParams, WebinarsListWebinarParticipantsResponse, WebinarsListWebinarRegistrantsPathParams, WebinarsListWebinarRegistrantsQueryParams, WebinarsListWebinarRegistrantsResponse, WebinarsListWebinarTemplatesPathParams, WebinarsListWebinarTemplatesResponse, WebinarsListWebinarsPathParams, WebinarsListWebinarsPollsPathParams, WebinarsListWebinarsPollsQueryParams, WebinarsListWebinarsPollsResponse, WebinarsListWebinarsQueryParams, WebinarsListWebinarsResponse, WebinarsPerformBatchRegistrationPathParams, WebinarsPerformBatchRegistrationRequestBody, WebinarsPerformBatchRegistrationResponse, WebinarsRemoveAllPanelistsPathParams, WebinarsRemovePanelistPathParams, WebinarsSetWebinarsDefaultBrandingVirtualBackgroundPathParams, WebinarsSetWebinarsDefaultBrandingVirtualBackgroundQueryParams, WebinarsUpdateLiveStreamPathParams, WebinarsUpdateLiveStreamRequestBody, WebinarsUpdateLiveStreamStatusPathParams, WebinarsUpdateLiveStreamStatusRequestBody, WebinarsUpdateRegistrantsStatusPathParams, WebinarsUpdateRegistrantsStatusQueryParams, WebinarsUpdateRegistrantsStatusRequestBody, WebinarsUpdateRegistrationQuestionsPathParams, WebinarsUpdateRegistrationQuestionsRequestBody, WebinarsUpdateWebinarPathParams, WebinarsUpdateWebinarPollPathParams, WebinarsUpdateWebinarPollRequestBody, WebinarsUpdateWebinarQueryParams, WebinarsUpdateWebinarRequestBody, WebinarsUpdateWebinarStatusPathParams, WebinarsUpdateWebinarStatusRequestBody, WebinarsUpdateWebinarSurveyPathParams, WebinarsUpdateWebinarSurveyRequestBody, WebinarsUpdateWebinarsBrandingNameTagPathParams, WebinarsUpdateWebinarsBrandingNameTagRequestBody, WebinarsUploadWebinarsBrandingVirtualBackgroundPathParams, WebinarsUploadWebinarsBrandingVirtualBackgroundRequestBody, WebinarsUploadWebinarsBrandingVirtualBackgroundResponse, WebinarsUploadWebinarsBrandingWallpaperPathParams, WebinarsUploadWebinarsBrandingWallpaperRequestBody, WebinarsUploadWebinarsBrandingWallpaperResponse };

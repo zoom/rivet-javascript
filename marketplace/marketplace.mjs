@@ -1,15 +1,13 @@
-'use strict';
-
-var node_crypto = require('node:crypto');
-var node_http = require('node:http');
-var node_https = require('node:https');
-var axios = require('axios');
-var dayjs = require('dayjs');
-var node_buffer = require('node:buffer');
-var jose = require('jose');
-var FormData = require('form-data');
-var os = require('node:os');
-var node_path = require('node:path');
+import { createHmac, randomBytes } from 'node:crypto';
+import { createServer as createServer$1 } from 'node:http';
+import { createServer } from 'node:https';
+import axios from 'axios';
+import dayjs from 'dayjs';
+import { Buffer as Buffer$1 } from 'node:buffer';
+import { SignJWT, jwtVerify } from 'jose';
+import FormData from 'form-data';
+import os from 'node:os';
+import { basename } from 'node:path';
 
 /**
  * Guard if an object implements the {@link StateStore} interface — most notably,
@@ -73,29 +71,29 @@ const OAuthTokenRefreshFailedError = createCoreError("OAuthTokenRefreshFailedErr
 const OAuthStateVerificationFailedError = createCoreError("OAuthStateVerificationFailedError");
 const ProductClientConstructionError = createCoreError("ProductClientConstructionError");
 
-exports.LogLevel = void 0;
+var LogLevel;
 (function (LogLevel) {
     LogLevel["ERROR"] = "error";
     LogLevel["WARN"] = "warn";
     LogLevel["INFO"] = "info";
     LogLevel["DEBUG"] = "debug";
-})(exports.LogLevel || (exports.LogLevel = {}));
+})(LogLevel || (LogLevel = {}));
 class ConsoleLogger {
     level;
     name;
     static labels = (() => {
-        const entries = Object.entries(exports.LogLevel);
+        const entries = Object.entries(LogLevel);
         const map = entries.map(([key, value]) => [value, `[${key}] `]);
         return new Map(map);
     })();
     static severity = {
-        [exports.LogLevel.ERROR]: 400,
-        [exports.LogLevel.WARN]: 300,
-        [exports.LogLevel.INFO]: 200,
-        [exports.LogLevel.DEBUG]: 100
+        [LogLevel.ERROR]: 400,
+        [LogLevel.WARN]: 300,
+        [LogLevel.INFO]: 200,
+        [LogLevel.DEBUG]: 100
     };
     constructor() {
-        this.level = exports.LogLevel.INFO;
+        this.level = LogLevel.INFO;
         this.name = "";
     }
     getLevel() {
@@ -108,23 +106,23 @@ class ConsoleLogger {
         this.name = name;
     }
     debug(...msg) {
-        if (ConsoleLogger.isMoreOrEqualSevere(exports.LogLevel.DEBUG, this.level)) {
-            console.debug(ConsoleLogger.labels.get(exports.LogLevel.DEBUG), this.name, ...msg);
+        if (ConsoleLogger.isMoreOrEqualSevere(LogLevel.DEBUG, this.level)) {
+            console.debug(ConsoleLogger.labels.get(LogLevel.DEBUG), this.name, ...msg);
         }
     }
     info(...msg) {
-        if (ConsoleLogger.isMoreOrEqualSevere(exports.LogLevel.INFO, this.level)) {
-            console.info(ConsoleLogger.labels.get(exports.LogLevel.INFO), this.name, ...msg);
+        if (ConsoleLogger.isMoreOrEqualSevere(LogLevel.INFO, this.level)) {
+            console.info(ConsoleLogger.labels.get(LogLevel.INFO), this.name, ...msg);
         }
     }
     warn(...msg) {
-        if (ConsoleLogger.isMoreOrEqualSevere(exports.LogLevel.WARN, this.level)) {
-            console.warn(ConsoleLogger.labels.get(exports.LogLevel.WARN), this.name, ...msg);
+        if (ConsoleLogger.isMoreOrEqualSevere(LogLevel.WARN, this.level)) {
+            console.warn(ConsoleLogger.labels.get(LogLevel.WARN), this.name, ...msg);
         }
     }
     error(...msg) {
-        if (ConsoleLogger.isMoreOrEqualSevere(exports.LogLevel.ERROR, this.level)) {
-            console.error(ConsoleLogger.labels.get(exports.LogLevel.ERROR), this.name, ...msg);
+        if (ConsoleLogger.isMoreOrEqualSevere(LogLevel.ERROR, this.level)) {
+            console.error(ConsoleLogger.labels.get(LogLevel.ERROR), this.name, ...msg);
         }
     }
     static isMoreOrEqualSevere(a, b) {
@@ -176,7 +174,7 @@ class EventManager {
 
 /** @internal */
 const hashUrlValidationEvent = ({ payload: { plainToken } }, webhooksSecretToken) => ({
-    encryptedToken: node_crypto.createHmac("sha256", webhooksSecretToken).update(plainToken).digest("hex"),
+    encryptedToken: createHmac("sha256", webhooksSecretToken).update(plainToken).digest("hex"),
     plainToken
 });
 const isHashedUrlValidation = (obj) => typeof obj.encryptedToken === "string" &&
@@ -232,7 +230,7 @@ class CommonHttpRequest {
     isEventVerified() {
         const { signature, requestTimestamp } = this.parseHeaders();
         const messageToVerify = `v0:${requestTimestamp.toString()}:${JSON.stringify(this.payload)}`;
-        const hashToVerify = node_crypto.createHmac("sha256", this.webhooksSecretToken).update(messageToVerify).digest("hex");
+        const hashToVerify = createHmac("sha256", this.webhooksSecretToken).update(messageToVerify).digest("hex");
         const signatureToVerify = `v0=${hashToVerify}`;
         return signatureToVerify === signature;
     }
@@ -265,7 +263,7 @@ class CommonHttpRequest {
     }
 }
 
-exports.StatusCode = void 0;
+var StatusCode;
 (function (StatusCode) {
     StatusCode[StatusCode["OK"] = 200] = "OK";
     StatusCode[StatusCode["TEMPORARY_REDIRECT"] = 302] = "TEMPORARY_REDIRECT";
@@ -273,7 +271,7 @@ exports.StatusCode = void 0;
     StatusCode[StatusCode["NOT_FOUND"] = 404] = "NOT_FOUND";
     StatusCode[StatusCode["METHOD_NOT_ALLOWED"] = 405] = "METHOD_NOT_ALLOWED";
     StatusCode[StatusCode["INTERNAL_SERVER_ERROR"] = 500] = "INTERNAL_SERVER_ERROR";
-})(exports.StatusCode || (exports.StatusCode = {}));
+})(StatusCode || (StatusCode = {}));
 
 class AwsLambdaReceiver {
     eventEmitter;
@@ -301,20 +299,20 @@ class AwsLambdaReceiver {
                 const request = CommonHttpRequest.buildFromAwsEvent(event, this.webhooksSecretToken);
                 const processedEvent = request.processEvent();
                 if (isHashedUrlValidation(processedEvent)) {
-                    return this.buildResponse(exports.StatusCode.OK, processedEvent);
+                    return this.buildResponse(StatusCode.OK, processedEvent);
                 }
                 else {
                     await this.eventEmitter?.emit(processedEvent.event, processedEvent);
-                    return this.buildResponse(exports.StatusCode.OK, { message: "Zoom event processed successfully." });
+                    return this.buildResponse(StatusCode.OK, { message: "Zoom event processed successfully." });
                 }
             }
             catch (err) {
                 if (isCoreError(err, "CommonHttpRequestError")) {
-                    return this.buildResponse(exports.StatusCode.BAD_REQUEST, { error: err.message });
+                    return this.buildResponse(StatusCode.BAD_REQUEST, { error: err.message });
                 }
                 else {
                     console.error(err);
-                    return this.buildResponse(exports.StatusCode.INTERNAL_SERVER_ERROR, {
+                    return this.buildResponse(StatusCode.INTERNAL_SERVER_ERROR, {
                         error: "An unknown error occurred. Please try again later."
                     });
                 }
@@ -368,7 +366,7 @@ class Auth {
     }
     getBasicAuthorization() {
         const clientCredentials = `${this.clientId}:${this.clientSecret}`;
-        return node_buffer.Buffer.from(clientCredentials).toString("base64");
+        return Buffer$1.from(clientCredentials).toString("base64");
     }
     isAlmostExpired(isoTime) {
         const currentDate = dayjs();
@@ -401,7 +399,7 @@ class JwtStateStore {
     async generateState() {
         const issuedTime = dayjs();
         const expirationTime = issuedTime.add(this.expirationSeconds, "seconds");
-        return await new jose.SignJWT({ random: node_crypto.randomBytes(8).toString("hex") })
+        return await new SignJWT({ random: randomBytes(8).toString("hex") })
             .setProtectedHeader({ alg: "HS256", typ: "JWT" })
             .setExpirationTime(expirationTime.toDate())
             .setIssuedAt(issuedTime.toDate())
@@ -410,7 +408,7 @@ class JwtStateStore {
     }
     async verifyState(state) {
         try {
-            await jose.jwtVerify(state, this.encodedSecret, {
+            await jwtVerify(state, this.encodedSecret, {
                 algorithms: ["HS256"],
                 issuer: ISSUER_URN,
                 typ: "JWT"
@@ -430,6 +428,8 @@ const DEFAULT_STATE_COOKIE_NAME = "zoom-oauth-state";
 const DEFAULT_STATE_COOKIE_MAX_AGE = 600; // 10 minutes in seconds
 const MAXIMUM_STATE_MAX_AGE = 3600; // 1 hour in seconds
 const OAUTH_AUTHORIZE_PATH = "/oauth/authorize";
+const hasInstallerOptions = (obj) => typeof obj.installerOptions.redirectUri !== "undefined" &&
+    typeof obj.installerOptions.stateStore !== "undefined";
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
  * is initiated server-side, but requires manual authorization from a user, by redirecting the user to Zoom.
@@ -597,7 +597,7 @@ class HttpReceiver {
             options.logger ??
                 (() => {
                     const defaultLogger = new ConsoleLogger();
-                    defaultLogger.setLevel(options.logLevel ?? exports.LogLevel.ERROR);
+                    defaultLogger.setLevel(options.logLevel ?? LogLevel.ERROR);
                     return defaultLogger;
                 })();
     }
@@ -618,7 +618,7 @@ class HttpReceiver {
             ?.trim();
     }
     getServerCreator() {
-        return this.hasSecureOptions() ? node_https.createServer : node_http.createServer;
+        return this.hasSecureOptions() ? createServer : createServer$1;
     }
     hasEndpoint(pathname) {
         const { endpoints } = this.options;
@@ -666,7 +666,7 @@ class HttpReceiver {
                         const stateCookie = this.buildStateCookieHeader(installerOptions.stateCookieName, generatedState, installerOptions.stateCookieMaxAge);
                         await (installerOptions.directInstall ?
                             this.writeTemporaryRedirect(res, fullUrl, stateCookie)
-                            : this.writeResponse(res, exports.StatusCode.OK, defaultInstallTemplate(fullUrl), stateCookie));
+                            : this.writeResponse(res, StatusCode.OK, defaultInstallTemplate(fullUrl), stateCookie));
                         return;
                     }
                     // The user has navigated to the redirect page; init the code
@@ -691,7 +691,7 @@ class HttpReceiver {
                             }
                             await interactiveAuth.initRedirectCode(authCodeParam);
                             const deletionStateCookie = this.buildDeletedStateCookieHeader(installerOptions.stateCookieName);
-                            await this.writeResponse(res, exports.StatusCode.OK, defaultCallbackSuccessTemplate(), deletionStateCookie);
+                            await this.writeResponse(res, StatusCode.OK, defaultCallbackSuccessTemplate(), deletionStateCookie);
                             return;
                         }
                         catch (err) {
@@ -699,7 +699,7 @@ class HttpReceiver {
                                 defaultCallbackKnownErrorTemplate(err.name, err.message)
                                 : defaultCallbackUnknownErrorTemplate();
                             const deletionStateCookie = this.buildDeletedStateCookieHeader(installerOptions.stateCookieName);
-                            await this.writeResponse(res, exports.StatusCode.INTERNAL_SERVER_ERROR, htmlTemplate, deletionStateCookie);
+                            await this.writeResponse(res, StatusCode.INTERNAL_SERVER_ERROR, htmlTemplate, deletionStateCookie);
                             return;
                         }
                     }
@@ -709,12 +709,12 @@ class HttpReceiver {
                 if (this.options.webhooksSecretToken) {
                     // We currently only support a single endpoint, though this will change in the future.
                     if (!this.hasEndpoint(pathname)) {
-                        await this.writeResponse(res, exports.StatusCode.NOT_FOUND);
+                        await this.writeResponse(res, StatusCode.NOT_FOUND);
                         return;
                     }
                     // We currently only support POST requests, as that's what Zoom sends.
                     if (req.method !== "post" && req.method !== "POST") {
-                        await this.writeResponse(res, exports.StatusCode.METHOD_NOT_ALLOWED);
+                        await this.writeResponse(res, StatusCode.METHOD_NOT_ALLOWED);
                         return;
                     }
                     try {
@@ -722,20 +722,20 @@ class HttpReceiver {
                         const request = await CommonHttpRequest.buildFromIncomingMessage(req, webhooksSecretToken);
                         const processedEvent = request.processEvent();
                         if (isHashedUrlValidation(processedEvent)) {
-                            await this.writeResponse(res, exports.StatusCode.OK, processedEvent);
+                            await this.writeResponse(res, StatusCode.OK, processedEvent);
                         }
                         else {
                             await this.eventEmitter?.emit(processedEvent.event, processedEvent);
-                            await this.writeResponse(res, exports.StatusCode.OK, { message: "Zoom event processed successfully." });
+                            await this.writeResponse(res, StatusCode.OK, { message: "Zoom event processed successfully." });
                         }
                     }
                     catch (err) {
                         if (isCoreError(err, "CommonHttpRequestError")) {
-                            await this.writeResponse(res, exports.StatusCode.BAD_REQUEST, { error: err.message });
+                            await this.writeResponse(res, StatusCode.BAD_REQUEST, { error: err.message });
                         }
                         else {
                             console.error(err);
-                            await this.writeResponse(res, exports.StatusCode.INTERNAL_SERVER_ERROR, {
+                            await this.writeResponse(res, StatusCode.INTERNAL_SERVER_ERROR, {
                                 error: "An unknown error occurred. Please try again later."
                             });
                         }
@@ -777,7 +777,7 @@ class HttpReceiver {
             if (setCookie) {
                 this.setResponseCookie(res, setCookie);
             }
-            res.writeHead(exports.StatusCode.TEMPORARY_REDIRECT, { Location: location });
+            res.writeHead(StatusCode.TEMPORARY_REDIRECT, { Location: location });
             res.end(() => {
                 resolve();
             });
@@ -795,88 +795,6 @@ class HttpReceiver {
                 resolve();
             });
         });
-    }
-}
-
-class ClientCredentialsAuth extends Auth {
-    assertRawToken(obj) {
-        if (typeof obj.access_token !== "string" ||
-            typeof obj.expires_in !== "number" ||
-            typeof obj.scope !== "string") {
-            throw new ClientCredentialsRawResponseError(`Failed to match raw response ${JSON.stringify(obj)} to expected shape.`);
-        }
-    }
-    async fetchClientCredentials() {
-        const response = await this.makeOAuthTokenRequest("client_credentials");
-        this.assertRawToken(response.data);
-        return this.mapClientCredentials(response.data);
-    }
-    async getToken() {
-        const { tokenStore } = this;
-        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
-        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
-            return currentToken.accessToken;
-        }
-        const clientCredentials = await this.fetchClientCredentials();
-        await Promise.resolve(tokenStore.storeToken(clientCredentials));
-        return clientCredentials.accessToken;
-    }
-    mapClientCredentials({ access_token, expires_in, scope }) {
-        return {
-            accessToken: access_token,
-            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
-            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
-        };
-    }
-}
-
-// Utility functions for determining if client options include custom receiver, or, if not,
-// a webhooks secret token, as one of those is required!
-const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
-const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
-const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
-const DEFAULT_HTTP_RECEIVER_PORT = 8080;
-const DEFAULT_LOGLEVEL = exports.LogLevel.ERROR;
-class ProductClient {
-    auth;
-    endpoints;
-    webEventConsumer;
-    receiver;
-    constructor(options) {
-        this.auth = this.initAuth(options);
-        this.endpoints = this.initEndpoints(this.auth, options);
-        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
-        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
-        if (!isReceiverDisabled(options)) {
-            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
-            // This is mainly applicable for products where we expect webhooks to be used; in events where webhooks are not
-            // expected, then it's perfectly fine for the developer to not provide a receiver of a webhooks secret token.
-            if (this.webEventConsumer && !hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
-                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
-            }
-            this.receiver = (hasExplicitReceiver(options) ?
-                options.receiver
-                : this.initDefaultReceiver(options));
-            this.receiver.init({
-                eventEmitter: this.webEventConsumer,
-                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
-            });
-        }
-    }
-    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
-        return new HttpReceiver({
-            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
-            webhooksSecretToken,
-            logLevel: logLevel ?? DEFAULT_LOGLEVEL
-        });
-    }
-    async start() {
-        if (!this.receiver) {
-            throw new ReceiverInconsistentStateError("Receiver failed to construct. Was disableReceiver set to true?");
-        }
-        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
-        // may or may not return a promise. This is not required when implementing `Receiver`.
-        return (await Promise.resolve(this.receiver.start()));
     }
 }
 
@@ -918,7 +836,7 @@ class WebEndpoints {
         const customUserAgentName = this.getCustomUserAgentName();
         const userAgent = `rivet/${packageJson.version}${customUserAgentName ? ` (${customUserAgentName})` : ""}`;
         return (`${userAgent} ` +
-            `${node_path.basename(process.title)}/${process.version.replace("v", "")} ` +
+            `${basename(process.title)}/${process.version.replace("v", "")} ` +
             `${os.platform()}/${os.release()}`);
     }
     getCustomUserAgentName() {
@@ -993,140 +911,245 @@ class WebEndpoints {
     }
 }
 
-class ChatbotEndpoints extends WebEndpoints {
-    messages = {
-        /** Insert Send Docs here */
-        sendChatbotMessage: this.buildEndpoint({
+class MarketplaceEndpoints extends WebEndpoints {
+    app = {
+        sendAppNotifications: this.buildEndpoint({
             method: "POST",
-            urlPathBuilder: () => `/im/chat/messages`
+            urlPathBuilder: () => `/app/notifications`
         }),
-        editChatbotMessage: this.buildEndpoint({
-            method: "PUT",
-            urlPathBuilder: ({ message_id }) => `/im/chat/messages/${message_id}`
-        }),
-        deleteChatbotMessage: this.buildEndpoint({
+        getUserOrAccountEventSubscription: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/marketplace/app/event_subscription` }),
+        createEventSubscription: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/marketplace/app/event_subscription` }),
+        unsubscribeAppEventSubscription: this.buildEndpoint({ method: "DELETE", urlPathBuilder: () => `/marketplace/app/event_subscription` }),
+        deleteEventSubscription: this.buildEndpoint({
             method: "DELETE",
-            urlPathBuilder: ({ message_id }) => `/im/chat/messages/${message_id}`
+            urlPathBuilder: ({ eventSubscriptionId }) => `/marketplace/app/event_subscription/${eventSubscriptionId}`
         }),
-        linkUnfurls: this.buildEndpoint({
+        subscribeEventSubscription: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ eventSubscriptionId }) => `/marketplace/app/event_subscription/${eventSubscriptionId}`
+        }),
+        listApps: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: () => `/marketplace/apps`
+        }),
+        createApps: this.buildEndpoint({
             method: "POST",
-            urlPathBuilder: ({ userId, triggerId }) => `/im/chat/users/${userId}/unfurls/${triggerId}`
-        })
+            urlPathBuilder: () => `/marketplace/apps`
+        }),
+        getInformationAboutApp: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}` }),
+        deletesApp: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}`
+        }),
+        getAPICallLogs: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/api_call_logs` }),
+        generateZoomAppDeeplink: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/deeplink` }),
+        updateAppPreApprovalSetting: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/preApprove` }),
+        getAppsUserRequests: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/requests` }),
+        addAppAllowRequestsForUsers: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/requests` }),
+        updateAppsRequestStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/requests` }),
+        rotateClientSecret: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/rotate_client_secret` }),
+        getWebhookLogs: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/webhook_logs` }),
+        getAppUserEntitlements: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/marketplace/monetization/entitlements` }),
+        getUsersAppRequests: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/marketplace/users/${userId}/apps` }),
+        enableOrDisableUserAppSubscription: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ appId, userId }) => `/marketplace/users/${userId}/apps/${appId}/subscription`
+        }),
+        getUsersEntitlements: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/marketplace/users/${userId}/entitlements` })
+    };
+    apps = {
+        generateAppDeeplink: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/zoomapp/deeplink` })
+    };
+    manifest = {
+        validateAppManifest: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/marketplace/apps/manifest/validate` }),
+        exportAppManifestFromExistingApp: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/manifest` }),
+        updateAppByManifest: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/manifest` })
     };
 }
 
-function compareCandidate(pattern, candidate) {
-    if (!candidate) {
-        return false;
-    }
-    if (typeof pattern === "string") {
-        if (pattern === "*") {
-            return true;
+class MarketplaceEventProcessor extends EventManager {
+}
+
+class OAuth extends InteractiveAuth {
+    assertResponseAccessToken(data) {
+        if (typeof data.access_token !== "string" ||
+            typeof data.refresh_token !== "string" ||
+            typeof data.expires_in !== "number" ||
+            typeof data.scope !== "string") {
+            throw new OAuthTokenRawResponseError(`Failed to match raw response (${JSON.stringify(data)}) to expected shape.`);
         }
-        return pattern.includes(candidate);
     }
-    else if (pattern instanceof RegExp) {
-        return pattern.test(candidate);
-    }
-    else {
-        throw new Error("Pattern must be a string or regular expression");
-    }
-}
-
-function createMessageElement(message_text) {
-    return {
-        type: "message",
-        text: message_text
-    };
-}
-function createMessage(message_text) {
-    return {
-        body: [createMessageElement(message_text)]
-    };
-}
-
-const createContent = (stringOrCardContent) => {
-    let content;
-    if (typeof stringOrCardContent === "string") {
-        content = createMessage(stringOrCardContent);
-    }
-    else {
-        content = stringOrCardContent;
-    }
-    return content;
-};
-class ChatbotEventProcessor extends EventManager {
-    onSlashCommand(commandName, listener) {
-        this.filteredEvent("bot_notification", ({ payload }) => compareCandidate(commandName, payload.cmd), async (payload) => {
-            await listener({
-                say: async (stringOrCardContent) => {
-                    return await this.endpoints.messages.sendChatbotMessage({
-                        body: {
-                            robot_jid: payload.payload.robotJid,
-                            account_id: payload.payload.accountId,
-                            to_jid: payload.payload.toJid,
-                            user_jid: payload.payload.userId,
-                            content: createContent(stringOrCardContent)
-                        }
-                    });
-                },
-                ...payload
+    async fetchAccessToken(code) {
+        try {
+            const response = await this.makeOAuthTokenRequest("authorization_code", {
+                code,
+                redirect_uri: this.getFullRedirectUri()
             });
+            this.assertResponseAccessToken(response.data);
+            return this.mapOAuthToken(response.data);
+        }
+        catch (err) {
+            throw new OAuthTokenFetchFailedError("Failed to fetch OAuth token.", { cause: err });
+        }
+    }
+    async getToken() {
+        const { tokenStore } = this;
+        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
+        // If we have no OAuth token, app most likely has not been previously authorized.
+        if (!currentToken) {
+            throw new OAuthTokenDoesNotExistError("Failed to find OAuth token. Authorize this app first.");
+        }
+        // If the OAuth token hasn't already expired (and isn't within the delta), return it.
+        if (!this.isAlmostExpired(currentToken.expirationTimeIso)) {
+            return currentToken.accessToken;
+        }
+        // Since the token has expired, refresh, store, and return it.
+        const refreshedToken = await this.refreshAccessToken(currentToken.refreshToken);
+        await Promise.resolve(tokenStore.storeToken(refreshedToken));
+        return refreshedToken.accessToken;
+    }
+    async initRedirectCode(code) {
+        const { tokenStore } = this;
+        const accessToken = await this.fetchAccessToken(code);
+        await Promise.resolve(tokenStore.storeToken(accessToken));
+    }
+    mapOAuthToken({ access_token, expires_in, refresh_token, scope }) {
+        return {
+            accessToken: access_token,
+            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
+            refreshToken: refresh_token,
+            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
+        };
+    }
+    async refreshAccessToken(refreshToken) {
+        try {
+            const response = await this.makeOAuthTokenRequest("refresh_token", {
+                refresh_token: refreshToken
+            });
+            this.assertResponseAccessToken(response.data);
+            return this.mapOAuthToken(response.data);
+        }
+        catch (err) {
+            throw new OAuthTokenRefreshFailedError("Failed to refresh OAuth token.", { cause: err });
+        }
+    }
+}
+
+// Utility functions for determining if client options include custom receiver, or, if not,
+// a webhooks secret token, as one of those is required!
+const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
+const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
+const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
+const DEFAULT_HTTP_RECEIVER_PORT = 8080;
+const DEFAULT_LOGLEVEL = LogLevel.ERROR;
+class ProductClient {
+    auth;
+    endpoints;
+    webEventConsumer;
+    receiver;
+    constructor(options) {
+        this.auth = this.initAuth(options);
+        this.endpoints = this.initEndpoints(this.auth, options);
+        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
+        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
+        if (!isReceiverDisabled(options)) {
+            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
+            // This is mainly applicable for products where we expect webhooks to be used; in events where webhooks are not
+            // expected, then it's perfectly fine for the developer to not provide a receiver of a webhooks secret token.
+            if (this.webEventConsumer && !hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
+                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
+            }
+            this.receiver = (hasExplicitReceiver(options) ?
+                options.receiver
+                : this.initDefaultReceiver(options));
+            this.receiver.init({
+                eventEmitter: this.webEventConsumer,
+                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
+            });
+        }
+    }
+    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
+        return new HttpReceiver({
+            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
+            webhooksSecretToken,
+            logLevel: logLevel ?? DEFAULT_LOGLEVEL
         });
     }
-    onButtonClick(actionId, listener) {
-        this.filteredEvent("interactive_message_actions", ({ payload }) => compareCandidate(actionId, payload.actionItem.value), async (payload) => {
-            await listener({
-                say: async (stringOrCardContent) => {
-                    return await this.endpoints.messages.sendChatbotMessage({
-                        body: {
-                            robot_jid: payload.payload.robotJid,
-                            account_id: payload.payload.accountId,
-                            to_jid: payload.payload.toJid,
-                            user_jid: payload.payload.userId,
-                            content: createContent(stringOrCardContent)
-                        }
-                    });
-                },
-                ...payload
-            });
-        });
+    async start() {
+        if (!this.receiver) {
+            throw new ReceiverInconsistentStateError("Receiver failed to construct. Was disableReceiver set to true?");
+        }
+        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
+        // may or may not return a promise. This is not required when implementing `Receiver`.
+        return (await Promise.resolve(this.receiver.start()));
     }
 }
 
-class ChatbotClient extends ProductClient {
-    initAuth({ clientId, clientSecret, tokenStore }) {
-        return new ClientCredentialsAuth({ clientId, clientSecret, tokenStore });
+class MarketplaceOAuthClient extends ProductClient {
+    initAuth({ clientId, clientSecret, tokenStore, ...restOptions }) {
+        const oAuth = new OAuth({ clientId, clientSecret, tokenStore });
+        if (hasInstallerOptions(restOptions)) {
+            oAuth.setInstallerOptions(restOptions.installerOptions);
+        }
+        return oAuth;
     }
     initEndpoints(auth, options) {
-        return new ChatbotEndpoints({ auth, ...options });
+        return new MarketplaceEndpoints({ auth, ...options });
     }
     initEventProcessor(endpoints) {
-        return new ChatbotEventProcessor(endpoints);
+        return new MarketplaceEventProcessor(endpoints);
     }
 }
 
-exports.ApiResponseError = ApiResponseError;
-exports.AwsLambdaReceiver = AwsLambdaReceiver;
-exports.AwsReceiverRequestError = AwsReceiverRequestError;
-exports.ChatbotClient = ChatbotClient;
-exports.ChatbotEventProcessor = ChatbotEventProcessor;
-exports.ClientCredentialsRawResponseError = ClientCredentialsRawResponseError;
-exports.CommonHttpRequestError = CommonHttpRequestError;
-exports.ConsoleLogger = ConsoleLogger;
-exports.HTTPReceiverConstructionError = HTTPReceiverConstructionError;
-exports.HTTPReceiverPortNotNumberError = HTTPReceiverPortNotNumberError;
-exports.HTTPReceiverRequestError = HTTPReceiverRequestError;
-exports.HttpReceiver = HttpReceiver;
-exports.OAuthInstallerNotInitializedError = OAuthInstallerNotInitializedError;
-exports.OAuthStateVerificationFailedError = OAuthStateVerificationFailedError;
-exports.OAuthTokenDoesNotExistError = OAuthTokenDoesNotExistError;
-exports.OAuthTokenFetchFailedError = OAuthTokenFetchFailedError;
-exports.OAuthTokenRawResponseError = OAuthTokenRawResponseError;
-exports.OAuthTokenRefreshFailedError = OAuthTokenRefreshFailedError;
-exports.ProductClientConstructionError = ProductClientConstructionError;
-exports.ReceiverInconsistentStateError = ReceiverInconsistentStateError;
-exports.ReceiverOAuthFlowError = ReceiverOAuthFlowError;
-exports.S2SRawResponseError = S2SRawResponseError;
-exports.isCoreError = isCoreError;
-exports.isStateStore = isStateStore;
+class S2SAuth extends Auth {
+    accountId;
+    constructor({ accountId, ...restOptions }) {
+        super(restOptions);
+        this.accountId = accountId;
+    }
+    assertRawToken(obj) {
+        if (typeof obj.access_token !== "string" ||
+            typeof obj.expires_in !== "number" ||
+            typeof obj.scope !== "string") {
+            throw new S2SRawResponseError(`Failed to match raw response ${JSON.stringify(obj)} to expected shape.`);
+        }
+    }
+    async fetchAccessToken() {
+        const response = await this.makeOAuthTokenRequest("account_credentials", {
+            account_id: this.accountId
+        });
+        this.assertRawToken(response.data);
+        return this.mapAccessToken(response.data);
+    }
+    async getToken() {
+        const { tokenStore } = this;
+        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
+        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
+            return currentToken.accessToken;
+        }
+        const token = await this.fetchAccessToken();
+        await Promise.resolve(tokenStore.storeToken(token));
+        return token.accessToken;
+    }
+    mapAccessToken({ access_token, expires_in, scope }) {
+        return {
+            accessToken: access_token,
+            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
+            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
+        };
+    }
+}
+
+class MarketplaceS2SAuthClient extends ProductClient {
+    initAuth({ clientId, clientSecret, tokenStore, accountId }) {
+        return new S2SAuth({ clientId, clientSecret, tokenStore, accountId });
+    }
+    initEndpoints(auth, options) {
+        return new MarketplaceEndpoints({ auth, ...options });
+    }
+    initEventProcessor(endpoints) {
+        return new MarketplaceEventProcessor(endpoints);
+    }
+}
+
+export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, LogLevel, MarketplaceEndpoints, MarketplaceEventProcessor, MarketplaceOAuthClient, MarketplaceS2SAuthClient, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, ReceiverInconsistentStateError, ReceiverOAuthFlowError, S2SRawResponseError, StatusCode, isCoreError, isStateStore };

@@ -1,13 +1,17 @@
 import Chatbot from "./chatbot/chatbot.d.ts";
+import Commerce from "./commerce/commerce.d.ts";
 import TeamChat from "./teamchat/teamchat.d.ts";
 import Users from "./users/users.d.ts";
+import Marketplace from "./marketplace/marketplace.d.ts";
 import Phone from "./phone/phone.d.ts";
 import Accounts from "./accounts/accounts.d.ts";
 import Meetings from "./meetings/meetings.d.ts";
 import VideoSdk from "./videosdk/videosdk.d.ts";
 export import Chatbot = Chatbot;
+export import Commerce = Commerce;
 export import TeamChat = TeamChat;
 export import Users = Users;
+export import Marketplace = Marketplace;
 export import Phone = Phone;
 export import Accounts = Accounts;
 export import Meetings = Meetings;

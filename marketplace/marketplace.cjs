@@ -430,6 +430,8 @@ const DEFAULT_STATE_COOKIE_NAME = "zoom-oauth-state";
 const DEFAULT_STATE_COOKIE_MAX_AGE = 600; // 10 minutes in seconds
 const MAXIMUM_STATE_MAX_AGE = 3600; // 1 hour in seconds
 const OAUTH_AUTHORIZE_PATH = "/oauth/authorize";
+const hasInstallerOptions = (obj) => typeof obj.installerOptions.redirectUri !== "undefined" &&
+    typeof obj.installerOptions.stateStore !== "undefined";
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
  * is initiated server-side, but requires manual authorization from a user, by redirecting the user to Zoom.
@@ -798,88 +800,6 @@ class HttpReceiver {
     }
 }
 
-class ClientCredentialsAuth extends Auth {
-    assertRawToken(obj) {
-        if (typeof obj.access_token !== "string" ||
-            typeof obj.expires_in !== "number" ||
-            typeof obj.scope !== "string") {
-            throw new ClientCredentialsRawResponseError(`Failed to match raw response ${JSON.stringify(obj)} to expected shape.`);
-        }
-    }
-    async fetchClientCredentials() {
-        const response = await this.makeOAuthTokenRequest("client_credentials");
-        this.assertRawToken(response.data);
-        return this.mapClientCredentials(response.data);
-    }
-    async getToken() {
-        const { tokenStore } = this;
-        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
-        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
-            return currentToken.accessToken;
-        }
-        const clientCredentials = await this.fetchClientCredentials();
-        await Promise.resolve(tokenStore.storeToken(clientCredentials));
-        return clientCredentials.accessToken;
-    }
-    mapClientCredentials({ access_token, expires_in, scope }) {
-        return {
-            accessToken: access_token,
-            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
-            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
-        };
-    }
-}
-
-// Utility functions for determining if client options include custom receiver, or, if not,
-// a webhooks secret token, as one of those is required!
-const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
-const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
-const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
-const DEFAULT_HTTP_RECEIVER_PORT = 8080;
-const DEFAULT_LOGLEVEL = exports.LogLevel.ERROR;
-class ProductClient {
-    auth;
-    endpoints;
-    webEventConsumer;
-    receiver;
-    constructor(options) {
-        this.auth = this.initAuth(options);
-        this.endpoints = this.initEndpoints(this.auth, options);
-        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
-        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
-        if (!isReceiverDisabled(options)) {
-            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
-            // This is mainly applicable for products where we expect webhooks to be used; in events where webhooks are not
-            // expected, then it's perfectly fine for the developer to not provide a receiver of a webhooks secret token.
-            if (this.webEventConsumer && !hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
-                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
-            }
-            this.receiver = (hasExplicitReceiver(options) ?
-                options.receiver
-                : this.initDefaultReceiver(options));
-            this.receiver.init({
-                eventEmitter: this.webEventConsumer,
-                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
-            });
-        }
-    }
-    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
-        return new HttpReceiver({
-            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
-            webhooksSecretToken,
-            logLevel: logLevel ?? DEFAULT_LOGLEVEL
-        });
-    }
-    async start() {
-        if (!this.receiver) {
-            throw new ReceiverInconsistentStateError("Receiver failed to construct. Was disableReceiver set to true?");
-        }
-        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
-        // may or may not return a promise. This is not required when implementing `Receiver`.
-        return (await Promise.resolve(this.receiver.start()));
-    }
-}
-
 const version = "0.4.0";
 var packageJson = {
   version: version};
@@ -993,124 +913,250 @@ class WebEndpoints {
     }
 }
 
-class ChatbotEndpoints extends WebEndpoints {
-    messages = {
-        /** Insert Send Docs here */
-        sendChatbotMessage: this.buildEndpoint({
+class MarketplaceEndpoints extends WebEndpoints {
+    app = {
+        sendAppNotifications: this.buildEndpoint({
             method: "POST",
-            urlPathBuilder: () => `/im/chat/messages`
+            urlPathBuilder: () => `/app/notifications`
         }),
-        editChatbotMessage: this.buildEndpoint({
-            method: "PUT",
-            urlPathBuilder: ({ message_id }) => `/im/chat/messages/${message_id}`
-        }),
-        deleteChatbotMessage: this.buildEndpoint({
+        getUserOrAccountEventSubscription: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/marketplace/app/event_subscription` }),
+        createEventSubscription: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/marketplace/app/event_subscription` }),
+        unsubscribeAppEventSubscription: this.buildEndpoint({ method: "DELETE", urlPathBuilder: () => `/marketplace/app/event_subscription` }),
+        deleteEventSubscription: this.buildEndpoint({
             method: "DELETE",
-            urlPathBuilder: ({ message_id }) => `/im/chat/messages/${message_id}`
+            urlPathBuilder: ({ eventSubscriptionId }) => `/marketplace/app/event_subscription/${eventSubscriptionId}`
         }),
-        linkUnfurls: this.buildEndpoint({
+        subscribeEventSubscription: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ eventSubscriptionId }) => `/marketplace/app/event_subscription/${eventSubscriptionId}`
+        }),
+        listApps: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: () => `/marketplace/apps`
+        }),
+        createApps: this.buildEndpoint({
             method: "POST",
-            urlPathBuilder: ({ userId, triggerId }) => `/im/chat/users/${userId}/unfurls/${triggerId}`
-        })
+            urlPathBuilder: () => `/marketplace/apps`
+        }),
+        getInformationAboutApp: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}` }),
+        deletesApp: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}`
+        }),
+        getAPICallLogs: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/api_call_logs` }),
+        generateZoomAppDeeplink: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/deeplink` }),
+        updateAppPreApprovalSetting: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/preApprove` }),
+        getAppsUserRequests: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/requests` }),
+        addAppAllowRequestsForUsers: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/requests` }),
+        updateAppsRequestStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/requests` }),
+        rotateClientSecret: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/rotate_client_secret` }),
+        getWebhookLogs: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/webhook_logs` }),
+        getAppUserEntitlements: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/marketplace/monetization/entitlements` }),
+        getUsersAppRequests: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/marketplace/users/${userId}/apps` }),
+        enableOrDisableUserAppSubscription: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ appId, userId }) => `/marketplace/users/${userId}/apps/${appId}/subscription`
+        }),
+        getUsersEntitlements: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/marketplace/users/${userId}/entitlements` })
+    };
+    apps = {
+        generateAppDeeplink: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/zoomapp/deeplink` })
+    };
+    manifest = {
+        validateAppManifest: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/marketplace/apps/manifest/validate` }),
+        exportAppManifestFromExistingApp: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/manifest` }),
+        updateAppByManifest: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ appId }) => `/marketplace/apps/${appId}/manifest` })
     };
 }
 
-function compareCandidate(pattern, candidate) {
-    if (!candidate) {
-        return false;
-    }
-    if (typeof pattern === "string") {
-        if (pattern === "*") {
-            return true;
+class MarketplaceEventProcessor extends EventManager {
+}
+
+class OAuth extends InteractiveAuth {
+    assertResponseAccessToken(data) {
+        if (typeof data.access_token !== "string" ||
+            typeof data.refresh_token !== "string" ||
+            typeof data.expires_in !== "number" ||
+            typeof data.scope !== "string") {
+            throw new OAuthTokenRawResponseError(`Failed to match raw response (${JSON.stringify(data)}) to expected shape.`);
         }
-        return pattern.includes(candidate);
     }
-    else if (pattern instanceof RegExp) {
-        return pattern.test(candidate);
-    }
-    else {
-        throw new Error("Pattern must be a string or regular expression");
-    }
-}
-
-function createMessageElement(message_text) {
-    return {
-        type: "message",
-        text: message_text
-    };
-}
-function createMessage(message_text) {
-    return {
-        body: [createMessageElement(message_text)]
-    };
-}
-
-const createContent = (stringOrCardContent) => {
-    let content;
-    if (typeof stringOrCardContent === "string") {
-        content = createMessage(stringOrCardContent);
-    }
-    else {
-        content = stringOrCardContent;
-    }
-    return content;
-};
-class ChatbotEventProcessor extends EventManager {
-    onSlashCommand(commandName, listener) {
-        this.filteredEvent("bot_notification", ({ payload }) => compareCandidate(commandName, payload.cmd), async (payload) => {
-            await listener({
-                say: async (stringOrCardContent) => {
-                    return await this.endpoints.messages.sendChatbotMessage({
-                        body: {
-                            robot_jid: payload.payload.robotJid,
-                            account_id: payload.payload.accountId,
-                            to_jid: payload.payload.toJid,
-                            user_jid: payload.payload.userId,
-                            content: createContent(stringOrCardContent)
-                        }
-                    });
-                },
-                ...payload
+    async fetchAccessToken(code) {
+        try {
+            const response = await this.makeOAuthTokenRequest("authorization_code", {
+                code,
+                redirect_uri: this.getFullRedirectUri()
             });
+            this.assertResponseAccessToken(response.data);
+            return this.mapOAuthToken(response.data);
+        }
+        catch (err) {
+            throw new OAuthTokenFetchFailedError("Failed to fetch OAuth token.", { cause: err });
+        }
+    }
+    async getToken() {
+        const { tokenStore } = this;
+        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
+        // If we have no OAuth token, app most likely has not been previously authorized.
+        if (!currentToken) {
+            throw new OAuthTokenDoesNotExistError("Failed to find OAuth token. Authorize this app first.");
+        }
+        // If the OAuth token hasn't already expired (and isn't within the delta), return it.
+        if (!this.isAlmostExpired(currentToken.expirationTimeIso)) {
+            return currentToken.accessToken;
+        }
+        // Since the token has expired, refresh, store, and return it.
+        const refreshedToken = await this.refreshAccessToken(currentToken.refreshToken);
+        await Promise.resolve(tokenStore.storeToken(refreshedToken));
+        return refreshedToken.accessToken;
+    }
+    async initRedirectCode(code) {
+        const { tokenStore } = this;
+        const accessToken = await this.fetchAccessToken(code);
+        await Promise.resolve(tokenStore.storeToken(accessToken));
+    }
+    mapOAuthToken({ access_token, expires_in, refresh_token, scope }) {
+        return {
+            accessToken: access_token,
+            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
+            refreshToken: refresh_token,
+            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
+        };
+    }
+    async refreshAccessToken(refreshToken) {
+        try {
+            const response = await this.makeOAuthTokenRequest("refresh_token", {
+                refresh_token: refreshToken
+            });
+            this.assertResponseAccessToken(response.data);
+            return this.mapOAuthToken(response.data);
+        }
+        catch (err) {
+            throw new OAuthTokenRefreshFailedError("Failed to refresh OAuth token.", { cause: err });
+        }
+    }
+}
+
+// Utility functions for determining if client options include custom receiver, or, if not,
+// a webhooks secret token, as one of those is required!
+const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
+const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
+const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
+const DEFAULT_HTTP_RECEIVER_PORT = 8080;
+const DEFAULT_LOGLEVEL = exports.LogLevel.ERROR;
+class ProductClient {
+    auth;
+    endpoints;
+    webEventConsumer;
+    receiver;
+    constructor(options) {
+        this.auth = this.initAuth(options);
+        this.endpoints = this.initEndpoints(this.auth, options);
+        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
+        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
+        if (!isReceiverDisabled(options)) {
+            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
+            // This is mainly applicable for products where we expect webhooks to be used; in events where webhooks are not
+            // expected, then it's perfectly fine for the developer to not provide a receiver of a webhooks secret token.
+            if (this.webEventConsumer && !hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
+                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
+            }
+            this.receiver = (hasExplicitReceiver(options) ?
+                options.receiver
+                : this.initDefaultReceiver(options));
+            this.receiver.init({
+                eventEmitter: this.webEventConsumer,
+                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
+            });
+        }
+    }
+    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
+        return new HttpReceiver({
+            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
+            webhooksSecretToken,
+            logLevel: logLevel ?? DEFAULT_LOGLEVEL
         });
     }
-    onButtonClick(actionId, listener) {
-        this.filteredEvent("interactive_message_actions", ({ payload }) => compareCandidate(actionId, payload.actionItem.value), async (payload) => {
-            await listener({
-                say: async (stringOrCardContent) => {
-                    return await this.endpoints.messages.sendChatbotMessage({
-                        body: {
-                            robot_jid: payload.payload.robotJid,
-                            account_id: payload.payload.accountId,
-                            to_jid: payload.payload.toJid,
-                            user_jid: payload.payload.userId,
-                            content: createContent(stringOrCardContent)
-                        }
-                    });
-                },
-                ...payload
-            });
-        });
+    async start() {
+        if (!this.receiver) {
+            throw new ReceiverInconsistentStateError("Receiver failed to construct. Was disableReceiver set to true?");
+        }
+        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
+        // may or may not return a promise. This is not required when implementing `Receiver`.
+        return (await Promise.resolve(this.receiver.start()));
     }
 }
 
-class ChatbotClient extends ProductClient {
-    initAuth({ clientId, clientSecret, tokenStore }) {
-        return new ClientCredentialsAuth({ clientId, clientSecret, tokenStore });
+class MarketplaceOAuthClient extends ProductClient {
+    initAuth({ clientId, clientSecret, tokenStore, ...restOptions }) {
+        const oAuth = new OAuth({ clientId, clientSecret, tokenStore });
+        if (hasInstallerOptions(restOptions)) {
+            oAuth.setInstallerOptions(restOptions.installerOptions);
+        }
+        return oAuth;
     }
     initEndpoints(auth, options) {
-        return new ChatbotEndpoints({ auth, ...options });
+        return new MarketplaceEndpoints({ auth, ...options });
     }
     initEventProcessor(endpoints) {
-        return new ChatbotEventProcessor(endpoints);
+        return new MarketplaceEventProcessor(endpoints);
+    }
+}
+
+class S2SAuth extends Auth {
+    accountId;
+    constructor({ accountId, ...restOptions }) {
+        super(restOptions);
+        this.accountId = accountId;
+    }
+    assertRawToken(obj) {
+        if (typeof obj.access_token !== "string" ||
+            typeof obj.expires_in !== "number" ||
+            typeof obj.scope !== "string") {
+            throw new S2SRawResponseError(`Failed to match raw response ${JSON.stringify(obj)} to expected shape.`);
+        }
+    }
+    async fetchAccessToken() {
+        const response = await this.makeOAuthTokenRequest("account_credentials", {
+            account_id: this.accountId
+        });
+        this.assertRawToken(response.data);
+        return this.mapAccessToken(response.data);
+    }
+    async getToken() {
+        const { tokenStore } = this;
+        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
+        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
+            return currentToken.accessToken;
+        }
+        const token = await this.fetchAccessToken();
+        await Promise.resolve(tokenStore.storeToken(token));
+        return token.accessToken;
+    }
+    mapAccessToken({ access_token, expires_in, scope }) {
+        return {
+            accessToken: access_token,
+            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
+            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
+        };
+    }
+}
+
+class MarketplaceS2SAuthClient extends ProductClient {
+    initAuth({ clientId, clientSecret, tokenStore, accountId }) {
+        return new S2SAuth({ clientId, clientSecret, tokenStore, accountId });
+    }
+    initEndpoints(auth, options) {
+        return new MarketplaceEndpoints({ auth, ...options });
+    }
+    initEventProcessor(endpoints) {
+        return new MarketplaceEventProcessor(endpoints);
     }
 }
 
 exports.ApiResponseError = ApiResponseError;
 exports.AwsLambdaReceiver = AwsLambdaReceiver;
 exports.AwsReceiverRequestError = AwsReceiverRequestError;
-exports.ChatbotClient = ChatbotClient;
-exports.ChatbotEventProcessor = ChatbotEventProcessor;
 exports.ClientCredentialsRawResponseError = ClientCredentialsRawResponseError;
 exports.CommonHttpRequestError = CommonHttpRequestError;
 exports.ConsoleLogger = ConsoleLogger;
@@ -1118,6 +1164,10 @@ exports.HTTPReceiverConstructionError = HTTPReceiverConstructionError;
 exports.HTTPReceiverPortNotNumberError = HTTPReceiverPortNotNumberError;
 exports.HTTPReceiverRequestError = HTTPReceiverRequestError;
 exports.HttpReceiver = HttpReceiver;
+exports.MarketplaceEndpoints = MarketplaceEndpoints;
+exports.MarketplaceEventProcessor = MarketplaceEventProcessor;
+exports.MarketplaceOAuthClient = MarketplaceOAuthClient;
+exports.MarketplaceS2SAuthClient = MarketplaceS2SAuthClient;
 exports.OAuthInstallerNotInitializedError = OAuthInstallerNotInitializedError;
 exports.OAuthStateVerificationFailedError = OAuthStateVerificationFailedError;
 exports.OAuthTokenDoesNotExistError = OAuthTokenDoesNotExistError;

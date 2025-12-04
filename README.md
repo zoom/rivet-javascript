@@ -57,11 +57,18 @@ To use Zoom Rivet effectively, you should understand three important concepts: a
 
 Zoom Rivet handles authentication for developers. All you have to do is provide your app's `ClientId` and `ClientSecret`. See the matrix in the table below to better how authentication works in each Rivet module:
 
-| Module                                      | Auth Type                                                                                                                   |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Chatbot                                     | [Client Credentials](https://developers.zoom.us/docs/team-chat-apps/installation-and-authentication/#authentication)        |
-| Video SDK                                   | [JWT](https://developers.zoom.us/docs/video-sdk/api-request/)                                                               |
-| Team Chat, Meetings, Phone, Accounts, Users | [User OAuth](https://developers.zoom.us/docs/integrations/), [Server OAuth](https://developers.zoom.us/docs/internal-apps/) |
+| Supported Module | Auth Type                                                                                                                             |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Accounts         | [User OAuth](<(https://developers.zoom.us/docs/integrations/)>) <br /> [Server OAuth](https://developers.zoom.us/docs/internal-apps/) |
+| Chatbot          | [Client Credentials](https://developers.zoom.us/docs/team-chat-apps/installation-and-authentication/#authentication)                  |
+| Commerce         | [Server OAuth](https://developers.zoom.us/docs/internal-apps/)                                                                        |
+| Marketplace      | [User OAuth](<(https://developers.zoom.us/docs/integrations/)>) <br /> [Server OAuth](https://developers.zoom.us/docs/internal-apps/) |
+| Meetings         | [User OAuth](<(https://developers.zoom.us/docs/integrations/)>) <br /> [Server OAuth](https://developers.zoom.us/docs/internal-apps/) |
+| Meetings         | [User OAuth](<(https://developers.zoom.us/docs/integrations/)>) <br /> [Server OAuth](https://developers.zoom.us/docs/internal-apps/) |
+| Phone            | [User OAuth](<(https://developers.zoom.us/docs/integrations/)>) <br /> [Server OAuth](https://developers.zoom.us/docs/internal-apps/) |
+| Team Chat        | [User OAuth](<(https://developers.zoom.us/docs/integrations/)>) <br /> [Server OAuth](https://developers.zoom.us/docs/internal-apps/) |
+| Users            | [User OAuth](<(https://developers.zoom.us/docs/integrations/)>) <br /> [Server OAuth](https://developers.zoom.us/docs/internal-apps/) |
+| Video SDK        | [JSON Web Token (JWT)](https://developers.zoom.us/docs/video-sdk/api-request/)                                                        |
 
 ### Listening to Events
 

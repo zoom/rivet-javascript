@@ -1,87 +1,7 @@
-import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { AxiosResponse } from 'axios';
+import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { Server } from 'node:http';
 import { ServerOptions } from 'node:https';
-
-type AllPropsOptional<T, True, False> = Exclude<{
-    [P in keyof T]: undefined extends T[P] ? True : False;
-}[keyof T], undefined> extends True ? True : False;
-type Constructor<T> = new (...args: any[]) => T;
-type MaybeArray<T> = T | T[];
-type MaybePromise<T> = T | Promise<T>;
-type StringIndexed<V = any> = Record<string, V>;
-
-/**
- * {@link StateStore} defines methods for generating and verifying OAuth state.
- *
- * This interface is implemented internally for the default state store; however,
- * it can also be implemented and passed to an OAuth client as well.
- */
-interface StateStore {
-    /**
-     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
-     */
-    generateState(): MaybePromise<string>;
-    /**
-     * Verify that the state received during OAuth callback is valid and not forged.
-     *
-     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
-     *
-     * @param state The state parameter that was received during OAuth callback
-     */
-    verifyState(state: string): MaybePromise<void>;
-}
-/**
- * Guard if an object implements the {@link StateStore} interface — most notably,
- * `generateState()` and `verifyState(state: string)`.
- */
-declare const isStateStore: (obj: unknown) => obj is StateStore;
-
-interface TokenStore<Token> {
-    getLatestToken(): MaybePromise<Token | null | undefined>;
-    storeToken(token: Token): MaybePromise<void>;
-}
-
-interface RivetError<ErrorCode extends string = string> extends Error {
-    readonly errorCode: ErrorCode;
-}
-
-declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
-    readonly ApiResponseError: "zoom_rivet_api_response_error";
-    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
-    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
-    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
-    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
-    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
-    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
-    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
-    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
-    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
-    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
-    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
-    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
-    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
-    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
-    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
-    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
-}[K]>;
-declare const ApiResponseError: Constructor<Error>;
-declare const AwsReceiverRequestError: Constructor<Error>;
-declare const ClientCredentialsRawResponseError: Constructor<Error>;
-declare const S2SRawResponseError: Constructor<Error>;
-declare const CommonHttpRequestError: Constructor<Error>;
-declare const ReceiverInconsistentStateError: Constructor<Error>;
-declare const ReceiverOAuthFlowError: Constructor<Error>;
-declare const HTTPReceiverConstructionError: Constructor<Error>;
-declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
-declare const HTTPReceiverRequestError: Constructor<Error>;
-declare const OAuthInstallerNotInitializedError: Constructor<Error>;
-declare const OAuthTokenDoesNotExistError: Constructor<Error>;
-declare const OAuthTokenFetchFailedError: Constructor<Error>;
-declare const OAuthTokenRawResponseError: Constructor<Error>;
-declare const OAuthTokenRefreshFailedError: Constructor<Error>;
-declare const OAuthStateVerificationFailedError: Constructor<Error>;
-declare const ProductClientConstructionError: Constructor<Error>;
 
 declare enum LogLevel {
     ERROR = "error",
@@ -142,6 +62,19 @@ declare class ConsoleLogger implements Logger {
     private static isMoreOrEqualSevere;
 }
 
+type AllPropsOptional<T, True, False> = Exclude<{
+    [P in keyof T]: undefined extends T[P] ? True : False;
+}[keyof T], undefined> extends True ? True : False;
+type Constructor<T> = new (...args: any[]) => T;
+type MaybeArray<T> = T | T[];
+type MaybePromise<T> = T | Promise<T>;
+type StringIndexed<V = any> = Record<string, V>;
+
+interface TokenStore<Token> {
+    getLatestToken(): MaybePromise<Token | null | undefined>;
+    storeToken(token: Token): MaybePromise<void>;
+}
+
 interface AuthOptions<Token> {
     clientId: string;
     clientSecret: string;
@@ -187,6 +120,21 @@ declare abstract class Auth<Token = unknown> {
     }>, "grant_type">): Promise<AxiosResponse>;
 }
 
+interface ClientCredentialsToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    scopes: string[];
+}
+
+interface JwtToken {
+    token: string;
+    expirationTimeIso: string;
+}
+declare class JwtAuth extends Auth<JwtToken> {
+    private generateToken;
+    getToken(): Promise<string>;
+}
+
 interface S2SAuthToken {
     accessToken: string;
     expirationTimeIso: string;
@@ -225,12 +173,31 @@ declare class EventManager<Endpoints, Events> {
     protected withContext<EventName extends EventKeys<Events>, Context>(): ContextListener<Events, EventName, Context>;
 }
 
+declare enum StatusCode {
+    OK = 200,
+    TEMPORARY_REDIRECT = 302,
+    BAD_REQUEST = 400,
+    NOT_FOUND = 404,
+    METHOD_NOT_ALLOWED = 405,
+    INTERNAL_SERVER_ERROR = 500
+}
+interface ReceiverInitOptions {
+    eventEmitter?: GenericEventManager | undefined;
+    interactiveAuth?: InteractiveAuth | undefined;
+}
+interface Receiver {
+    canInstall(): true | false;
+    init(options: ReceiverInitOptions): void;
+    start(...args: any[]): MaybePromise<unknown>;
+    stop(...args: any[]): MaybePromise<unknown>;
+}
+
 interface HttpReceiverOptions extends Partial<SecureServerOptions> {
     endpoints?: MaybeArray<string> | undefined;
+    logger?: Logger | undefined;
+    logLevel?: LogLevel | undefined;
     port?: number | string | undefined;
-    webhooksSecretToken: string;
-    logger?: Logger;
-    logLevel?: LogLevel;
+    webhooksSecretToken?: string | undefined;
 }
 type SecureServerOptions = {
     [K in (typeof secureServerOptionKeys)[number]]: ServerOptions[K];
@@ -243,10 +210,15 @@ declare class HttpReceiver implements Receiver {
     private logger;
     constructor(options: HttpReceiverOptions);
     canInstall(): true;
+    private buildDeletedStateCookieHeader;
+    private buildStateCookieHeader;
+    private getRequestCookie;
     private getServerCreator;
     private hasEndpoint;
     private hasSecureOptions;
     init({ eventEmitter, interactiveAuth }: ReceiverInitOptions): void;
+    private setResponseCookie;
+    private areNormalizedUrlsEqual;
     start(port?: number | string): Promise<Server>;
     stop(): Promise<void>;
     private writeTemporaryRedirect;
@@ -269,6 +241,7 @@ interface WebEndpointOptions {
     baseUrl?: string | undefined;
     doubleEncodeUrl?: boolean | undefined;
     timeout?: number | undefined;
+    userAgentName?: string | undefined;
 }
 type EndpointArguments<PathSchema extends StringIndexed | NoParams, BodySchema extends StringIndexed | NoParams, QuerySchema extends StringIndexed | NoParams> = (PathSchema extends NoParams ? object : AllPropsOptional<PathSchema, "t", "f"> extends "t" ? {
     path?: PathSchema;
@@ -290,6 +263,7 @@ declare class WebEndpoints {
     constructor(options: WebEndpointOptions);
     protected buildEndpoint<PathSchema extends StringIndexed | NoParams, BodySchema extends StringIndexed | NoParams, QuerySchema extends StringIndexed | NoParams, ResponseData = unknown>({ method, baseUrlOverride, urlPathBuilder, requestMimeType }: BuildEndpointOptions<PathSchema>): (_: EndpointArguments<PathSchema, BodySchema, QuerySchema>) => Promise<BaseResponse<ResponseData>>;
     private buildUserAgent;
+    private getCustomUserAgentName;
     private getHeaders;
     private getRequestBody;
     private isOk;
@@ -297,7 +271,7 @@ declare class WebEndpoints {
     private makeRequest;
 }
 
-type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A> & ExtractInstallerOptions<A, R> & {
+type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A> & ExtractInstallerOptions<A, R> & Pick<WebEndpointOptions, "userAgentName"> & {
     disableReceiver?: boolean | undefined;
     logger?: Logger | undefined;
     logLevel?: LogLevel | undefined;
@@ -305,38 +279,68 @@ type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A>
 interface ClientReceiverOptions<R extends Receiver> {
     receiver: R;
 }
-type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = IsReceiverDisabled<O> extends true ? O : O & (ClientReceiverOptions<R> | HttpReceiverOptions);
+type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = (O & {
+    disableReceiver: true;
+}) | (O & (ClientReceiverOptions<R> | HttpReceiverOptions));
 type ExtractInstallerOptions<A extends Auth, R extends Receiver> = A extends InteractiveAuth ? [
     ReturnType<R["canInstall"]>
 ] extends [true] ? WideInstallerOptions : object : object;
 type ExtractAuthTokenType<A> = A extends Auth<infer T> ? T : never;
-type GenericClientOptions = CommonClientOptions<any, any>;
 type GetAuthOptions<A extends Auth> = AuthOptions<ExtractAuthTokenType<A>> & (A extends S2SAuth ? S2SAuthOptions : object);
-type IsReceiverDisabled<O extends Pick<GenericClientOptions, "disableReceiver">> = [
-    O["disableReceiver"]
-] extends [true] ? true : false;
 type WideInstallerOptions = {
     installerOptions: InstallerOptions;
 };
 declare abstract class ProductClient<AuthType extends Auth, EndpointsType extends WebEndpoints, EventProcessorType extends GenericEventManager, OptionsType extends CommonClientOptions<AuthType, ReceiverType>, ReceiverType extends Receiver> {
     private readonly auth;
     readonly endpoints: EndpointsType;
-    readonly webEventConsumer: EventProcessorType;
+    readonly webEventConsumer?: EventProcessorType | undefined;
     private readonly receiver?;
     constructor(options: ClientConstructorOptions<AuthType, OptionsType, ReceiverType>);
     protected abstract initAuth(options: OptionsType): AuthType;
     protected abstract initEndpoints(auth: AuthType, options: OptionsType): EndpointsType;
-    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType;
+    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType | undefined;
     private initDefaultReceiver;
-    start(this: IsReceiverDisabled<OptionsType> extends true ? never : this): Promise<ReturnType<ReceiverType["start"]>>;
+    start(): Promise<ReturnType<ReceiverType["start"]>>;
 }
 
+/**
+ * {@link StateStore} defines methods for generating and verifying OAuth state.
+ *
+ * This interface is implemented internally for the default state store; however,
+ * it can also be implemented and passed to an OAuth client as well.
+ */
+interface StateStore {
+    /**
+     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
+     */
+    generateState(): MaybePromise<string>;
+    /**
+     * Verify that the state received during OAuth callback is valid and not forged.
+     *
+     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
+     *
+     * @param state The state parameter that was received during OAuth callback
+     */
+    verifyState(state: string): MaybePromise<void>;
+}
+/**
+ * Guard if an object implements the {@link StateStore} interface — most notably,
+ * `generateState()` and `verifyState(state: string)`.
+ */
+declare const isStateStore: (obj: unknown) => obj is StateStore;
+
+interface AuthorizationUrlResult {
+    fullUrl: string;
+    generatedState: string;
+}
 interface InstallerOptions {
     directInstall?: boolean | undefined;
     installPath?: string | undefined;
     redirectUri: string;
     redirectUriPath?: string | undefined;
     stateStore: StateStore | string;
+    stateCookieName?: string | undefined;
+    stateCookieMaxAge?: number | undefined;
 }
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
@@ -350,35 +354,78 @@ interface InstallerOptions {
  */
 declare abstract class InteractiveAuth<Token = unknown> extends Auth<Token> {
     installerOptions?: ReturnType<typeof this.setInstallerOptions>;
-    getAuthorizationUrl(): Promise<string>;
+    getAuthorizationUrl(): Promise<AuthorizationUrlResult>;
     getFullRedirectUri(): string;
-    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore }: InstallerOptions): {
+    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore, stateCookieName, stateCookieMaxAge }: InstallerOptions): {
         directInstall: boolean;
         installPath: string;
         redirectUri: string;
         redirectUriPath: string;
         stateStore: StateStore;
+        stateCookieName: string;
+        stateCookieMaxAge: number;
     };
 }
 
-declare enum StatusCode {
-    OK = 200,
-    TEMPORARY_REDIRECT = 302,
-    BAD_REQUEST = 400,
-    NOT_FOUND = 404,
-    METHOD_NOT_ALLOWED = 405,
-    INTERNAL_SERVER_ERROR = 500
+/**
+ * Credentials for access token & refresh token, which are used to access Zoom's APIs.
+ *
+ * As access token is short-lived (usually a single hour), its expiration time is checked
+ * first. If it's possible to use the access token, it's used; however, if it has expired
+ * or is close to expiring, the refresh token should be used to generate a new access token
+ * before the API call is made. Refresh tokens are generally valid for 90 days.
+ *
+ * If neither the access token nor the refresh token is available, {@link OAuthTokenRefreshFailedError}
+ * shall be thrown, informing the developer that neither value can be used, and the user must re-authorize.
+ * It's likely that this error will be rare, but it _can_ be thrown.
+ */
+interface OAuthToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    refreshToken: string;
+    scopes: string[];
 }
-interface ReceiverInitOptions {
-    eventEmitter: GenericEventManager;
-    interactiveAuth?: InteractiveAuth | undefined;
+
+interface RivetError<ErrorCode extends string = string> extends Error {
+    readonly errorCode: ErrorCode;
 }
-interface Receiver {
-    canInstall(): true | false;
-    init(options: ReceiverInitOptions): void;
-    start(...args: any[]): MaybePromise<unknown>;
-    stop(...args: any[]): MaybePromise<unknown>;
-}
+
+declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
+    readonly ApiResponseError: "zoom_rivet_api_response_error";
+    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
+    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
+    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
+    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
+    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
+    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
+    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
+    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
+    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
+    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
+    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
+    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
+    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
+    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
+    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
+    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
+}[K]>;
+declare const ApiResponseError: Constructor<Error>;
+declare const AwsReceiverRequestError: Constructor<Error>;
+declare const ClientCredentialsRawResponseError: Constructor<Error>;
+declare const S2SRawResponseError: Constructor<Error>;
+declare const CommonHttpRequestError: Constructor<Error>;
+declare const ReceiverInconsistentStateError: Constructor<Error>;
+declare const ReceiverOAuthFlowError: Constructor<Error>;
+declare const HTTPReceiverConstructionError: Constructor<Error>;
+declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
+declare const HTTPReceiverRequestError: Constructor<Error>;
+declare const OAuthInstallerNotInitializedError: Constructor<Error>;
+declare const OAuthTokenDoesNotExistError: Constructor<Error>;
+declare const OAuthTokenFetchFailedError: Constructor<Error>;
+declare const OAuthTokenRawResponseError: Constructor<Error>;
+declare const OAuthTokenRefreshFailedError: Constructor<Error>;
+declare const OAuthStateVerificationFailedError: Constructor<Error>;
+declare const ProductClientConstructionError: Constructor<Error>;
 
 interface AwsLambdaReceiverOptions {
     webhooksSecretToken: string;
@@ -392,15 +439,6 @@ declare class AwsLambdaReceiver implements Receiver {
     init({ eventEmitter }: ReceiverInitOptions): void;
     start(): LambdaFunctionURLHandler;
     stop(): Promise<void>;
-}
-
-interface JwtToken {
-    token: string;
-    expirationTimeIso: string;
-}
-declare class JwtAuth extends Auth<JwtToken> {
-    private generateToken;
-    getToken(): Promise<string>;
 }
 
 type ByosStorageUpdateBringYourOwnStorageSettingsRequestBody = {
@@ -505,6 +543,7 @@ type CloudRecordingListRecordingsOfAccountResponse = {
             file_type?: string;
             file_size?: number;
             download_url?: string;
+            external_storage_url?: string;
             status?: "completed";
             deleted_time?: string;
             recording_type?: string;
@@ -549,6 +588,7 @@ type CloudRecordingListSessionsRecordingsResponse = ({
         file_type?: string;
         file_size?: number;
         download_url?: string;
+        external_storage_url?: string;
         status?: "completed";
         deleted_time?: string;
         recording_type?: string;
@@ -652,10 +692,14 @@ type SessionsListSessionsResponse = {
         has_pstn?: boolean;
         session_key?: string;
         has_session_summary?: boolean;
+        audio_quality?: "good" | "fair" | "poor" | "bad";
+        video_quality?: "good" | "fair" | "poor" | "bad";
+        screen_share_quality?: "good" | "fair" | "poor" | "bad";
     }[];
 };
 type SessionsCreateSessionRequestBody = {
     session_name: string;
+    session_password?: string;
     settings?: {
         auto_recording?: "cloud" | "none";
     };
@@ -664,6 +708,7 @@ type SessionsCreateSessionResponse = {
     session_id?: string;
     session_number?: number;
     session_name: string;
+    session_password?: string;
     passcode?: string;
     created_at?: string;
     settings?: {
@@ -710,6 +755,10 @@ type SessionsGetSessionDetailsResponse = {
             type?: "toll" | "tollfree" | "premium";
         }[];
     };
+    audio_quality?: "good" | "fair" | "poor" | "bad";
+    video_quality?: "good" | "fair" | "poor" | "bad";
+    screen_share_quality?: "good" | "fair" | "poor" | "bad";
+    total_minutes?: number;
 };
 type SessionsDeleteSessionPathParams = {
     sessionId: string;
@@ -718,7 +767,7 @@ type SessionsUseInSessionEventsControlsPathParams = {
     sessionId: string;
 };
 type SessionsUseInSessionEventsControlsRequestBody = {
-    method?: "recording.start" | "recording.stop" | "recording.pause" | "recording.resume" | "user.invite.callout" | "user.invite.room_system_callout" | "audio.block" | "audio.unblock" | "video.block" | "video.unblock" | "share.block" | "share.unblock" | "user.remove";
+    method?: "recording.start" | "recording.stop" | "recording.pause" | "recording.resume" | "user.invite.callout" | "user.invite.room_system_callout" | "stream_ingestion.bind" | "stream_ingestion.unbind" | "stream_ingestion.send" | "stream_ingestion.stop" | "audio.block" | "audio.unblock" | "video.block" | "video.unblock" | "share.block" | "share.unblock" | "user.remove";
     params?: {
         invitee_name?: string;
         phone_number?: string;
@@ -742,6 +791,7 @@ type SessionsUseInSessionEventsControlsRequestBody = {
             }[];
         };
         participant_uuid?: string;
+        stream_ingestion_stream_id?: string;
     };
 };
 type SessionsGetSessionLiveStreamDetailsPathParams = {
@@ -774,12 +824,31 @@ type SessionsUpdateSessionLivestreamStatusRequestBody = {
         close_caption?: "burnt-in" | "embedded" | "off";
     };
 };
+type SessionsGetSessionSIPURIWithPasscodePathParams = {
+    sessionId: string;
+};
+type SessionsGetSessionSIPURIWithPasscodeRequestBody = {
+    passcode?: string;
+};
+type SessionsGetSessionSIPURIWithPasscodeResponse = {
+    sip_dialing?: string;
+    participant_identifier_code?: string;
+    expire_in?: number;
+};
 type SessionsUpdateSessionStatusPathParams = {
     sessionId: string;
 };
 type SessionsUpdateSessionStatusRequestBody = {
     action?: "end";
 };
+type SessionsListSessionStreamingIngestionsPathParams = {
+    sessionId: string;
+};
+type SessionsListSessionStreamingIngestionsResponse = {
+    stream_id?: string;
+    rtmp_connection_status?: 0 | 1;
+    rtmp_stream_push_status?: 0 | 1;
+}[];
 type SessionsListSessionUsersPathParams = {
     sessionId: string;
 };
@@ -813,6 +882,14 @@ type SessionsListSessionUsersResponse = {
         }[];
         participant_uuid?: string;
         client?: string;
+        os?: string;
+        os_version?: string;
+        browser_name?: string;
+        browser_version?: string;
+        audio_quality?: "good" | "fair" | "poor" | "bad";
+        video_quality?: "good" | "fair" | "poor" | "bad";
+        screen_share_quality?: "good" | "fair" | "poor" | "bad";
+        is_original_host?: boolean;
     }[];
 };
 type SessionsListSessionUsersQoSPathParams = {
@@ -830,6 +907,11 @@ type SessionsListSessionUsersQoSResponse = {
         id?: string;
         name?: string;
         device?: "Phone" | "H.323/SIP" | "Windows" | "Mac" | "iOS" | "Android";
+        client?: string;
+        os?: string;
+        os_version?: string;
+        browser_name?: string;
+        browser_version?: string;
         ip_address?: string;
         location?: string;
         network_type?: "Wired" | "Wifi" | "PPP" | "Cellular" | "Others";
@@ -840,6 +922,8 @@ type SessionsListSessionUsersQoSResponse = {
         connection_type?: string;
         join_time?: string;
         leave_time?: string;
+        user_key?: string;
+        is_original_host?: boolean;
         user_qos?: {
             date_time?: string;
             audio_input?: {
@@ -942,6 +1026,12 @@ type SessionsListSessionUsersQoSResponse = {
                 resolution?: string;
                 frame_rate?: string;
             };
+            wifi_rssi?: {
+                max_rssi?: number;
+                avg_rssi?: number;
+                min_rssi?: number;
+                rssi_unit?: string;
+            };
             cpu_usage?: {
                 zoom_min_cpu_usage?: string;
                 zoom_avg_cpu_usage?: string;
@@ -965,6 +1055,7 @@ type SessionsGetSharingRecordingDetailsResponse = {
     users?: {
         id?: string;
         name?: string;
+        user_key?: string;
         details?: {
             content?: "local_recording" | "cloud_recording" | "desktop" | "application" | "whiteboard" | "airplay" | "camera" | "video_sdk";
             start_time?: string;
@@ -983,6 +1074,11 @@ type SessionsGetSessionUserQoSResponse = {
     id?: string;
     name?: string;
     device?: "Phone" | "H.323/SIP" | "Windows" | "Mac" | "iOS" | "Android";
+    os?: string;
+    os_version?: string;
+    browser_name?: string;
+    browser_version?: string;
+    client?: string;
     ip_address?: string;
     location?: string;
     network_type?: "Wired" | "Wifi" | "PPP" | "Cellular" | "Others";
@@ -993,6 +1089,8 @@ type SessionsGetSessionUserQoSResponse = {
     connection_type?: string;
     join_time?: string;
     leave_time?: string;
+    user_key?: string;
+    is_original_host?: boolean;
     user_qos?: {
         date_time?: string;
         audio_input?: {
@@ -1095,6 +1193,12 @@ type SessionsGetSessionUserQoSResponse = {
             resolution?: string;
             frame_rate?: string;
         };
+        wifi_rssi?: {
+            max_rssi?: number;
+            avg_rssi?: number;
+            min_rssi?: number;
+            rssi_unit?: string;
+        };
         cpu_usage?: {
             zoom_min_cpu_usage?: string;
             zoom_avg_cpu_usage?: string;
@@ -1102,6 +1206,55 @@ type SessionsGetSessionUserQoSResponse = {
             system_max_cpu_usage?: string;
         };
     }[];
+};
+type SessionsListStreamIngestionsQueryParams = {
+    page_size?: number;
+    next_page_token?: string;
+};
+type SessionsListStreamIngestionsResponse = {
+    page_size?: number;
+    next_page_token?: string;
+    stream_ingestions?: {
+        stream_id?: string;
+        stream_name?: string;
+        stream_description?: string;
+        stream_key?: string;
+        stream_url?: string;
+        backup_stream_url?: string;
+    }[];
+};
+type SessionsCreateStreamIngestionRequestBody = {
+    stream_name: string;
+    stream_description?: string;
+};
+type SessionsCreateStreamIngestionResponse = {
+    stream_id?: string;
+    stream_name?: string;
+    stream_description?: string;
+    stream_key?: string;
+    stream_url?: string;
+    backup_stream_url?: string;
+};
+type SessionsGetStreamIngestionPathParams = {
+    streamId: string;
+};
+type SessionsGetStreamIngestionResponse = {
+    stream_id?: string;
+    stream_name?: string;
+    stream_description?: string;
+    stream_key?: string;
+    stream_url?: string;
+    backup_stream_url?: string;
+};
+type SessionsDeleteStreamIngestionPathParams = {
+    streamId: string;
+};
+type SessionsUpdateStreamIngestionPathParams = {
+    streamId: string;
+};
+type SessionsUpdateStreamIngestionRequestBody = {
+    stream_name?: string;
+    stream_description?: string;
 };
 type VideoSDKReportsGetCloudRecordingUsageReportQueryParams = {
     from: string;
@@ -1262,11 +1415,19 @@ declare class VideoSdkEndpoints extends WebEndpoints {
         } & {
             body?: SessionsUpdateSessionLivestreamStatusRequestBody;
         } & object) => Promise<BaseResponse<unknown>>;
+        getSessionSIPURIWithPasscode: (_: {
+            path: SessionsGetSessionSIPURIWithPasscodePathParams;
+        } & {
+            body?: SessionsGetSessionSIPURIWithPasscodeRequestBody;
+        } & object) => Promise<BaseResponse<SessionsGetSessionSIPURIWithPasscodeResponse>>;
         updateSessionStatus: (_: {
             path: SessionsUpdateSessionStatusPathParams;
         } & {
             body?: SessionsUpdateSessionStatusRequestBody;
         } & object) => Promise<BaseResponse<unknown>>;
+        listSessionStreamingIngestions: (_: {
+            path: SessionsListSessionStreamingIngestionsPathParams;
+        } & object) => Promise<BaseResponse<SessionsListSessionStreamingIngestionsResponse>>;
         listSessionUsers: (_: {
             path: SessionsListSessionUsersPathParams;
         } & object & {
@@ -1287,6 +1448,23 @@ declare class VideoSdkEndpoints extends WebEndpoints {
         } & object & {
             query?: SessionsGetSessionUserQoSQueryParams;
         }) => Promise<BaseResponse<SessionsGetSessionUserQoSResponse>>;
+        listStreamIngestions: (_: object & {
+            query?: SessionsListStreamIngestionsQueryParams;
+        }) => Promise<BaseResponse<SessionsListStreamIngestionsResponse>>;
+        createStreamIngestion: (_: object & {
+            body: SessionsCreateStreamIngestionRequestBody;
+        }) => Promise<BaseResponse<SessionsCreateStreamIngestionResponse>>;
+        getStreamIngestion: (_: {
+            path: SessionsGetStreamIngestionPathParams;
+        } & object) => Promise<BaseResponse<SessionsGetStreamIngestionResponse>>;
+        deleteStreamIngestion: (_: {
+            path: SessionsDeleteStreamIngestionPathParams;
+        } & object) => Promise<BaseResponse<unknown>>;
+        updateStreamIngestion: (_: {
+            path: SessionsUpdateStreamIngestionPathParams;
+        } & {
+            body?: SessionsUpdateStreamIngestionRequestBody;
+        } & object) => Promise<BaseResponse<unknown>>;
     };
     readonly videoSDKReports: {
         getCloudRecordingUsageReport: (_: object & {
@@ -1314,10 +1492,13 @@ type SessionUserPhoneCalloutRingingEvent = Event<"session.user_phone_callout_rin
             uuid?: string;
             session_id: string;
             session_name: string;
+            session_key: string;
+            user_key: string;
             host_id: string;
             participant: {
                 invitee_name: string;
                 phone_number: number;
+                from_number: number;
             };
         };
     };
@@ -1402,6 +1583,26 @@ type SessionLiveStreamingStoppedEvent = Event<"session.live_streaming_stopped"> 
         };
     };
 };
+type SessionStreamIngestionStoppedEvent = Event<"session.stream_ingestion_stopped"> & {
+    event: "session.stream_ingestion_stopped";
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            session_id: string;
+            session_name: string;
+            session_key?: string;
+            stream_ingestion: {
+                stream_id: string;
+                stream_name: string;
+                stream_description?: string;
+                stream_key: string;
+                stream_url: string;
+                backup_stream_url: string;
+            };
+        };
+    };
+};
 type SessionUserRoomSystemCalloutRejectedEvent = Event<"session.user_room_system_callout_rejected"> & {
     event: string;
     event_ts: number;
@@ -1433,6 +1634,34 @@ type SessionAlertEvent = Event<"session.alert"> & {
             session_name: string;
             session_key?: string;
             issues: ("Unstable audio quality" | "Unstable video quality" | "Unstable screen share quality" | "High CPU occupation" | "Call Reconnection")[];
+        };
+    };
+};
+type SessionRecordingSummaryCompletedEvent = Event<"session.recording_summary_completed"> & {
+    event: "session.recording_summary_completed";
+    event_ts: number;
+    download_token: string;
+    payload: {
+        account_id: string;
+        object: {
+            session_id: string;
+            session_name: string;
+            session_key: string;
+            start_time: string;
+            timezone: string;
+            recording_files: {
+                id?: string;
+                recording_start?: string;
+                recording_end?: string;
+                file_name?: string;
+                file_path?: string;
+                file_type?: "SUMMARY";
+                file_size?: number;
+                file_extension?: "JSON";
+                download_url?: string;
+                status?: "completed";
+                recording_type?: "summary";
+            }[];
         };
     };
 };
@@ -1505,6 +1734,26 @@ type SessionStartedEvent = Event<"session.started"> & {
         };
     };
 };
+type SessionStreamIngestionUnbindEvent = Event<"session.stream_ingestion_unbind"> & {
+    event: "session.stream_ingestion_unbind";
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            session_id: string;
+            session_name: string;
+            session_key?: string;
+            stream_ingestion: {
+                stream_id: string;
+                stream_name: string;
+                stream_description?: string;
+                stream_key: string;
+                stream_url: string;
+                backup_stream_url: string;
+            };
+        };
+    };
+};
 type SessionLiveStreamingStartedEvent = Event<"session.live_streaming_started"> & {
     event: "session.live_streaming_started";
     event_ts: number;
@@ -1559,10 +1808,13 @@ type SessionUserPhoneCalloutAcceptedEvent = Event<"session.user_phone_callout_ac
             uuid?: string;
             session_id: string;
             session_name: string;
+            session_key: string;
+            user_key: string;
             host_id: string;
             participant: {
                 invitee_name: string;
                 phone_number: number;
+                from_number: number;
             };
         };
     };
@@ -1584,6 +1836,7 @@ type SessionUserLeftEvent = Event<"session.user_left"> & {
                 leave_reason?: string;
                 user_key?: string;
                 phone_number?: string;
+                participant_uuid: string;
             };
         };
     };
@@ -1606,6 +1859,24 @@ type SessionSharingStartedEvent = Event<"session.sharing_started"> & {
                     content: "application" | "whiteboard" | "desktop" | "unknown";
                     date_time: string;
                 };
+            };
+        };
+    };
+};
+type SessionUserPhoneCalloutCanceledEvent = Event<"session.user_phone_callout_canceled"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            session_id: string;
+            session_name: string;
+            session_key: string;
+            user_key: string;
+            participant: {
+                invitee_name: string;
+                phone_number: number;
+                from_number: number;
             };
         };
     };
@@ -1725,7 +1996,6 @@ type SessionRecordingCompletedEvent = Event<"session.recording_completed"> & {
                 file_size?: number;
                 file_extension?: "MP4";
                 download_url?: string;
-                play_url?: string;
                 status?: "completed";
                 recording_type?: "individual_user" | "individual_shared_screen";
                 user_id?: string;
@@ -1780,6 +2050,67 @@ type SessionUserJoinedEvent = Event<"session.user_joined"> & {
                 join_time: string;
                 user_key?: string;
                 phone_number?: string;
+                participant_uuid: string;
+            };
+        };
+    };
+};
+type SessionStreamIngestionStartedEvent = Event<"session.stream_ingestion_started"> & {
+    event: "session.stream_ingestion_started";
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            session_id: string;
+            session_name: string;
+            session_key?: string;
+            stream_ingestion: {
+                stream_id: string;
+                stream_name: string;
+                stream_description?: string;
+                stream_key: string;
+                stream_url: string;
+                backup_stream_url: string;
+            };
+        };
+    };
+};
+type SessionStreamIngestionConnectedEvent = Event<"session.stream_ingestion_connected"> & {
+    event: "session.stream_ingestion_connected";
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            session_id: string;
+            session_name: string;
+            session_key?: string;
+            stream_ingestion: {
+                stream_id: string;
+                stream_name: string;
+                stream_description?: string;
+                stream_key: string;
+                stream_url: string;
+                backup_stream_url: string;
+            };
+        };
+    };
+};
+type SessionStreamIngestionDisconnectedEvent = Event<"session.stream_ingestion_disconnected"> & {
+    event: "session.stream_ingestion_disconnected";
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            session_id: string;
+            session_name: string;
+            session_key?: string;
+            stream_ingestion: {
+                stream_id: string;
+                stream_name: string;
+                stream_description?: string;
+                stream_key: string;
+                stream_url: string;
+                backup_stream_url: string;
             };
         };
     };
@@ -1810,10 +2141,13 @@ type SessionUserPhoneCalloutMissedEvent = Event<"session.user_phone_callout_miss
             uuid?: string;
             session_id: string;
             session_name: string;
+            session_key: string;
+            user_key: string;
             host_id: string;
             participant: {
                 invitee_name: string;
                 phone_number: number;
+                from_number: number;
             };
         };
     };
@@ -1828,10 +2162,13 @@ type SessionUserPhoneCalloutRejectedEvent = Event<"session.user_phone_callout_re
             uuid?: string;
             session_id: string;
             session_name: string;
+            session_key: string;
+            user_key: string;
             host_id: string;
             participant: {
                 invitee_name: string;
                 phone_number: number;
+                from_number: number;
             };
         };
     };
@@ -1874,7 +2211,8 @@ type SessionRecordingStoppedEvent = Event<"session.recording_stopped"> & {
         };
     };
 };
-type VideoSdkEvents = SessionUserPhoneCalloutRingingEvent | SessionUserRoomSystemCalloutRingingEvent | SessionRecordingStartedEvent | SessionRecordingResumedEvent | SessionLiveStreamingStoppedEvent | SessionUserRoomSystemCalloutRejectedEvent | SessionAlertEvent | SessionSharingEndedEvent | SessionRecordingPausedEvent | SessionEndedEvent | SessionStartedEvent | SessionLiveStreamingStartedEvent | SessionUserRoomSystemCalloutMissedEvent | SessionUserPhoneCalloutAcceptedEvent | SessionUserLeftEvent | SessionSharingStartedEvent | SessionRecordingTranscriptCompletedEvent | SessionRecordingDeletedEvent | SessionUserRoomSystemCalloutFailedEvent | SessionRecordingCompletedEvent | SessionRecordingTranscriptFailedEvent | SessionRecordingTrashedEvent | SessionUserJoinedEvent | SessionRecordingRecoveredEvent | SessionUserPhoneCalloutMissedEvent | SessionUserPhoneCalloutRejectedEvent | SessionUserRoomSystemCalloutAcceptedEvent | SessionRecordingStoppedEvent;
+declare const ALL_EVENTS: string[];
+type VideoSdkEvents = SessionUserPhoneCalloutRingingEvent | SessionUserRoomSystemCalloutRingingEvent | SessionRecordingStartedEvent | SessionRecordingResumedEvent | SessionLiveStreamingStoppedEvent | SessionStreamIngestionStoppedEvent | SessionUserRoomSystemCalloutRejectedEvent | SessionAlertEvent | SessionRecordingSummaryCompletedEvent | SessionSharingEndedEvent | SessionRecordingPausedEvent | SessionEndedEvent | SessionStartedEvent | SessionStreamIngestionUnbindEvent | SessionLiveStreamingStartedEvent | SessionUserRoomSystemCalloutMissedEvent | SessionUserPhoneCalloutAcceptedEvent | SessionUserLeftEvent | SessionSharingStartedEvent | SessionUserPhoneCalloutCanceledEvent | SessionRecordingTranscriptCompletedEvent | SessionRecordingDeletedEvent | SessionUserRoomSystemCalloutFailedEvent | SessionRecordingCompletedEvent | SessionRecordingTranscriptFailedEvent | SessionRecordingTrashedEvent | SessionUserJoinedEvent | SessionStreamIngestionStartedEvent | SessionStreamIngestionConnectedEvent | SessionStreamIngestionDisconnectedEvent | SessionRecordingRecoveredEvent | SessionUserPhoneCalloutMissedEvent | SessionUserPhoneCalloutRejectedEvent | SessionUserRoomSystemCalloutAcceptedEvent | SessionRecordingStoppedEvent;
 declare class VideoSdkEventProcessor extends EventManager<VideoSdkEndpoints, VideoSdkEvents> {
 }
 
@@ -1885,4 +2223,5 @@ declare class VideoSdkClient<ReceiverType extends Receiver = HttpReceiver, Optio
     protected initEventProcessor(endpoints: VideoSdkEndpoints): VideoSdkEventProcessor;
 }
 
-export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, type ByosStorageAddStorageLocationRequestBody, type ByosStorageAddStorageLocationResponse, type ByosStorageChangeStorageLocationDetailPathParams, type ByosStorageChangeStorageLocationDetailRequestBody, type ByosStorageDeleteStorageLocationDetailPathParams, type ByosStorageListStorageLocationResponse, type ByosStorageStorageLocationDetailPathParams, type ByosStorageStorageLocationDetailResponse, type ByosStorageUpdateBringYourOwnStorageSettingsRequestBody, ClientCredentialsRawResponseError, type CloudRecordingDeleteSessionsRecordingFilePathParams, type CloudRecordingDeleteSessionsRecordingFileQueryParams, type CloudRecordingDeleteSessionsRecordingsPathParams, type CloudRecordingDeleteSessionsRecordingsQueryParams, type CloudRecordingListRecordingsOfAccountQueryParams, type CloudRecordingListRecordingsOfAccountResponse, type CloudRecordingListSessionsRecordingsPathParams, type CloudRecordingListSessionsRecordingsQueryParams, type CloudRecordingListSessionsRecordingsResponse, type CloudRecordingRecoverSessionsRecordingsPathParams, type CloudRecordingRecoverSessionsRecordingsRequestBody, type CloudRecordingRecoverSingleRecordingPathParams, type CloudRecordingRecoverSingleRecordingRequestBody, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, LogLevel, type Logger, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, S2SRawResponseError, type SessionAlertEvent, type SessionEndedEvent, type SessionLiveStreamingStartedEvent, type SessionLiveStreamingStoppedEvent, type SessionRecordingCompletedEvent, type SessionRecordingDeletedEvent, type SessionRecordingPausedEvent, type SessionRecordingRecoveredEvent, type SessionRecordingResumedEvent, type SessionRecordingStartedEvent, type SessionRecordingStoppedEvent, type SessionRecordingTranscriptCompletedEvent, type SessionRecordingTranscriptFailedEvent, type SessionRecordingTrashedEvent, type SessionSharingEndedEvent, type SessionSharingStartedEvent, type SessionStartedEvent, type SessionUserJoinedEvent, type SessionUserLeftEvent, type SessionUserPhoneCalloutAcceptedEvent, type SessionUserPhoneCalloutMissedEvent, type SessionUserPhoneCalloutRejectedEvent, type SessionUserPhoneCalloutRingingEvent, type SessionUserRoomSystemCalloutAcceptedEvent, type SessionUserRoomSystemCalloutFailedEvent, type SessionUserRoomSystemCalloutMissedEvent, type SessionUserRoomSystemCalloutRejectedEvent, type SessionUserRoomSystemCalloutRingingEvent, type SessionsCreateSessionRequestBody, type SessionsCreateSessionResponse, type SessionsDeleteSessionPathParams, type SessionsGetSessionDetailsPathParams, type SessionsGetSessionDetailsQueryParams, type SessionsGetSessionDetailsResponse, type SessionsGetSessionLiveStreamDetailsPathParams, type SessionsGetSessionLiveStreamDetailsResponse, type SessionsGetSessionUserQoSPathParams, type SessionsGetSessionUserQoSQueryParams, type SessionsGetSessionUserQoSResponse, type SessionsGetSharingRecordingDetailsPathParams, type SessionsGetSharingRecordingDetailsQueryParams, type SessionsGetSharingRecordingDetailsResponse, type SessionsListSessionUsersPathParams, type SessionsListSessionUsersQoSPathParams, type SessionsListSessionUsersQoSQueryParams, type SessionsListSessionUsersQoSResponse, type SessionsListSessionUsersQueryParams, type SessionsListSessionUsersResponse, type SessionsListSessionsQueryParams, type SessionsListSessionsResponse, type SessionsUpdateSessionLiveStreamPathParams, type SessionsUpdateSessionLiveStreamRequestBody, type SessionsUpdateSessionLivestreamStatusPathParams, type SessionsUpdateSessionLivestreamStatusRequestBody, type SessionsUpdateSessionStatusPathParams, type SessionsUpdateSessionStatusRequestBody, type SessionsUseInSessionEventsControlsPathParams, type SessionsUseInSessionEventsControlsRequestBody, type StateStore, StatusCode, type TokenStore, type VideoSDKReportsGetCloudRecordingUsageReportQueryParams, type VideoSDKReportsGetCloudRecordingUsageReportResponse, type VideoSDKReportsGetDailyUsageReportQueryParams, type VideoSDKReportsGetDailyUsageReportResponse, type VideoSDKReportsGetOperationLogsReportQueryParams, type VideoSDKReportsGetOperationLogsReportResponse, type VideoSDKReportsGetTelephoneReportQueryParams, type VideoSDKReportsGetTelephoneReportResponse, VideoSdkClient, VideoSdkEndpoints, VideoSdkEventProcessor, type VideoSdkOptions, isCoreError, isStateStore };
+export { ALL_EVENTS, ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, LogLevel, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, ReceiverInconsistentStateError, ReceiverOAuthFlowError, S2SRawResponseError, StatusCode, VideoSdkClient, VideoSdkEndpoints, VideoSdkEventProcessor, isCoreError, isStateStore };
+export type { ByosStorageAddStorageLocationRequestBody, ByosStorageAddStorageLocationResponse, ByosStorageChangeStorageLocationDetailPathParams, ByosStorageChangeStorageLocationDetailRequestBody, ByosStorageDeleteStorageLocationDetailPathParams, ByosStorageListStorageLocationResponse, ByosStorageStorageLocationDetailPathParams, ByosStorageStorageLocationDetailResponse, ByosStorageUpdateBringYourOwnStorageSettingsRequestBody, ClientCredentialsToken, CloudRecordingDeleteSessionsRecordingFilePathParams, CloudRecordingDeleteSessionsRecordingFileQueryParams, CloudRecordingDeleteSessionsRecordingsPathParams, CloudRecordingDeleteSessionsRecordingsQueryParams, CloudRecordingListRecordingsOfAccountQueryParams, CloudRecordingListRecordingsOfAccountResponse, CloudRecordingListSessionsRecordingsPathParams, CloudRecordingListSessionsRecordingsQueryParams, CloudRecordingListSessionsRecordingsResponse, CloudRecordingRecoverSessionsRecordingsPathParams, CloudRecordingRecoverSessionsRecordingsRequestBody, CloudRecordingRecoverSingleRecordingPathParams, CloudRecordingRecoverSingleRecordingRequestBody, HttpReceiverOptions, JwtToken, Logger, OAuthToken, Receiver, ReceiverInitOptions, S2SAuthToken, SessionAlertEvent, SessionEndedEvent, SessionLiveStreamingStartedEvent, SessionLiveStreamingStoppedEvent, SessionRecordingCompletedEvent, SessionRecordingDeletedEvent, SessionRecordingPausedEvent, SessionRecordingRecoveredEvent, SessionRecordingResumedEvent, SessionRecordingStartedEvent, SessionRecordingStoppedEvent, SessionRecordingSummaryCompletedEvent, SessionRecordingTranscriptCompletedEvent, SessionRecordingTranscriptFailedEvent, SessionRecordingTrashedEvent, SessionSharingEndedEvent, SessionSharingStartedEvent, SessionStartedEvent, SessionStreamIngestionConnectedEvent, SessionStreamIngestionDisconnectedEvent, SessionStreamIngestionStartedEvent, SessionStreamIngestionStoppedEvent, SessionStreamIngestionUnbindEvent, SessionUserJoinedEvent, SessionUserLeftEvent, SessionUserPhoneCalloutAcceptedEvent, SessionUserPhoneCalloutCanceledEvent, SessionUserPhoneCalloutMissedEvent, SessionUserPhoneCalloutRejectedEvent, SessionUserPhoneCalloutRingingEvent, SessionUserRoomSystemCalloutAcceptedEvent, SessionUserRoomSystemCalloutFailedEvent, SessionUserRoomSystemCalloutMissedEvent, SessionUserRoomSystemCalloutRejectedEvent, SessionUserRoomSystemCalloutRingingEvent, SessionsCreateSessionRequestBody, SessionsCreateSessionResponse, SessionsCreateStreamIngestionRequestBody, SessionsCreateStreamIngestionResponse, SessionsDeleteSessionPathParams, SessionsDeleteStreamIngestionPathParams, SessionsGetSessionDetailsPathParams, SessionsGetSessionDetailsQueryParams, SessionsGetSessionDetailsResponse, SessionsGetSessionLiveStreamDetailsPathParams, SessionsGetSessionLiveStreamDetailsResponse, SessionsGetSessionSIPURIWithPasscodePathParams, SessionsGetSessionSIPURIWithPasscodeRequestBody, SessionsGetSessionSIPURIWithPasscodeResponse, SessionsGetSessionUserQoSPathParams, SessionsGetSessionUserQoSQueryParams, SessionsGetSessionUserQoSResponse, SessionsGetSharingRecordingDetailsPathParams, SessionsGetSharingRecordingDetailsQueryParams, SessionsGetSharingRecordingDetailsResponse, SessionsGetStreamIngestionPathParams, SessionsGetStreamIngestionResponse, SessionsListSessionStreamingIngestionsPathParams, SessionsListSessionStreamingIngestionsResponse, SessionsListSessionUsersPathParams, SessionsListSessionUsersQoSPathParams, SessionsListSessionUsersQoSQueryParams, SessionsListSessionUsersQoSResponse, SessionsListSessionUsersQueryParams, SessionsListSessionUsersResponse, SessionsListSessionsQueryParams, SessionsListSessionsResponse, SessionsListStreamIngestionsQueryParams, SessionsListStreamIngestionsResponse, SessionsUpdateSessionLiveStreamPathParams, SessionsUpdateSessionLiveStreamRequestBody, SessionsUpdateSessionLivestreamStatusPathParams, SessionsUpdateSessionLivestreamStatusRequestBody, SessionsUpdateSessionStatusPathParams, SessionsUpdateSessionStatusRequestBody, SessionsUpdateStreamIngestionPathParams, SessionsUpdateStreamIngestionRequestBody, SessionsUseInSessionEventsControlsPathParams, SessionsUseInSessionEventsControlsRequestBody, StateStore, TokenStore, VideoSDKReportsGetCloudRecordingUsageReportQueryParams, VideoSDKReportsGetCloudRecordingUsageReportResponse, VideoSDKReportsGetDailyUsageReportQueryParams, VideoSDKReportsGetDailyUsageReportResponse, VideoSDKReportsGetOperationLogsReportQueryParams, VideoSDKReportsGetOperationLogsReportResponse, VideoSDKReportsGetTelephoneReportQueryParams, VideoSDKReportsGetTelephoneReportResponse, VideoSdkEvents, VideoSdkOptions };
