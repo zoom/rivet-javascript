@@ -1,87 +1,7 @@
-import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { AxiosResponse } from 'axios';
+import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { Server } from 'node:http';
 import { ServerOptions } from 'node:https';
-
-type AllPropsOptional<T, True, False> = Exclude<{
-    [P in keyof T]: undefined extends T[P] ? True : False;
-}[keyof T], undefined> extends True ? True : False;
-type Constructor<T> = new (...args: any[]) => T;
-type MaybeArray<T> = T | T[];
-type MaybePromise<T> = T | Promise<T>;
-type StringIndexed<V = any> = Record<string, V>;
-
-/**
- * {@link StateStore} defines methods for generating and verifying OAuth state.
- *
- * This interface is implemented internally for the default state store; however,
- * it can also be implemented and passed to an OAuth client as well.
- */
-interface StateStore {
-    /**
-     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
-     */
-    generateState(): MaybePromise<string>;
-    /**
-     * Verify that the state received during OAuth callback is valid and not forged.
-     *
-     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
-     *
-     * @param state The state parameter that was received during OAuth callback
-     */
-    verifyState(state: string): MaybePromise<void>;
-}
-/**
- * Guard if an object implements the {@link StateStore} interface — most notably,
- * `generateState()` and `verifyState(state: string)`.
- */
-declare const isStateStore: (obj: unknown) => obj is StateStore;
-
-interface TokenStore<Token> {
-    getLatestToken(): MaybePromise<Token | null | undefined>;
-    storeToken(token: Token): MaybePromise<void>;
-}
-
-interface RivetError<ErrorCode extends string = string> extends Error {
-    readonly errorCode: ErrorCode;
-}
-
-declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
-    readonly ApiResponseError: "zoom_rivet_api_response_error";
-    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
-    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
-    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
-    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
-    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
-    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
-    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
-    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
-    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
-    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
-    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
-    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
-    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
-    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
-    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
-    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
-}[K]>;
-declare const ApiResponseError: Constructor<Error>;
-declare const AwsReceiverRequestError: Constructor<Error>;
-declare const ClientCredentialsRawResponseError: Constructor<Error>;
-declare const S2SRawResponseError: Constructor<Error>;
-declare const CommonHttpRequestError: Constructor<Error>;
-declare const ReceiverInconsistentStateError: Constructor<Error>;
-declare const ReceiverOAuthFlowError: Constructor<Error>;
-declare const HTTPReceiverConstructionError: Constructor<Error>;
-declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
-declare const HTTPReceiverRequestError: Constructor<Error>;
-declare const OAuthInstallerNotInitializedError: Constructor<Error>;
-declare const OAuthTokenDoesNotExistError: Constructor<Error>;
-declare const OAuthTokenFetchFailedError: Constructor<Error>;
-declare const OAuthTokenRawResponseError: Constructor<Error>;
-declare const OAuthTokenRefreshFailedError: Constructor<Error>;
-declare const OAuthStateVerificationFailedError: Constructor<Error>;
-declare const ProductClientConstructionError: Constructor<Error>;
 
 declare enum LogLevel {
     ERROR = "error",
@@ -142,6 +62,19 @@ declare class ConsoleLogger implements Logger {
     private static isMoreOrEqualSevere;
 }
 
+type AllPropsOptional<T, True, False> = Exclude<{
+    [P in keyof T]: undefined extends T[P] ? True : False;
+}[keyof T], undefined> extends True ? True : False;
+type Constructor<T> = new (...args: any[]) => T;
+type MaybeArray<T> = T | T[];
+type MaybePromise<T> = T | Promise<T>;
+type StringIndexed<V = any> = Record<string, V>;
+
+interface TokenStore<Token> {
+    getLatestToken(): MaybePromise<Token | null | undefined>;
+    storeToken(token: Token): MaybePromise<void>;
+}
+
 interface AuthOptions<Token> {
     clientId: string;
     clientSecret: string;
@@ -187,6 +120,17 @@ declare abstract class Auth<Token = unknown> {
     }>, "grant_type">): Promise<AxiosResponse>;
 }
 
+interface ClientCredentialsToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    scopes: string[];
+}
+
+interface JwtToken {
+    token: string;
+    expirationTimeIso: string;
+}
+
 interface S2SAuthToken {
     accessToken: string;
     expirationTimeIso: string;
@@ -225,12 +169,31 @@ declare class EventManager<Endpoints, Events> {
     protected withContext<EventName extends EventKeys<Events>, Context>(): ContextListener<Events, EventName, Context>;
 }
 
+declare enum StatusCode {
+    OK = 200,
+    TEMPORARY_REDIRECT = 302,
+    BAD_REQUEST = 400,
+    NOT_FOUND = 404,
+    METHOD_NOT_ALLOWED = 405,
+    INTERNAL_SERVER_ERROR = 500
+}
+interface ReceiverInitOptions {
+    eventEmitter?: GenericEventManager | undefined;
+    interactiveAuth?: InteractiveAuth | undefined;
+}
+interface Receiver {
+    canInstall(): true | false;
+    init(options: ReceiverInitOptions): void;
+    start(...args: any[]): MaybePromise<unknown>;
+    stop(...args: any[]): MaybePromise<unknown>;
+}
+
 interface HttpReceiverOptions extends Partial<SecureServerOptions> {
     endpoints?: MaybeArray<string> | undefined;
+    logger?: Logger | undefined;
+    logLevel?: LogLevel | undefined;
     port?: number | string | undefined;
-    webhooksSecretToken: string;
-    logger?: Logger;
-    logLevel?: LogLevel;
+    webhooksSecretToken?: string | undefined;
 }
 type SecureServerOptions = {
     [K in (typeof secureServerOptionKeys)[number]]: ServerOptions[K];
@@ -243,10 +206,15 @@ declare class HttpReceiver implements Receiver {
     private logger;
     constructor(options: HttpReceiverOptions);
     canInstall(): true;
+    private buildDeletedStateCookieHeader;
+    private buildStateCookieHeader;
+    private getRequestCookie;
     private getServerCreator;
     private hasEndpoint;
     private hasSecureOptions;
     init({ eventEmitter, interactiveAuth }: ReceiverInitOptions): void;
+    private setResponseCookie;
+    private areNormalizedUrlsEqual;
     start(port?: number | string): Promise<Server>;
     stop(): Promise<void>;
     private writeTemporaryRedirect;
@@ -269,6 +237,7 @@ interface WebEndpointOptions {
     baseUrl?: string | undefined;
     doubleEncodeUrl?: boolean | undefined;
     timeout?: number | undefined;
+    userAgentName?: string | undefined;
 }
 type EndpointArguments<PathSchema extends StringIndexed | NoParams, BodySchema extends StringIndexed | NoParams, QuerySchema extends StringIndexed | NoParams> = (PathSchema extends NoParams ? object : AllPropsOptional<PathSchema, "t", "f"> extends "t" ? {
     path?: PathSchema;
@@ -290,6 +259,7 @@ declare class WebEndpoints {
     constructor(options: WebEndpointOptions);
     protected buildEndpoint<PathSchema extends StringIndexed | NoParams, BodySchema extends StringIndexed | NoParams, QuerySchema extends StringIndexed | NoParams, ResponseData = unknown>({ method, baseUrlOverride, urlPathBuilder, requestMimeType }: BuildEndpointOptions<PathSchema>): (_: EndpointArguments<PathSchema, BodySchema, QuerySchema>) => Promise<BaseResponse<ResponseData>>;
     private buildUserAgent;
+    private getCustomUserAgentName;
     private getHeaders;
     private getRequestBody;
     private isOk;
@@ -297,7 +267,7 @@ declare class WebEndpoints {
     private makeRequest;
 }
 
-type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A> & ExtractInstallerOptions<A, R> & {
+type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A> & ExtractInstallerOptions<A, R> & Pick<WebEndpointOptions, "userAgentName"> & {
     disableReceiver?: boolean | undefined;
     logger?: Logger | undefined;
     logLevel?: LogLevel | undefined;
@@ -305,38 +275,68 @@ type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A>
 interface ClientReceiverOptions<R extends Receiver> {
     receiver: R;
 }
-type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = IsReceiverDisabled<O> extends true ? O : O & (ClientReceiverOptions<R> | HttpReceiverOptions);
+type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = (O & {
+    disableReceiver: true;
+}) | (O & (ClientReceiverOptions<R> | HttpReceiverOptions));
 type ExtractInstallerOptions<A extends Auth, R extends Receiver> = A extends InteractiveAuth ? [
     ReturnType<R["canInstall"]>
 ] extends [true] ? WideInstallerOptions : object : object;
 type ExtractAuthTokenType<A> = A extends Auth<infer T> ? T : never;
-type GenericClientOptions = CommonClientOptions<any, any>;
 type GetAuthOptions<A extends Auth> = AuthOptions<ExtractAuthTokenType<A>> & (A extends S2SAuth ? S2SAuthOptions : object);
-type IsReceiverDisabled<O extends Pick<GenericClientOptions, "disableReceiver">> = [
-    O["disableReceiver"]
-] extends [true] ? true : false;
 type WideInstallerOptions = {
     installerOptions: InstallerOptions;
 };
 declare abstract class ProductClient<AuthType extends Auth, EndpointsType extends WebEndpoints, EventProcessorType extends GenericEventManager, OptionsType extends CommonClientOptions<AuthType, ReceiverType>, ReceiverType extends Receiver> {
     private readonly auth;
     readonly endpoints: EndpointsType;
-    readonly webEventConsumer: EventProcessorType;
+    readonly webEventConsumer?: EventProcessorType | undefined;
     private readonly receiver?;
     constructor(options: ClientConstructorOptions<AuthType, OptionsType, ReceiverType>);
     protected abstract initAuth(options: OptionsType): AuthType;
     protected abstract initEndpoints(auth: AuthType, options: OptionsType): EndpointsType;
-    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType;
+    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType | undefined;
     private initDefaultReceiver;
-    start(this: IsReceiverDisabled<OptionsType> extends true ? never : this): Promise<ReturnType<ReceiverType["start"]>>;
+    start(): Promise<ReturnType<ReceiverType["start"]>>;
 }
 
+/**
+ * {@link StateStore} defines methods for generating and verifying OAuth state.
+ *
+ * This interface is implemented internally for the default state store; however,
+ * it can also be implemented and passed to an OAuth client as well.
+ */
+interface StateStore {
+    /**
+     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
+     */
+    generateState(): MaybePromise<string>;
+    /**
+     * Verify that the state received during OAuth callback is valid and not forged.
+     *
+     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
+     *
+     * @param state The state parameter that was received during OAuth callback
+     */
+    verifyState(state: string): MaybePromise<void>;
+}
+/**
+ * Guard if an object implements the {@link StateStore} interface — most notably,
+ * `generateState()` and `verifyState(state: string)`.
+ */
+declare const isStateStore: (obj: unknown) => obj is StateStore;
+
+interface AuthorizationUrlResult {
+    fullUrl: string;
+    generatedState: string;
+}
 interface InstallerOptions {
     directInstall?: boolean | undefined;
     installPath?: string | undefined;
     redirectUri: string;
     redirectUriPath?: string | undefined;
     stateStore: StateStore | string;
+    stateCookieName?: string | undefined;
+    stateCookieMaxAge?: number | undefined;
 }
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
@@ -350,35 +350,86 @@ interface InstallerOptions {
  */
 declare abstract class InteractiveAuth<Token = unknown> extends Auth<Token> {
     installerOptions?: ReturnType<typeof this.setInstallerOptions>;
-    getAuthorizationUrl(): Promise<string>;
+    getAuthorizationUrl(): Promise<AuthorizationUrlResult>;
     getFullRedirectUri(): string;
-    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore }: InstallerOptions): {
+    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore, stateCookieName, stateCookieMaxAge }: InstallerOptions): {
         directInstall: boolean;
         installPath: string;
         redirectUri: string;
         redirectUriPath: string;
         stateStore: StateStore;
+        stateCookieName: string;
+        stateCookieMaxAge: number;
     };
 }
 
-declare enum StatusCode {
-    OK = 200,
-    TEMPORARY_REDIRECT = 302,
-    BAD_REQUEST = 400,
-    NOT_FOUND = 404,
-    METHOD_NOT_ALLOWED = 405,
-    INTERNAL_SERVER_ERROR = 500
+/**
+ * Credentials for access token & refresh token, which are used to access Zoom's APIs.
+ *
+ * As access token is short-lived (usually a single hour), its expiration time is checked
+ * first. If it's possible to use the access token, it's used; however, if it has expired
+ * or is close to expiring, the refresh token should be used to generate a new access token
+ * before the API call is made. Refresh tokens are generally valid for 90 days.
+ *
+ * If neither the access token nor the refresh token is available, {@link OAuthTokenRefreshFailedError}
+ * shall be thrown, informing the developer that neither value can be used, and the user must re-authorize.
+ * It's likely that this error will be rare, but it _can_ be thrown.
+ */
+interface OAuthToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    refreshToken: string;
+    scopes: string[];
 }
-interface ReceiverInitOptions {
-    eventEmitter: GenericEventManager;
-    interactiveAuth?: InteractiveAuth | undefined;
+declare class OAuth extends InteractiveAuth<OAuthToken> {
+    private assertResponseAccessToken;
+    private fetchAccessToken;
+    getToken(): Promise<string>;
+    initRedirectCode(code: string): Promise<void>;
+    private mapOAuthToken;
+    private refreshAccessToken;
 }
-interface Receiver {
-    canInstall(): true | false;
-    init(options: ReceiverInitOptions): void;
-    start(...args: any[]): MaybePromise<unknown>;
-    stop(...args: any[]): MaybePromise<unknown>;
+
+interface RivetError<ErrorCode extends string = string> extends Error {
+    readonly errorCode: ErrorCode;
 }
+
+declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
+    readonly ApiResponseError: "zoom_rivet_api_response_error";
+    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
+    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
+    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
+    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
+    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
+    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
+    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
+    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
+    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
+    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
+    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
+    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
+    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
+    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
+    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
+    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
+}[K]>;
+declare const ApiResponseError: Constructor<Error>;
+declare const AwsReceiverRequestError: Constructor<Error>;
+declare const ClientCredentialsRawResponseError: Constructor<Error>;
+declare const S2SRawResponseError: Constructor<Error>;
+declare const CommonHttpRequestError: Constructor<Error>;
+declare const ReceiverInconsistentStateError: Constructor<Error>;
+declare const ReceiverOAuthFlowError: Constructor<Error>;
+declare const HTTPReceiverConstructionError: Constructor<Error>;
+declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
+declare const HTTPReceiverRequestError: Constructor<Error>;
+declare const OAuthInstallerNotInitializedError: Constructor<Error>;
+declare const OAuthTokenDoesNotExistError: Constructor<Error>;
+declare const OAuthTokenFetchFailedError: Constructor<Error>;
+declare const OAuthTokenRawResponseError: Constructor<Error>;
+declare const OAuthTokenRefreshFailedError: Constructor<Error>;
+declare const OAuthStateVerificationFailedError: Constructor<Error>;
+declare const ProductClientConstructionError: Constructor<Error>;
 
 interface AwsLambdaReceiverOptions {
     webhooksSecretToken: string;
@@ -402,7 +453,7 @@ type ContactGroupsListContactGroupsResponse = {
     groups?: {
         group_id?: string;
         group_name?: string;
-        group_privacy?: number;
+        group_privacy?: 1 | 2 | 3;
         description?: string;
     }[];
     next_page_token?: string;
@@ -410,10 +461,10 @@ type ContactGroupsListContactGroupsResponse = {
 };
 type ContactGroupsCreateContactGroupRequestBody = {
     group_name?: string;
-    group_privacy?: number;
+    group_privacy?: 1 | 2 | 3;
     description?: string;
     group_members?: {
-        type?: number;
+        type?: 1 | 2;
         id?: string;
     }[];
 };
@@ -421,7 +472,7 @@ type ContactGroupsCreateContactGroupResponse = {
     group_id?: string;
     group_name?: string;
     total_members?: number;
-    group_privacy?: number;
+    group_privacy?: 1 | 2 | 3;
     description?: string;
 };
 type ContactGroupsGetContactGroupPathParams = {
@@ -431,7 +482,7 @@ type ContactGroupsGetContactGroupResponse = {
     group_id?: string;
     group_name?: string;
     total_members?: number;
-    group_privacy?: number;
+    group_privacy?: 1 | 2 | 3;
     description?: string;
 };
 type ContactGroupsDeleteContactGroupPathParams = {
@@ -442,7 +493,7 @@ type ContactGroupsUpdateContactGroupPathParams = {
 };
 type ContactGroupsUpdateContactGroupRequestBody = {
     name?: string;
-    privacy?: number;
+    privacy?: 1 | 2 | 3;
     description?: string;
 };
 type ContactGroupsListContactGroupMembersPathParams = {
@@ -453,8 +504,8 @@ type ContactGroupsListContactGroupMembersQueryParams = {
     next_page_token?: string;
 };
 type ContactGroupsListContactGroupMembersResponse = {
-    members?: {
-        type?: number;
+    group_members?: {
+        type?: 1 | 2;
         id?: string;
         name?: string;
     }[];
@@ -466,7 +517,7 @@ type ContactGroupsAddContactGroupMembersPathParams = {
 };
 type ContactGroupsAddContactGroupMembersRequestBody = {
     group_members?: {
-        type?: number;
+        type?: 1 | 2;
         id?: string;
     }[];
 };
@@ -479,6 +530,84 @@ type ContactGroupsRemoveMembersInContactGroupPathParams = {
 type ContactGroupsRemoveMembersInContactGroupQueryParams = {
     member_ids: string;
 };
+type DivisionsListDivisionsQueryParams = {
+    next_page_token?: string;
+    page_size?: number;
+};
+type DivisionsListDivisionsResponse = {
+    next_page_token?: string;
+    page_size?: number;
+    total_records?: number;
+    divisions?: {
+        division_id?: string;
+        division_name?: string;
+        division_description?: string;
+        is_main_division?: boolean;
+        total_members?: number;
+    }[];
+};
+type DivisionsCreateDivisionRequestBody = {
+    division_name: string;
+    division_description?: string;
+};
+type DivisionsCreateDivisionResponse = {
+    division_id?: string;
+    division_name?: string;
+    division_description?: string;
+};
+type DivisionsGetDivisionPathParams = {
+    divisionId: string;
+};
+type DivisionsGetDivisionResponse = {
+    division_id?: string;
+    division_name?: string;
+    division_description?: string;
+    is_main_division?: boolean;
+};
+type DivisionsDeleteDivisionPathParams = {
+    divisionId: string;
+};
+type DivisionsUpdateDivisionPathParams = {
+    divisionId: string;
+};
+type DivisionsUpdateDivisionRequestBody = {
+    division_name?: string;
+    division_description?: string;
+};
+type DivisionsListDivisionMembersPathParams = {
+    divisionId: string;
+};
+type DivisionsListDivisionMembersQueryParams = {
+    next_page_token?: string;
+    page_size?: number;
+};
+type DivisionsListDivisionMembersResponse = {
+    next_page_token?: string;
+    page_size?: number;
+    total_records?: number;
+    users?: {
+        user_id?: string;
+        user_display_name?: string;
+        user_email?: string;
+    }[];
+};
+type DivisionsAssignDivisionPathParams = {
+    divisionId: string;
+};
+type DivisionsAssignDivisionRequestBody = {
+    users?: {
+        user_email?: string;
+        user_id?: string;
+    }[];
+};
+type DivisionsAssignDivisionResponse = {
+    added_at?: string;
+    ids?: string;
+};
+type GroupsListGroupsQueryParams = {
+    page_size?: number;
+    next_page_token?: string;
+};
 type GroupsListGroupsResponse = {
     groups?: ({
         id?: string;
@@ -487,9 +616,15 @@ type GroupsListGroupsResponse = {
         total_members?: number;
     })[];
     total_records?: number;
+    next_page_token?: string;
 };
 type GroupsCreateGroupRequestBody = {
     name?: string;
+};
+type GroupsCreateGroupResponse = {
+    id?: string;
+    name?: string;
+    total_members?: number;
 };
 type GroupsGetGroupPathParams = {
     groupId: string;
@@ -532,6 +667,10 @@ type GroupsAddGroupAdminsRequestBody = {
         email?: string;
         id?: string;
     }[];
+};
+type GroupsAddGroupAdminsResponse = {
+    added_at?: string;
+    ids?: string;
 };
 type GroupsDeleteGroupAdminPathParams = {
     groupId: string;
@@ -669,7 +808,7 @@ type GroupsGetLockedSettingsResponse = {
         auto_security?: boolean;
         block_user_domain?: boolean;
         embed_password_in_join_link?: boolean;
-        encryption_type?: string;
+        encryption_type?: "enhanced_encryption" | "e2ee";
         end_to_end_encrypted_meetings?: boolean;
         meeting_password?: boolean;
         only_authenticated_can_join_from_webclient?: boolean;
@@ -798,7 +937,7 @@ type GroupsUpdateLockedSettingsRequestBody = {
         auto_security?: boolean;
         block_user_domain?: boolean;
         embed_password_in_join_link?: boolean;
-        encryption_type?: string;
+        encryption_type?: "enhanced_encryption" | "e2ee";
         end_to_end_encrypted_meetings?: boolean;
         meeting_password?: boolean;
         only_authenticated_can_join_from_webclient?: boolean;
@@ -839,6 +978,10 @@ type GroupsAddGroupMembersRequestBody = {
         id?: string;
     }[];
 };
+type GroupsAddGroupMembersResponse = {
+    added_at?: string;
+    ids?: string;
+};
 type GroupsDeleteGroupMemberPathParams = {
     groupId: string;
     memberId: string;
@@ -848,14 +991,14 @@ type GroupsUpdateGroupMemberPathParams = {
     memberId: string;
 };
 type GroupsUpdateGroupMemberRequestBody = {
-    action: string;
+    action: "move" | "set_primary";
     target_group_id?: string;
 };
 type GroupsGetGroupsSettingsPathParams = {
     groupId: string;
 };
 type GroupsGetGroupsSettingsQueryParams = {
-    option?: string;
+    option?: "meeting_authentication" | "recording_authentication" | "meeting_security";
     custom_query_fields?: string;
 };
 type GroupsGetGroupsSettingsResponse = {
@@ -885,9 +1028,9 @@ type GroupsGetGroupsSettingsResponse = {
         alert_guest_join?: boolean;
         allow_users_to_delete_messages_in_meeting_chat?: boolean;
         allow_live_streaming?: boolean;
-        allow_participants_chat_with?: number;
+        allow_participants_chat_with?: 1 | 2 | 3 | 4;
         allow_show_zoom_windows?: boolean;
-        allow_users_save_chats?: number;
+        allow_users_save_chats?: 1 | 2 | 3;
         annotation?: boolean;
         attendee_on_hold?: boolean;
         auto_answer?: boolean;
@@ -908,7 +1051,7 @@ type GroupsGetGroupsSettingsResponse = {
         custom_data_center_regions?: boolean;
         custom_live_streaming_service?: boolean;
         custom_service_instructions?: string;
-        data_center_regions?: string[];
+        data_center_regions?: ("AU" | "LA" | "CA" | "CN" | "DE" | "HK" | "IN" | "IE" | "TY" | "MX" | "NL" | "SG" | "US")[];
         disable_screen_sharing_for_host_meetings?: boolean;
         disable_screen_sharing_for_in_meeting_guests?: boolean;
         e2e_encryption?: boolean;
@@ -924,14 +1067,14 @@ type GroupsGetGroupsSettingsResponse = {
             language_item_pairList?: {
                 trans_lang_config?: {
                     speak_language?: {
-                        name?: string;
-                        code?: string;
+                        name?: "Chinese (Simplified)" | "Dutch" | "English" | "French" | "German" | "Italian" | "Japanese" | "Korean" | "Portuguese" | "Russian" | "Spanish" | "Ukrainian";
+                        code?: "zh" | "nl" | "en" | "fr" | "de" | "it" | "ja" | "ko" | "pt" | "ru" | "es" | "uk";
                     };
                     translate_to?: {
                         all?: boolean;
                         language_config?: {
-                            name?: string;
-                            code?: string;
+                            name?: "English";
+                            code?: "en";
                         }[];
                     };
                 }[];
@@ -950,7 +1093,7 @@ type GroupsGetGroupsSettingsResponse = {
         sign_language_interpretation?: {
             enable?: boolean;
             enable_sign_language_interpretation_by_default?: boolean;
-            languages?: string[];
+            languages?: ("American" | "Chinese" | "French" | "German" | "Japanese" | "Russian" | "Brazilian" | "Spanish" | "Mexican" | "British")[];
             custom_languages?: string[];
         };
         live_streaming_facebook?: boolean;
@@ -964,7 +1107,7 @@ type GroupsGetGroupsSettingsResponse = {
             third_party_captioning_service?: boolean;
         };
         meeting_reactions?: boolean;
-        meeting_reactions_emojis?: string;
+        meeting_reactions_emojis?: "all" | "selected";
         allow_host_panelists_to_use_audible_clap?: boolean;
         webinar_reactions?: boolean;
         meeting_survey?: boolean;
@@ -1003,19 +1146,19 @@ type GroupsGetGroupsSettingsResponse = {
         };
         waiting_room?: boolean;
         webinar_chat?: {
-            allow_attendees_chat_with?: number;
+            allow_attendees_chat_with?: 1 | 2 | 3;
             allow_auto_save_local_chat_file?: boolean;
-            allow_panelists_chat_with?: number;
+            allow_panelists_chat_with?: 1 | 2;
             allow_panelists_send_direct_message?: boolean;
-            allow_users_save_chats?: number;
-            default_attendees_chat_with?: number;
+            allow_users_save_chats?: 0 | 1 | 2;
+            default_attendees_chat_with?: 1 | 2;
             enable?: boolean;
         };
         webinar_live_streaming?: {
             custom_service_instructions?: string;
             enable?: boolean;
             live_streaming_reminder?: boolean;
-            live_streaming_service?: string[];
+            live_streaming_service?: ("facebook" | "workplace_by_facebook" | "youtube" | "custom_live_streaming_service")[];
         };
         meeting_polling?: {
             enable?: boolean;
@@ -1036,9 +1179,9 @@ type GroupsGetGroupsSettingsResponse = {
         webinar_question_answer?: boolean;
         webinar_survey?: boolean;
         whiteboard?: boolean;
-        who_can_share_screen?: string;
-        who_can_share_screen_when_someone_is_sharing?: string;
-        participants_share_simultaneously?: string;
+        who_can_share_screen?: "host" | "all";
+        who_can_share_screen_when_someone_is_sharing?: "host" | "all";
+        participants_share_simultaneously?: "multiple" | "one";
         workplace_by_facebook?: boolean;
     };
     other_options?: {
@@ -1067,12 +1210,12 @@ type GroupsGetGroupsSettingsResponse = {
                 chat_with_sender_email?: boolean;
                 video_file?: boolean;
                 chat_with_direct_message?: boolean;
-                archive_retention?: number;
-                action_when_archive_failed?: number;
-                notification_when_archiving_starts?: string;
-                play_voice_prompt_when_archiving_starts?: string;
+                archive_retention?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30;
+                action_when_archive_failed?: 1 | 2;
+                notification_when_archiving_starts?: "participants" | "guest";
+                play_voice_prompt_when_archiving_starts?: "participants" | "guest" | "none";
             };
-            type?: number;
+            type?: 1 | 2 | 3;
         };
         auto_recording?: string;
         cloud_recording?: boolean;
@@ -1120,7 +1263,7 @@ type GroupsGetGroupsSettingsResponse = {
         personal_meeting?: boolean;
         pstn_password_protected?: boolean;
         require_password_for_instant_meetings?: boolean;
-        require_password_for_pmi_meetings?: string;
+        require_password_for_pmi_meetings?: "all" | "jbh_only" | "none";
         require_password_for_scheduled_meetings?: boolean;
         require_password_for_scheduling_new_meetings?: boolean;
         upcoming_meeting_reminder?: boolean;
@@ -1150,11 +1293,11 @@ type GroupsGetGroupsSettingsResponse = {
     chat?: {
         share_files?: {
             enable?: boolean;
-            share_option?: string;
+            share_option?: "anyone" | "account" | "organization";
         };
         chat_emojis?: {
             enable?: boolean;
-            emojis_option?: string;
+            emojis_option?: "all" | "selected";
         };
         record_voice_messages?: boolean;
         record_video_messages?: boolean;
@@ -1176,12 +1319,12 @@ type GroupsGetGroupsSettingsResponse = {
         allow_users_to_search_others_options?: string;
         allow_users_to_add_contacts?: {
             enable?: boolean;
-            selected_option?: number;
+            selected_option?: 1 | 2 | 3 | 4;
             user_email_addresses?: string;
         };
         allow_users_to_chat_with_others?: {
             enable?: boolean;
-            selected_option?: number;
+            selected_option?: 1 | 2 | 3 | 4;
             user_email_addresses?: string;
         };
         chat_etiquette_tool?: {
@@ -1193,8 +1336,8 @@ type GroupsGetGroupsSettingsResponse = {
                 keywords?: string[];
                 name?: string;
                 regular_expression?: string;
-                status?: string;
-                trigger_action?: number;
+                status?: "activated" | "deactivated";
+                trigger_action?: 1 | 2;
             }[];
         };
         send_data_to_third_party_archiving_service?: {
@@ -1212,7 +1355,7 @@ type GroupsGetGroupsSettingsResponse = {
         domains?: string;
         id?: string;
         name?: string;
-        type?: string;
+        type?: "enforce_login" | "enforce_login_with_same_account" | "enforce_login_with_domains";
         visible?: boolean;
     }[];
     meeting_authentication?: boolean;
@@ -1222,7 +1365,7 @@ type GroupsGetGroupsSettingsResponse = {
         domains?: string;
         id?: string;
         name?: string;
-        type?: string;
+        type?: "internally" | "enforce_login" | "enforce_login_with_domains";
         visible?: boolean;
     }[];
     recording_authentication?: boolean;
@@ -1240,16 +1383,16 @@ type GroupsGetGroupsSettingsResponse = {
                 keywords?: string[];
                 name?: string;
                 regular_expression?: string;
-                status?: string;
-                trigger_action?: number;
+                status?: "activated" | "deactivated";
+                trigger_action?: 1 | 2;
             }[];
         };
         embed_password_in_join_link?: boolean;
-        encryption_type?: string;
+        encryption_type?: "enhanced_encryption" | "e2ee";
         end_to_end_encrypted_meetings?: boolean;
         meeting_password?: boolean;
         meeting_password_requirement?: {
-            consecutive_characters_length?: number;
+            consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
             have_letter?: boolean;
             have_number?: boolean;
             have_special_character?: boolean;
@@ -1265,8 +1408,8 @@ type GroupsGetGroupsSettingsResponse = {
         require_password_for_scheduled_webinar?: boolean;
         waiting_room?: boolean;
         waiting_room_settings?: {
-            participants_to_place_in_waiting_room?: number;
-            users_who_can_admit_participants_from_waiting_room?: number;
+            participants_to_place_in_waiting_room?: 0 | 1 | 2;
+            users_who_can_admit_participants_from_waiting_room?: 0 | 1;
             whitelisted_domains_for_waiting_room?: string;
         };
         webinar_password?: boolean;
@@ -1276,7 +1419,7 @@ type GroupsUpdateGroupsSettingsPathParams = {
     groupId: string;
 };
 type GroupsUpdateGroupsSettingsQueryParams = {
-    option?: string;
+    option?: "meeting_authentication" | "recording_authentication" | "meeting_security";
 };
 type GroupsUpdateGroupsSettingsRequestBody = {
     audio_conferencing?: {
@@ -1305,9 +1448,9 @@ type GroupsUpdateGroupsSettingsRequestBody = {
         alert_guest_join?: boolean;
         allow_users_to_delete_messages_in_meeting_chat?: boolean;
         allow_live_streaming?: boolean;
-        allow_participants_chat_with?: number;
+        allow_participants_chat_with?: 1 | 2 | 3 | 4;
         allow_show_zoom_windows?: boolean;
-        allow_users_save_chats?: number;
+        allow_users_save_chats?: 1 | 2 | 3;
         annotation?: boolean;
         attendee_on_hold?: boolean;
         auto_answer?: boolean;
@@ -1328,11 +1471,11 @@ type GroupsUpdateGroupsSettingsRequestBody = {
         custom_data_center_regions?: boolean;
         custom_live_streaming_service?: boolean;
         custom_service_instructions?: string;
-        data_center_regions?: string[];
+        data_center_regions?: ("AU" | "LA" | "CA" | "CN" | "DE" | "HK" | "IN" | "IE" | "TY" | "MX" | "NL" | "SG" | "US")[];
         disable_screen_sharing_for_host_meetings?: boolean;
         disable_screen_sharing_for_in_meeting_guests?: boolean;
         e2e_encryption?: boolean;
-        entry_exit_chime?: string;
+        entry_exit_chime?: "host" | "all" | "none";
         far_end_camera_control?: boolean;
         feedback?: boolean;
         file_transfer?: boolean;
@@ -1344,14 +1487,14 @@ type GroupsUpdateGroupsSettingsRequestBody = {
             language_item_pairList?: {
                 trans_lang_config?: {
                     speak_language?: {
-                        name?: string;
-                        code?: string;
+                        name?: "Chinese (Simplified)" | "Dutch" | "English" | "French" | "German" | "Italian" | "Japanese" | "Korean" | "Portuguese" | "Russian" | "Spanish" | "Ukrainian";
+                        code?: "zh" | "nl" | "en" | "fr" | "de" | "it" | "ja" | "ko" | "pt" | "ru" | "es" | "uk";
                     };
                     translate_to?: {
                         all?: boolean;
                         language_config?: {
-                            name?: string;
-                            code?: string;
+                            name?: "English";
+                            code?: "en";
                         }[];
                     };
                 }[];
@@ -1382,7 +1525,7 @@ type GroupsUpdateGroupsSettingsRequestBody = {
             third_party_captioning_service?: boolean;
         };
         meeting_reactions?: boolean;
-        meeting_reactions_emojis?: string;
+        meeting_reactions_emojis?: "all" | "selected";
         allow_host_panelists_to_use_audible_clap?: boolean;
         webinar_reactions?: boolean;
         meeting_survey?: boolean;
@@ -1408,19 +1551,19 @@ type GroupsUpdateGroupsSettingsRequestBody = {
         virtual_background?: boolean;
         waiting_room?: boolean;
         webinar_chat?: {
-            allow_attendees_chat_with?: number;
+            allow_attendees_chat_with?: 1 | 2 | 3;
             allow_auto_save_local_chat_file?: boolean;
-            allow_panelists_chat_with?: number;
+            allow_panelists_chat_with?: 1 | 2;
             allow_panelists_send_direct_message?: boolean;
-            allow_users_save_chats?: number;
-            default_attendees_chat_with?: number;
+            allow_users_save_chats?: 0 | 1 | 2;
+            default_attendees_chat_with?: 1 | 2;
             enable?: boolean;
         };
         webinar_live_streaming?: {
             custom_service_instructions?: string;
             enable?: boolean;
             live_streaming_reminder?: boolean;
-            live_streaming_service?: string[];
+            live_streaming_service?: ("facebook" | "workplace_by_facebook" | "youtube" | "custom_live_streaming_service")[];
         };
         meeting_polling?: {
             enable?: boolean;
@@ -1441,9 +1584,9 @@ type GroupsUpdateGroupsSettingsRequestBody = {
         webinar_question_answer?: boolean;
         webinar_survey?: boolean;
         whiteboard?: boolean;
-        who_can_share_screen?: string;
-        who_can_share_screen_when_someone_is_sharing?: string;
-        participants_share_simultaneously?: string;
+        who_can_share_screen?: "host" | "all";
+        who_can_share_screen_when_someone_is_sharing?: "host" | "all";
+        participants_share_simultaneously?: "multiple" | "one";
         workplace_by_facebook?: boolean;
     };
     other_options?: {
@@ -1472,7 +1615,7 @@ type GroupsUpdateGroupsSettingsRequestBody = {
                 chat_with_sender_email?: boolean;
                 video_file?: boolean;
             };
-            type?: number;
+            type?: 1 | 2 | 3;
         };
         auto_recording?: string;
         cloud_recording?: boolean;
@@ -1520,7 +1663,7 @@ type GroupsUpdateGroupsSettingsRequestBody = {
         pstn_password_protected?: boolean;
         require_password_for_all_meetings?: boolean;
         require_password_for_instant_meetings?: boolean;
-        require_password_for_pmi_meetings?: string;
+        require_password_for_pmi_meetings?: "all" | "jbh_only" | "none";
         require_password_for_scheduled_meetings?: boolean;
         require_password_for_scheduling_new_meetings?: boolean;
         upcoming_meeting_reminder?: boolean;
@@ -1545,11 +1688,11 @@ type GroupsUpdateGroupsSettingsRequestBody = {
     chat?: {
         share_files?: {
             enable?: boolean;
-            share_option?: string;
+            share_option?: "anyone" | "account" | "organization";
         };
         chat_emojis?: {
             enable?: boolean;
-            emojis_option?: string;
+            emojis_option?: "all" | "selected";
         };
         record_voice_messages?: boolean;
         record_video_messages?: boolean;
@@ -1571,19 +1714,19 @@ type GroupsUpdateGroupsSettingsRequestBody = {
         allow_users_to_search_others_options?: string;
         allow_users_to_add_contacts?: {
             enable?: boolean;
-            selected_option?: number;
+            selected_option?: 1 | 2 | 3 | 4;
             user_email_addresses?: string;
         };
         allow_users_to_chat_with_others?: {
             enable?: boolean;
-            selected_option?: number;
+            selected_option?: 1 | 2 | 3 | 4;
             user_email_addresses?: string;
         };
         chat_etiquette_tool?: {
             enable?: boolean;
             policies?: {
                 id?: string;
-                status?: string;
+                status?: "activated" | "deactivated";
             }[];
         };
         send_data_to_third_party_archiving_service?: {
@@ -1596,22 +1739,22 @@ type GroupsUpdateGroupsSettingsRequestBody = {
     };
 } | ({
     authentication_option?: {
-        action?: string;
+        action?: "update" | "show" | "hide";
         default_option?: boolean;
         domains?: string;
         id?: string;
         name?: string;
-        type?: string;
+        type?: "enforce_login" | "enforce_login_with_same_account" | "enforce_login_with_domains";
     };
     meeting_authentication?: boolean;
 } | {
     authentication_option?: {
-        action?: string;
+        action?: "update" | "show" | "hide";
         default_option?: boolean;
         domains?: string;
         id?: string;
         name?: string;
-        type?: string;
+        type?: "internally" | "enforce_login" | "enforce_login_with_domains";
     };
     recording_authentication?: boolean;
 }) | {
@@ -1623,15 +1766,15 @@ type GroupsUpdateGroupsSettingsRequestBody = {
             enable?: boolean;
             policies?: {
                 id?: string;
-                status?: string;
+                status?: "activated" | "deactivated";
             }[];
         };
         embed_password_in_join_link?: boolean;
-        encryption_type?: string;
+        encryption_type?: "enhanced_encryption" | "e2ee";
         end_to_end_encrypted_meetings?: boolean;
         meeting_password?: boolean;
         meeting_password_requirement?: {
-            consecutive_characters_length?: number;
+            consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
             have_letter?: boolean;
             have_number?: boolean;
             have_special_character?: boolean;
@@ -1647,19 +1790,18 @@ type GroupsUpdateGroupsSettingsRequestBody = {
         require_password_for_scheduled_webinar?: boolean;
         waiting_room?: boolean;
         waiting_room_settings?: {
-            participants_to_place_in_waiting_room?: number;
-            users_who_can_admit_participants_from_waiting_room?: number;
+            participants_to_place_in_waiting_room?: 0 | 1 | 2;
+            users_who_can_admit_participants_from_waiting_room?: 0 | 1;
             whitelisted_domains_for_waiting_room?: string;
         };
         webinar_password?: boolean;
     };
 };
-type GroupsUpdateGroupsSettingsResponse = object;
 type GroupsGetGroupsWebinarRegistrationSettingsPathParams = {
     groupId: string;
 };
 type GroupsGetGroupsWebinarRegistrationSettingsQueryParams = {
-    type?: string;
+    type?: "webinar";
 };
 type GroupsGetGroupsWebinarRegistrationSettingsResponse = {
     options?: {
@@ -1669,14 +1811,14 @@ type GroupsGetGroupsWebinarRegistrationSettingsResponse = {
         show_social_share_buttons?: boolean;
     };
     questions?: {
-        field_name?: string;
+        field_name?: "last_name" | "address" | "city" | "country" | "zip" | "state" | "phone" | "industry" | "org" | "job_title" | "purchasing_time_frame" | "role_in_purchase_process" | "no_of_employees" | "comments";
         required?: boolean;
         selected?: boolean;
     }[];
-    approve_type?: number;
+    approve_type?: 0 | 1;
     custom_questions?: {
         title?: string;
-        type?: string;
+        type?: "short" | "single_dropdown" | "single_radio" | "multiple";
         required?: boolean;
         selected?: boolean;
         answers?: string[];
@@ -1686,7 +1828,7 @@ type GroupsUpdateGroupsWebinarRegistrationSettingsPathParams = {
     groupId: string;
 };
 type GroupsUpdateGroupsWebinarRegistrationSettingsQueryParams = {
-    type?: string;
+    type?: "webinar";
 };
 type GroupsUpdateGroupsWebinarRegistrationSettingsRequestBody = {
     options?: {
@@ -1696,14 +1838,14 @@ type GroupsUpdateGroupsWebinarRegistrationSettingsRequestBody = {
         show_social_share_buttons?: boolean;
     };
     questions?: {
-        field_name?: string;
+        field_name?: "last_name" | "address" | "city" | "country" | "zip" | "state" | "phone" | "industry" | "org" | "job_title" | "purchasing_time_frame" | "role_in_purchase_process" | "no_of_employees" | "comments";
         required?: boolean;
         selected?: boolean;
     }[];
-    approve_type?: number;
+    approve_type?: 0 | 1;
     custom_questions?: {
         title?: string;
-        type?: string;
+        type?: "short" | "single_dropdown" | "single_radio" | "multiple";
         required?: boolean;
         selected?: boolean;
         answers?: string[];
@@ -1729,13 +1871,13 @@ type GroupsDeleteVirtualBackgroundFilesQueryParams = {
     file_ids?: string;
 };
 type UsersListUsersQueryParams = {
-    status?: string;
+    status?: "active" | "inactive" | "pending";
     page_size?: number;
     role_id?: string;
     page_number?: string;
-    include_fields?: string;
+    include_fields?: "custom_attributes" | "host_key";
     next_page_token?: string;
-    license?: string;
+    license?: "zoom_workforce_management" | "zoom_compliance_management";
 };
 type UsersListUsersResponse = {
     next_page_token?: string;
@@ -1756,36 +1898,48 @@ type UsersListUsersResponse = {
         employee_unique_id?: string;
         first_name?: string;
         group_ids?: string[];
+        division_ids?: string[];
         host_key?: string;
         id?: string;
         im_group_ids?: string[];
         last_client_version?: string;
         last_login_time?: string;
         last_name?: string;
-        plan_united_type?: string;
+        plan_united_type?: "1" | "2" | "4" | "8" | "16" | "32" | "64" | "128" | "256" | "512" | "1024" | "2048" | "4096" | "8192" | "16384" | "32768" | "65536" | "131072";
         pmi?: number;
         role_id?: string;
-        status?: string;
+        status?: "active" | "inactive" | "pending";
         timezone?: string;
-        type: number;
-        verified?: number;
+        type: 1 | 2 | 4 | 99;
+        verified?: 1 | 0;
         display_name?: string;
+        license_info_list?: {
+            license_type?: "MEETING" | "ZOOM_WORKPLACE_BUNDLE";
+            license_option?: 2 | 4 | 8 | 16 | 32 | 64 | 128 | 33554432 | 134217728 | 1073741824 | 536870912 | 268435456 | 4398046511104 | 18014398509481984 | 72057594037927940 | 576460752303423500 | 144115188075855870 | 137438953472 | 1099511627776 | 549755813888 | 274877906944 | 2199023255552 | 4294967296 | 34359738368 | 17179869184 | 8589934592 | 68719476736;
+            subscription_id?: string;
+        }[];
     }[];
 };
 type UsersCreateUsersRequestBody = {
-    action: string;
+    action: "create" | "autoCreate" | "custCreate" | "ssoCreate";
     user_info?: {
         email: string;
         first_name?: string;
         last_name?: string;
         display_name?: string;
         password?: string;
-        type: number;
+        type: 1 | 2 | 4 | 99;
+        division_ids?: string[];
         feature?: {
             zoom_phone?: boolean;
-            zoom_one_type?: number;
+            zoom_one_type?: 16 | 32 | 64 | 128 | 33554432 | 134217728 | 268435456 | 536870912 | 1073741824 | 4398046511104 | 4294967296 | 8589934592 | 17179869184 | 34359738368 | 68719476736 | 137438953472 | 274877906944 | 549755813888 | 1099511627776 | 2199023255552 | 18014398509481984 | 72057594037927940 | 144115188075855870 | 576460752303423500;
         };
-        plan_united_type?: string;
+        plan_united_type?: "1" | "2" | "4" | "8" | "16" | "32" | "64" | "128" | "256" | "512" | "1024" | "2048" | "4096" | "8192" | "16384" | "32768" | "65536" | "131072";
+        license_info_list?: {
+            license_type: "MEETING" | "ZOOM_WORKPLACE_BUNDLE";
+            license_option: 2 | 4 | 8 | 16 | 32 | 64 | 128 | 33554432 | 134217728 | 1073741824 | 536870912 | 268435456 | 4398046511104 | 18014398509481984 | 72057594037927940 | 576460752303423500 | 144115188075855870 | 137438953472 | 1099511627776 | 549755813888 | 274877906944 | 2199023255552 | 4294967296 | 34359738368 | 17179869184 | 8589934592 | 68719476736;
+            subscription_id: string;
+        }[];
     };
 };
 type UsersCreateUsersResponse = {
@@ -1793,7 +1947,7 @@ type UsersCreateUsersResponse = {
     first_name?: string;
     id?: string;
     last_name?: string;
-    type?: number;
+    type?: 1 | 2 | 4 | 99;
 };
 type UsersCheckUserEmailQueryParams = {
     email: string;
@@ -1801,19 +1955,25 @@ type UsersCheckUserEmailQueryParams = {
 type UsersCheckUserEmailResponse = {
     existed_email?: boolean;
 };
-type UsersBulkUpdateFeaturesForUserRequestBody = {
-    feature_type: string;
+type UsersBulkUpdateFeaturesForUsersRequestBody = {
+    feature_type: "user_type" | "concurrent_meeting" | "large_meeting" | "webinar" | "zoom_events" | "zoom_whiteboard" | "plan_united_type" | "zoom_one_type" | "zoom_iq_for_sales" | "zoom_revenue_accelerator" | "zoom_clips_plus";
     feature_value: string;
+    subscription_id?: string;
     users: {
         id?: string;
         email?: string;
     }[];
+    license_info_list?: {
+        license_type: "MEETING" | "ZOOM_WORKPLACE_BUNDLE";
+        license_option: 2 | 4 | 8 | 16 | 32 | 64 | 128 | 33554432 | 134217728 | 1073741824 | 536870912 | 268435456 | 4398046511104 | 18014398509481984 | 72057594037927940 | 576460752303423500 | 144115188075855870 | 137438953472 | 1099511627776 | 549755813888 | 274877906944 | 2199023255552 | 4294967296 | 34359738368 | 17179869184 | 8589934592 | 68719476736;
+        subscription_id: string;
+    }[];
 };
-type UsersBulkUpdateFeaturesForUserResponse = {
+type UsersBulkUpdateFeaturesForUsersResponse = {
     success_user_ids?: string[];
     fail_details?: {
         user_ids?: string[];
-        reason?: string;
+        reason?: "Users not found" | "Have upcoming events" | "Unpaid user" | "Not enough seats" | "Can't update for Zoom One users" | "Can't update for free users" | "Can't update for Zoom United users" | "Can't update for Zoom Room users" | "Not allowed to add basic users" | "Can't update for non-SSO users" | "No need to update";
     }[];
 };
 type UsersGetUsersZAKResponse = {
@@ -1838,7 +1998,7 @@ type UsersGetUserPathParams = {
     userId: string;
 };
 type UsersGetUserQueryParams = {
-    login_type?: number;
+    login_type?: 0 | 1 | 11 | 21 | 23 | 24 | 27 | 97 | 98 | 99 | 100 | 101;
     encrypted_email?: boolean;
     search_by_unique_id?: boolean;
 };
@@ -1855,7 +2015,7 @@ type UsersGetUserResponse = {
     pmi?: number;
     role_name?: string;
     timezone?: string;
-    type: number;
+    type: 1 | 2 | 4 | 99;
     use_pmi?: boolean;
     display_name?: string;
 } & {
@@ -1872,12 +2032,14 @@ type UsersGetUserResponse = {
     }[];
     employee_unique_id?: string;
     group_ids?: string[];
+    division_ids?: string[];
     im_group_ids?: string[];
     jid?: string;
     job_title?: string;
+    cost_center?: string;
     language?: string;
     location?: string;
-    login_types?: number[];
+    login_types?: (0 | 1 | 11 | 21 | 23 | 24 | 27 | 97 | 98 | 99 | 100 | 101)[];
     manager?: string;
     personal_meeting_url?: string;
     phone_country?: string;
@@ -1885,39 +2047,48 @@ type UsersGetUserResponse = {
     phone_numbers?: {
         code?: string;
         country?: string;
-        label?: string;
+        label?: "Mobile" | "Office" | "Home" | "Fax";
         number?: string;
         verified?: boolean;
     }[];
     pic_url?: string;
-    plan_united_type?: string;
+    plan_united_type?: "1" | "2" | "4" | "8" | "16" | "32" | "64" | "128" | "256" | "512" | "1024" | "2048" | "4096" | "8192" | "16384" | "32768" | "65536" | "131072";
     pronouns?: string;
-    pronouns_option?: number;
+    pronouns_option?: 1 | 2 | 3;
     role_id?: string;
-    status?: string;
+    status?: "pending" | "active" | "inactive";
     use_pmi?: boolean;
     vanity_url?: string;
     verified?: number;
     cluster?: string;
     zoom_one_type?: number;
+    license_info_list?: {
+        license_type?: "MEETING" | "ZOOM_WORKPLACE_BUNDLE";
+        license_option?: 2 | 4 | 8 | 16 | 32 | 64 | 128 | 33554432 | 134217728 | 1073741824 | 536870912 | 268435456 | 4398046511104 | 18014398509481984 | 72057594037927940 | 576460752303423500 | 144115188075855870 | 137438953472 | 1099511627776 | 549755813888 | 274877906944 | 2199023255552 | 4294967296 | 34359738368 | 17179869184 | 8589934592 | 68719476736;
+        subscription_id?: string;
+    }[];
 };
 type UsersDeleteUserPathParams = {
     userId: string;
 };
 type UsersDeleteUserQueryParams = {
     encrypted_email?: boolean;
-    action?: string;
+    action?: "disassociate" | "delete";
     transfer_email?: string;
     transfer_meeting?: boolean;
     transfer_webinar?: boolean;
     transfer_recording?: boolean;
     transfer_whiteboard?: boolean;
+    transfer_clipfiles?: boolean;
+    transfer_notes?: boolean;
+    transfer_visitors?: boolean;
+    transfer_docs?: boolean;
 };
 type UsersUpdateUserPathParams = {
     userId: string;
 };
 type UsersUpdateUserQueryParams = {
-    login_type?: number;
+    login_type?: 0 | 1 | 11 | 21 | 23 | 24 | 27 | 97 | 98 | 99 | 100 | 101;
     remove_tsp_credentials?: boolean;
 };
 type UsersUpdateUserRequestBody = {
@@ -1931,8 +2102,10 @@ type UsersUpdateUserRequestBody = {
     dept?: string;
     first_name?: string;
     group_id?: string;
+    division_ids?: string[];
     host_key?: string;
     job_title?: string;
+    cost_center?: string;
     language?: string;
     last_name?: string;
     location?: string;
@@ -1942,24 +2115,29 @@ type UsersUpdateUserRequestBody = {
     phone_numbers?: {
         code?: string;
         country?: string;
-        label?: string;
+        label?: "Mobile" | "Office" | "Home" | "Fax";
         number?: string;
     }[];
     pmi?: number;
     pronouns?: string;
-    pronouns_option?: number;
+    pronouns_option?: 1 | 2 | 3;
     timezone?: string;
-    type?: number;
+    type?: 1 | 2 | 4 | 99;
     use_pmi?: boolean;
     vanity_name?: string;
     display_name?: string;
-    zoom_one_type?: number;
-    plan_united_type?: string;
+    zoom_one_type?: 0 | 16 | 32 | 64 | 128 | 33554432 | 134217728 | 268435456 | 536870912 | 1073741824 | 4398046511104 | 4294967296 | 8589934592 | 17179869184 | 34359738368 | 68719476736 | 137438953472 | 274877906944 | 549755813888 | 1099511627776 | 2199023255552 | 18014398509481984 | 72057594037927940 | 144115188075855870 | 576460752303423500;
+    plan_united_type?: "1" | "2" | "4" | "8" | "16" | "32" | "64" | "128" | "256" | "512" | "1024" | "2048" | "4096" | "8192" | "16384" | "32768" | "65536" | "131072" | "none";
     feature?: {
         zoom_phone?: boolean;
     };
     about_me?: string;
     linkedin_url?: string;
+    license_info_list?: {
+        license_type: "MEETING" | "ZOOM_WORKPLACE_BUNDLE";
+        license_option: 2 | 4 | 8 | 16 | 32 | 64 | 128 | 33554432 | 134217728 | 1073741824 | 536870912 | 268435456 | 4398046511104 | 18014398509481984 | 72057594037927940 | 576460752303423500 | 144115188075855870 | 137438953472 | 1099511627776 | 549755813888 | 274877906944 | 2199023255552 | 4294967296 | 34359738368 | 17179869184 | 8589934592 | 68719476736;
+        subscription_id: string;
+    }[];
 };
 type UsersListUserAssistantsPathParams = {
     userId: string;
@@ -1968,6 +2146,7 @@ type UsersListUserAssistantsResponse = {
     assistants?: {
         email?: string;
         id?: string;
+        can_manage_host_private_event?: boolean;
     }[];
 };
 type UsersAddAssistantsPathParams = {
@@ -1977,6 +2156,7 @@ type UsersAddAssistantsRequestBody = {
     assistants?: {
         email?: string;
         id?: string;
+        can_manage_host_private_event?: boolean;
     }[];
 };
 type UsersAddAssistantsResponse = {
@@ -2000,7 +2180,7 @@ type UsersListUsersCollaborationDevicesResponse = {
         device_name?: string;
         room_name?: string;
         room_user_id?: string;
-        status?: string;
+        status?: "Online" | "Offline";
     }[];
 };
 type UsersGetCollaborationDeviceDetailPathParams = {
@@ -2012,7 +2192,7 @@ type UsersGetCollaborationDeviceDetailResponse = {
     device_name?: string;
     room_name?: string;
     room_user_id?: string;
-    status?: string;
+    status?: "Online" | "Offline";
 };
 type UsersUpdateUsersEmailPathParams = {
     userId: string;
@@ -2029,13 +2209,13 @@ type UsersGetMeetingTemplateDetailResponse = {
     name?: string;
     settings?: {
         in_meeting?: {
-            entry_exit_chime?: string;
+            entry_exit_chime?: "host" | "all" | "none";
             feedback?: boolean;
             polling?: boolean;
             post_meeting_feedback?: boolean;
             screen_sharing?: boolean;
-            who_can_share_screen?: string;
-            who_can_share_screen_when_someone_is_sharing?: string;
+            who_can_share_screen?: "host" | "all";
+            who_can_share_screen_when_someone_is_sharing?: "host" | "all";
             disable_screen_sharing_for_host_meetings?: boolean;
             annotation?: boolean;
             whiteboard?: boolean;
@@ -2057,7 +2237,7 @@ type UsersGetMeetingTemplateDetailResponse = {
             };
         };
         recording?: {
-            auto_recording?: string;
+            auto_recording?: "local" | "cloud" | "none";
         };
         schedule_meeting?: {
             host_video?: boolean;
@@ -2095,19 +2275,19 @@ type UsersGetUserPresenceStatusPathParams = {
     userId: string;
 };
 type UsersGetUserPresenceStatusResponse = {
-    status: string;
+    status: "Do_No_Disturb";
     end_time: string;
     remaining_time: number;
 } | {
-    status: string;
+    status: "Away" | "Do_Not_Disturb" | "Available" | "In_Calendar_Event" | "Presenting" | "In_A_Zoom_Meeting" | "On_A_Call" | "Out_of_Office" | "Busy";
 };
 type UsersUpdateUsersPresenceStatusPathParams = {
     userId: string;
 };
 type UsersUpdateUsersPresenceStatusRequestBody = {
-    status: string;
+    status: "Away" | "Available" | "In_Calendar_Event" | "Presenting" | "In_A_Zoom_Meeting" | "On_A_Call" | "Out_of_Office" | "Busy";
 } | {
-    status: string;
+    status: "Do_No_Disturb";
     duration?: number;
 };
 type UsersListUserSchedulersPathParams = {
@@ -2131,8 +2311,8 @@ type UsersGetUserSettingsPathParams = {
     userId: string;
 };
 type UsersGetUserSettingsQueryParams = {
-    login_type?: number;
-    option?: string;
+    login_type?: 0 | 1 | 11 | 21 | 23 | 24 | 27 | 97 | 98 | 99 | 100 | 101;
+    option?: "meeting_authentication" | "recording_authentication" | "meeting_security";
     custom_query_fields?: string;
 };
 type UsersGetUserSettingsResponse = {
@@ -2160,7 +2340,7 @@ type UsersGetUserSettingsResponse = {
     };
     feature?: {
         cn_meeting?: boolean;
-        concurrent_meeting?: string;
+        concurrent_meeting?: "Basic" | "Plus" | "None";
         in_meeting?: boolean;
         large_meeting?: boolean;
         large_meeting_capacity?: number;
@@ -2168,11 +2348,11 @@ type UsersGetUserSettingsResponse = {
         webinar?: boolean;
         webinar_capacity?: number;
         zoom_events?: boolean;
-        zoom_events_capacity?: number;
+        zoom_events_capacity?: 500 | 1000 | 3000 | 5000 | 10000 | 20000 | 30000 | 50000;
         zoom_events_unlimited?: boolean;
-        zoom_events_unlimited_capacities?: number[];
+        zoom_events_unlimited_capacities?: (100 | 500 | 1000 | 3000 | 5000 | 10000 | 20000 | 30000 | 50000)[];
         zoom_sessions_unlimited?: boolean;
-        zoom_sessions_unlimited_capacities?: number[];
+        zoom_sessions_unlimited_capacities?: (100 | 500 | 1000 | 3000 | 5000 | 10000 | 20000 | 30000 | 50000)[];
         zoom_events_pay_per_attendee?: boolean;
         zoom_sessions_pay_per_attendee?: boolean;
         zoom_phone?: boolean;
@@ -2189,6 +2369,12 @@ type UsersGetUserSettingsResponse = {
         zoom_clips_plus?: boolean;
         zoom_mail_calendar?: boolean;
         zoom_compliance_management?: boolean;
+        zoom_docs?: boolean;
+        license_info_list?: {
+            license_type?: "ZOOM_WHITEBOARD" | "ZOOM_TRANSLATED_CAPTIONS" | "ZOOM_SCHEDULER" | "ZOOM_CLIPS" | "ZOOM_VISITOR_MANAGEMENT" | "ZOOM_CMK" | "ZOOM_DOCS" | "ZOOM_REVENUE_ACCELERATOR" | "ZOOM_COMPLIANCE_MANAGEMENT" | "ZOOM_WORKFORCE_MANAGEMENT" | "ZOOM_QUALITY_MANAGEMENT" | "ZOOM_HEALTHCARE_CLINICAL_NOTES";
+            license_option?: 1 | 2 | 512 | 2048 | 65536 | 131072 | 2147483648 | 549755813888 | 1099511627776 | 2199023255552 | 8796093022208 | 17592186044416 | 281474976710656 | 4503599627370496;
+            subscription_id?: string;
+        }[];
     };
     in_meeting?: {
         allow_host_to_enable_focus_mode?: boolean;
@@ -2196,8 +2382,8 @@ type UsersGetUserSettingsResponse = {
         allow_live_streaming?: boolean;
         post_meeting_feedback?: boolean;
         whiteboard?: boolean;
-        allow_participants_chat_with?: number;
-        allow_users_save_chats?: number;
+        allow_participants_chat_with?: 1 | 2 | 3 | 4;
+        allow_users_save_chats?: 1 | 2 | 3;
         annotation?: boolean;
         attendee_on_hold?: boolean;
         attention_mode_focus_mode?: boolean;
@@ -2218,11 +2404,11 @@ type UsersGetUserSettingsResponse = {
         custom_data_center_regions?: boolean;
         custom_live_streaming_service?: boolean;
         custom_service_instructions?: string;
-        data_center_regions?: string[];
+        data_center_regions?: ("AU" | "LA" | "CA" | "CN" | "DE" | "HK" | "IN" | "IE" | "TY" | "MX" | "NL" | "SG" | "US")[];
         disable_screen_sharing_for_host_meetings?: boolean;
         disable_screen_sharing_for_in_meeting_guests?: boolean;
         e2e_encryption?: boolean;
-        entry_exit_chime?: string;
+        entry_exit_chime?: "host" | "all" | "none";
         far_end_camera_control?: boolean;
         feedback?: boolean;
         file_transfer?: boolean;
@@ -2236,12 +2422,12 @@ type UsersGetUserSettingsResponse = {
             allow_participants_to_speak_in_listening_channel?: boolean;
             allow_up_to_25_custom_languages_when_scheduling_meetings?: boolean;
             enable?: boolean;
-            languages?: string[];
+            languages?: ("English" | "Chinese" | "Japanese" | "German" | "French" | "Russian" | "Portuguese" | "Spanish" | "Korean")[];
         };
         sign_language_interpretation?: {
             enable?: boolean;
             enable_sign_language_interpretation_by_default?: boolean;
-            languages?: string[];
+            languages?: ("American" | "Chinese" | "French" | "German" | "Japanese" | "Russian" | "Brazilian" | "Spanish" | "Mexican" | "British")[];
             custom_languages?: string[];
         };
         live_streaming_facebook?: boolean;
@@ -2255,7 +2441,7 @@ type UsersGetUserSettingsResponse = {
             third_party_captioning_service?: boolean;
         };
         meeting_reactions?: boolean;
-        meeting_reactions_emojis?: string;
+        meeting_reactions_emojis?: "all" | "selected";
         allow_host_panelists_to_use_audible_clap?: boolean;
         webinar_reactions?: boolean;
         meeting_survey?: boolean;
@@ -2271,7 +2457,7 @@ type UsersGetUserSettingsResponse = {
         show_a_join_from_your_browser_link?: boolean;
         show_meeting_control_toolbar?: boolean;
         slide_control?: boolean;
-        unchecked_data_center_regions?: string[];
+        unchecked_data_center_regions?: ("EU" | "HK" | "AU" | "IN" | "TY" | "CN" | "US" | "CA" | "DE" | "NL" | "LA")[];
         virtual_background?: boolean;
         virtual_background_settings?: {
             allow_upload_custom?: boolean;
@@ -2287,19 +2473,19 @@ type UsersGetUserSettingsResponse = {
         };
         waiting_room?: boolean;
         webinar_chat?: {
-            allow_attendees_chat_with?: number;
+            allow_attendees_chat_with?: 1 | 2 | 3;
             allow_auto_save_local_chat_file?: boolean;
-            allow_panelists_chat_with?: number;
+            allow_panelists_chat_with?: 1 | 2;
             allow_panelists_send_direct_message?: boolean;
-            allow_users_save_chats?: number;
-            default_attendees_chat_with?: number;
+            allow_users_save_chats?: 0 | 1 | 2;
+            default_attendees_chat_with?: 1 | 2;
             enable?: boolean;
         };
         webinar_live_streaming?: {
             custom_service_instructions?: string;
             enable?: boolean;
             live_streaming_reminder?: boolean;
-            live_streaming_service?: string[];
+            live_streaming_service?: ("facebook" | "workplace_by_facebook" | "youtube" | "custom_live_streaming_service")[];
         };
         meeting_polling?: {
             advanced_polls?: boolean;
@@ -2316,12 +2502,22 @@ type UsersGetUserSettingsResponse = {
             enable?: boolean;
         };
         webinar_survey?: boolean;
-        who_can_share_screen?: string;
-        who_can_share_screen_when_someone_is_sharing?: string;
-        participants_share_simultaneously?: string;
+        who_can_share_screen?: "host" | "all";
+        who_can_share_screen_when_someone_is_sharing?: "host" | "all";
+        participants_share_simultaneously?: "multiple" | "one";
         workplace_by_facebook?: boolean;
         transfer_meetings_between_devices?: boolean;
         allow_show_zoom_windows?: boolean;
+        meeting_summary_with_ai_companion?: {
+            enable?: boolean;
+            auto_enable?: boolean;
+            who_will_receive_summary?: 1 | 2 | 3 | 4;
+        };
+        ai_companion_questions?: {
+            enable?: boolean;
+            auto_enable?: boolean;
+            who_can_ask_questions?: 1 | 2 | 3 | 4 | 5;
+        };
     };
     profile?: {
         recording_storage_location?: {
@@ -2333,7 +2529,7 @@ type UsersGetUserSettingsResponse = {
         ask_host_to_confirm_disclaimer?: boolean;
         ask_participants_to_consent_disclaimer?: boolean;
         auto_delete_cmr?: boolean;
-        auto_delete_cmr_days?: number;
+        auto_delete_cmr_days?: 30 | 60 | 90 | 120;
         record_files_separately?: {
             active_speaker?: boolean;
             gallery_view?: boolean;
@@ -2346,7 +2542,7 @@ type UsersGetUserSettingsResponse = {
         save_panelist_chat?: boolean;
         save_poll_results?: boolean;
         save_close_caption?: boolean;
-        auto_recording?: string;
+        auto_recording?: "local" | "cloud" | "none";
         cloud_recording?: boolean;
         host_pause_stop_recording?: boolean;
         ip_address_access_control?: {
@@ -2375,14 +2571,14 @@ type UsersGetUserSettingsResponse = {
         show_timestamp?: boolean;
     };
     schedule_meeting?: {
-        audio_type?: string;
+        audio_type?: "both" | "telephony" | "voip" | "thirdParty";
         default_password_for_scheduled_meetings?: string;
         embed_password_in_join_link?: boolean;
         force_pmi_jbh_password?: boolean;
         host_video?: boolean;
         join_before_host?: boolean;
         meeting_password_requirement?: {
-            consecutive_characters_length?: number;
+            consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
             have_letter?: boolean;
             have_number?: boolean;
             have_special_character?: boolean;
@@ -2396,7 +2592,7 @@ type UsersGetUserSettingsResponse = {
         pmi_password?: string;
         pstn_password_protected?: boolean;
         require_password_for_instant_meetings?: boolean;
-        require_password_for_pmi_meetings?: string;
+        require_password_for_pmi_meetings?: "jbh_only" | "all" | "none";
         require_password_for_scheduled_meetings?: boolean;
         require_password_for_scheduling_new_meetings?: boolean;
         use_pmi_for_instant_meetings?: boolean;
@@ -2405,6 +2601,8 @@ type UsersGetUserSettingsResponse = {
             enable?: boolean;
             can_add_external_users?: boolean;
             auto_add_invited_external_users?: boolean;
+            support_instant_meetings?: boolean;
+            support_scheduled_meetings?: boolean;
         };
     };
     telephony?: {
@@ -2434,7 +2632,7 @@ type UsersGetUserSettingsResponse = {
                 domains?: string;
                 id?: string;
                 name?: string;
-                type?: string;
+                type?: "enforce_login" | "enforce_login_with_domains" | "enforce_login_with_same_account";
                 visible?: boolean;
             }[];
             meeting_authentication?: boolean;
@@ -2445,7 +2643,7 @@ type UsersGetUserSettingsResponse = {
                 domains?: string;
                 id?: string;
                 name?: string;
-                type?: string;
+                type?: "enforce_login" | "enforce_login_with_domains" | "internally";
                 visible?: boolean;
             }[];
             recording_authentication?: boolean;
@@ -2458,7 +2656,7 @@ type UsersGetUserSettingsResponse = {
         domains?: string;
         id?: string;
         name?: string;
-        type?: string;
+        type?: "enforce_login" | "enforce_login_with_same_account" | "enforce_login_with_domains";
         visible?: boolean;
     }[];
     meeting_authentication?: boolean;
@@ -2468,7 +2666,7 @@ type UsersGetUserSettingsResponse = {
         domains?: string;
         id?: string;
         name?: string;
-        type?: string;
+        type?: "internally" | "enforce_login" | "enforce_login_with_domains";
         visible?: boolean;
     }[];
     recording_authentication?: boolean;
@@ -2478,11 +2676,11 @@ type UsersGetUserSettingsResponse = {
         block_user_domain?: boolean;
         block_user_domain_list?: string[];
         embed_password_in_join_link?: boolean;
-        encryption_type?: string;
+        encryption_type?: "enhanced_encryption" | "e2ee";
         end_to_end_encrypted_meetings?: boolean;
         meeting_password?: boolean;
         meeting_password_requirement?: {
-            consecutive_characters_length?: number;
+            consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
             have_letter?: boolean;
             have_number?: boolean;
             have_special_character?: boolean;
@@ -2498,8 +2696,8 @@ type UsersGetUserSettingsResponse = {
         require_password_for_scheduled_webinar?: boolean;
         waiting_room?: boolean;
         waiting_room_settings?: {
-            participants_to_place_in_waiting_room?: number;
-            users_who_can_admit_participants_from_waiting_room?: number;
+            participants_to_place_in_waiting_room?: 0 | 1 | 2;
+            users_who_can_admit_participants_from_waiting_room?: 0 | 1;
             whitelisted_domains_for_waiting_room?: string;
         };
         webinar_password?: boolean;
@@ -2509,7 +2707,7 @@ type UsersUpdateUserSettingsPathParams = {
     userId: string;
 };
 type UsersUpdateUserSettingsQueryParams = {
-    option?: string;
+    option?: "meeting_authentication" | "recording_authentication" | "meeting_security";
 };
 type UsersUpdateUserSettingsRequestBody = {
     email_notification?: {
@@ -2522,18 +2720,18 @@ type UsersUpdateUserSettingsRequestBody = {
         schedule_for_reminder?: boolean;
     };
     feature?: {
-        concurrent_meeting?: string;
+        concurrent_meeting?: "Basic" | "Plus" | "None";
         large_meeting?: boolean;
         large_meeting_capacity?: number;
         meeting_capacity?: number;
         webinar?: boolean;
-        webinar_capacity?: number;
+        webinar_capacity?: 100 | 500 | 501 | 1000 | 1001 | 3000 | 5000 | 10000;
         zoom_events?: boolean;
-        zoom_events_capacity?: number;
+        zoom_events_capacity?: 500 | 1000 | 3000 | 5000 | 10000 | 20000 | 30000 | 50000;
         zoom_events_unlimited?: boolean;
-        zoom_events_unlimited_capacities?: number[];
+        zoom_events_unlimited_capacities?: (100 | 500 | 1000 | 3000 | 5000 | 10000 | 20000 | 30000 | 50000)[];
         zoom_sessions_unlimited?: boolean;
-        zoom_sessions_unlimited_capacities?: number[];
+        zoom_sessions_unlimited_capacities?: (100 | 500 | 1000 | 3000 | 5000 | 10000 | 20000 | 30000 | 50000)[];
         zoom_events_pay_per_attendee?: boolean;
         zoom_sessions_pay_per_attendee?: boolean;
         zoom_phone?: boolean;
@@ -2550,6 +2748,12 @@ type UsersUpdateUserSettingsRequestBody = {
         zoom_clips_plus?: boolean;
         zoom_mail_calendar?: boolean;
         zoom_compliance_management?: boolean;
+        zoom_docs?: boolean;
+        license_info_list?: {
+            license_type: "ZOOM_WHITEBOARD" | "ZOOM_TRANSLATED_CAPTIONS" | "ZOOM_SCHEDULER" | "ZOOM_CLIPS" | "ZOOM_VISITOR_MANAGEMENT" | "ZOOM_CMK" | "ZOOM_DOCS" | "ZOOM_REVENUE_ACCELERATOR" | "ZOOM_COMPLIANCE_MANAGEMENT" | "ZOOM_WORKFORCE_MANAGEMENT" | "ZOOM_QUALITY_MANAGEMENT" | "ZOOM_HEALTHCARE_CLINICAL_NOTES";
+            license_option: 1 | 2 | 512 | 2048 | 65536 | 131072 | 2147483648 | 549755813888 | 1099511627776 | 2199023255552 | 8796093022208 | 17592186044416 | 281474976710656 | 4503599627370496;
+            subscription_id?: string;
+        }[];
     };
     in_meeting?: {
         allow_host_to_enable_focus_mode?: boolean;
@@ -2557,8 +2761,8 @@ type UsersUpdateUserSettingsRequestBody = {
         allow_live_streaming?: boolean;
         post_meeting_feedback?: boolean;
         whiteboard?: boolean;
-        allow_participants_chat_with?: number;
-        allow_users_save_chats?: number;
+        allow_participants_chat_with?: 1 | 2 | 3 | 4;
+        allow_users_save_chats?: 1 | 2 | 3;
         annotation?: boolean;
         attendee_on_hold?: boolean;
         attention_mode_focus_mode?: boolean;
@@ -2579,11 +2783,11 @@ type UsersUpdateUserSettingsRequestBody = {
         custom_data_center_regions?: boolean;
         custom_live_streaming_service?: boolean;
         custom_service_instructions?: string;
-        data_center_regions?: string[];
+        data_center_regions?: ("AU" | "LA" | "CA" | "CN" | "DE" | "HK" | "IN" | "IE" | "TY" | "MX" | "NL" | "SG" | "US")[];
         disable_screen_sharing_for_host_meetings?: boolean;
         disable_screen_sharing_for_in_meeting_guests?: boolean;
         e2e_encryption?: boolean;
-        entry_exit_chime?: string;
+        entry_exit_chime?: "host" | "all" | "none";
         far_end_camera_control?: boolean;
         feedback?: boolean;
         file_transfer?: boolean;
@@ -2601,7 +2805,7 @@ type UsersUpdateUserSettingsRequestBody = {
         sign_language_interpretation?: {
             enable?: boolean;
             enable_sign_language_interpretation_by_default?: boolean;
-            languages?: string[];
+            languages?: ("American" | "Chinese" | "French" | "German" | "Japanese" | "Russian" | "Brazilian" | "Spanish" | "Mexican" | "British")[];
             custom_languages?: string[];
         };
         live_streaming_facebook?: boolean;
@@ -2615,7 +2819,7 @@ type UsersUpdateUserSettingsRequestBody = {
             third_party_captioning_service?: boolean;
         };
         meeting_reactions?: boolean;
-        meeting_reactions_emojis?: string;
+        meeting_reactions_emojis?: "all" | "selected";
         allow_host_panelists_to_use_audible_clap?: boolean;
         webinar_reactions?: boolean;
         meeting_survey?: boolean;
@@ -2646,19 +2850,19 @@ type UsersUpdateUserSettingsRequestBody = {
         };
         waiting_room?: boolean;
         webinar_chat?: {
-            allow_attendees_chat_with?: number;
+            allow_attendees_chat_with?: 1 | 2 | 3;
             allow_auto_save_local_chat_file?: boolean;
-            allow_panelists_chat_with?: number;
+            allow_panelists_chat_with?: 1 | 2;
             allow_panelists_send_direct_message?: boolean;
-            allow_users_save_chats?: number;
-            default_attendees_chat_with?: number;
+            allow_users_save_chats?: 0 | 1 | 2;
+            default_attendees_chat_with?: 1 | 2;
             enable?: boolean;
         };
         webinar_live_streaming?: {
             custom_service_instructions?: string;
             enable?: boolean;
             live_streaming_reminder?: boolean;
-            live_streaming_service?: string[];
+            live_streaming_service?: ("facebook" | "workplace_by_facebook" | "youtube" | "custom_live_streaming_service")[];
         };
         meeting_polling?: {
             advanced_polls?: boolean;
@@ -2675,9 +2879,9 @@ type UsersUpdateUserSettingsRequestBody = {
             enable?: boolean;
         };
         webinar_survey?: boolean;
-        who_can_share_screen?: string;
-        who_can_share_screen_when_someone_is_sharing?: string;
-        participants_share_simultaneously?: string;
+        who_can_share_screen?: "host" | "all";
+        who_can_share_screen_when_someone_is_sharing?: "host" | "all";
+        participants_share_simultaneously?: "multiple" | "one";
         workplace_by_facebook?: boolean;
         auto_answer?: boolean;
         allow_show_zoom_windows?: boolean;
@@ -2692,7 +2896,7 @@ type UsersUpdateUserSettingsRequestBody = {
         ask_host_to_confirm_disclaimer?: boolean;
         ask_participants_to_consent_disclaimer?: boolean;
         auto_delete_cmr?: boolean;
-        auto_delete_cmr_days?: number;
+        auto_delete_cmr_days?: 30 | 60 | 90 | 120;
         record_files_separately?: {
             active_speaker?: boolean;
             gallery_view?: boolean;
@@ -2705,7 +2909,7 @@ type UsersUpdateUserSettingsRequestBody = {
         save_panelist_chat?: boolean;
         save_poll_results?: boolean;
         save_close_caption?: boolean;
-        auto_recording?: string;
+        auto_recording?: "local" | "cloud" | "none";
         cloud_recording?: boolean;
         host_pause_stop_recording?: boolean;
         ip_address_access_control?: {
@@ -2734,14 +2938,14 @@ type UsersUpdateUserSettingsRequestBody = {
         show_timestamp?: boolean;
     };
     schedule_meeting?: {
-        audio_type?: string;
+        audio_type?: "both" | "telephony" | "voip" | "thirdParty";
         default_password_for_scheduled_meetings?: string;
         embed_password_in_join_link?: boolean;
         force_pmi_jbh_password?: boolean;
         host_video?: boolean;
         join_before_host?: boolean;
         meeting_password_requirement?: {
-            consecutive_characters_length?: number;
+            consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
             have_letter?: boolean;
             have_number?: boolean;
             have_special_character?: boolean;
@@ -2755,7 +2959,7 @@ type UsersUpdateUserSettingsRequestBody = {
         pmi_password?: string;
         pstn_password_protected?: boolean;
         require_password_for_instant_meetings?: boolean;
-        require_password_for_pmi_meetings?: string;
+        require_password_for_pmi_meetings?: "jbh_only" | "all" | "none";
         require_password_for_scheduled_meetings?: boolean;
         require_password_for_scheduling_new_meetings?: boolean;
         use_pmi_for_instant_meetings?: boolean;
@@ -2776,22 +2980,22 @@ type UsersUpdateUserSettingsRequestBody = {
     };
 } | ({
     authentication_option?: {
-        action?: string;
+        action?: "update" | "show" | "hide";
         default_option?: boolean;
         domains?: string;
         id?: string;
         name?: string;
-        type?: string;
+        type?: "enforce_login" | "enforce_login_with_same_account" | "enforce_login_with_domains";
     };
     meeting_authentication?: boolean;
 } | {
     authentication_option?: {
-        action?: string;
+        action?: "update" | "show" | "hide";
         default_option?: boolean;
         domains?: string;
         id?: string;
         name?: string;
-        type?: string;
+        type?: "internally" | "enforce_login" | "enforce_login_with_domains";
     };
     recording_authentication?: boolean;
 }) | {
@@ -2800,11 +3004,11 @@ type UsersUpdateUserSettingsRequestBody = {
         block_user_domain?: boolean;
         block_user_domain_list?: string[];
         embed_password_in_join_link?: boolean;
-        encryption_type?: string;
+        encryption_type?: "enhanced_encryption" | "e2ee";
         end_to_end_encrypted_meetings?: boolean;
         meeting_password?: boolean;
         meeting_password_requirement?: {
-            consecutive_characters_length?: number;
+            consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
             have_letter?: boolean;
             have_number?: boolean;
             have_special_character?: boolean;
@@ -2820,8 +3024,8 @@ type UsersUpdateUserSettingsRequestBody = {
         require_password_for_scheduled_webinar?: boolean;
         waiting_room?: boolean;
         waiting_room_settings?: {
-            participants_to_place_in_waiting_room?: number;
-            users_who_can_admit_participants_from_waiting_room?: number;
+            participants_to_place_in_waiting_room?: 0 | 1 | 2;
+            users_who_can_admit_participants_from_waiting_room?: 0 | 1;
             whitelisted_domains_for_waiting_room?: string;
         };
         webinar_password?: boolean;
@@ -2838,7 +3042,7 @@ type UsersUploadVirtualBackgroundFilesResponse = {
     is_default?: boolean;
     name?: string;
     size?: number;
-    type?: string;
+    type?: "image" | "video";
 };
 type UsersDeleteVirtualBackgroundFilesPathParams = {
     userId: string;
@@ -2850,14 +3054,15 @@ type UsersUpdateUserStatusPathParams = {
     userId: string;
 };
 type UsersUpdateUserStatusRequestBody = {
-    action: string;
+    action: "activate" | "deactivate" | "clock_in" | "clock_out";
 };
 type UsersGetUsersTokenPathParams = {
     userId: string;
 };
 type UsersGetUsersTokenQueryParams = {
-    type?: string;
+    type?: "token" | "zak" | "onbehalf";
     ttl?: number;
+    meeting_id?: string;
 };
 type UsersGetUsersTokenResponse = {
     token?: string;
@@ -2900,11 +3105,42 @@ declare class UsersEndpoints extends WebEndpoints {
             query: ContactGroupsRemoveMembersInContactGroupQueryParams;
         }) => Promise<BaseResponse<unknown>>;
     };
+    readonly divisions: {
+        listDivisions: (_: object & {
+            query?: DivisionsListDivisionsQueryParams;
+        }) => Promise<BaseResponse<DivisionsListDivisionsResponse>>;
+        createDivision: (_: object & {
+            body: DivisionsCreateDivisionRequestBody;
+        }) => Promise<BaseResponse<DivisionsCreateDivisionResponse>>;
+        getDivision: (_: {
+            path: DivisionsGetDivisionPathParams;
+        } & object) => Promise<BaseResponse<DivisionsGetDivisionResponse>>;
+        deleteDivision: (_: {
+            path: DivisionsDeleteDivisionPathParams;
+        } & object) => Promise<BaseResponse<unknown>>;
+        updateDivision: (_: {
+            path: DivisionsUpdateDivisionPathParams;
+        } & {
+            body?: DivisionsUpdateDivisionRequestBody;
+        } & object) => Promise<BaseResponse<unknown>>;
+        listDivisionMembers: (_: {
+            path: DivisionsListDivisionMembersPathParams;
+        } & object & {
+            query?: DivisionsListDivisionMembersQueryParams;
+        }) => Promise<BaseResponse<DivisionsListDivisionMembersResponse>>;
+        assignDivision: (_: {
+            path: DivisionsAssignDivisionPathParams;
+        } & {
+            body?: DivisionsAssignDivisionRequestBody;
+        } & object) => Promise<BaseResponse<DivisionsAssignDivisionResponse>>;
+    };
     readonly groups: {
-        listGroups: (_: object) => Promise<BaseResponse<GroupsListGroupsResponse>>;
+        listGroups: (_: object & {
+            query?: GroupsListGroupsQueryParams;
+        }) => Promise<BaseResponse<GroupsListGroupsResponse>>;
         createGroup: (_: object & {
             body?: GroupsCreateGroupRequestBody;
-        }) => Promise<BaseResponse<unknown>>;
+        }) => Promise<BaseResponse<GroupsCreateGroupResponse>>;
         getGroup: (_: {
             path: GroupsGetGroupPathParams;
         } & object) => Promise<BaseResponse<GroupsGetGroupResponse>>;
@@ -2925,7 +3161,7 @@ declare class UsersEndpoints extends WebEndpoints {
             path: GroupsAddGroupAdminsPathParams;
         } & {
             body?: GroupsAddGroupAdminsRequestBody;
-        } & object) => Promise<BaseResponse<unknown>>;
+        } & object) => Promise<BaseResponse<GroupsAddGroupAdminsResponse>>;
         deleteGroupAdmin: (_: {
             path: GroupsDeleteGroupAdminPathParams;
         } & object) => Promise<BaseResponse<unknown>>;
@@ -3055,7 +3291,7 @@ declare class UsersEndpoints extends WebEndpoints {
                     auto_security?: boolean;
                     block_user_domain?: boolean;
                     embed_password_in_join_link?: boolean;
-                    encryption_type?: string;
+                    encryption_type?: "enhanced_encryption" | "e2ee";
                     end_to_end_encrypted_meetings?: boolean;
                     meeting_password?: boolean;
                     only_authenticated_can_join_from_webclient?: boolean;
@@ -3077,7 +3313,7 @@ declare class UsersEndpoints extends WebEndpoints {
             path: GroupsAddGroupMembersPathParams;
         } & {
             body?: GroupsAddGroupMembersRequestBody;
-        } & object) => Promise<BaseResponse<unknown>>;
+        } & object) => Promise<BaseResponse<GroupsAddGroupMembersResponse>>;
         deleteGroupMember: (_: {
             path: GroupsDeleteGroupMemberPathParams;
         } & object) => Promise<BaseResponse<unknown>>;
@@ -3121,9 +3357,9 @@ declare class UsersEndpoints extends WebEndpoints {
                     alert_guest_join?: boolean;
                     allow_users_to_delete_messages_in_meeting_chat?: boolean;
                     allow_live_streaming?: boolean;
-                    allow_participants_chat_with?: number;
+                    allow_participants_chat_with?: 1 | 2 | 3 | 4;
                     allow_show_zoom_windows?: boolean;
-                    allow_users_save_chats?: number;
+                    allow_users_save_chats?: 1 | 2 | 3;
                     annotation?: boolean;
                     attendee_on_hold?: boolean;
                     auto_answer?: boolean;
@@ -3144,11 +3380,11 @@ declare class UsersEndpoints extends WebEndpoints {
                     custom_data_center_regions?: boolean;
                     custom_live_streaming_service?: boolean;
                     custom_service_instructions?: string;
-                    data_center_regions?: string[];
+                    data_center_regions?: ("AU" | "LA" | "CA" | "CN" | "DE" | "HK" | "IN" | "IE" | "TY" | "MX" | "NL" | "SG" | "US")[];
                     disable_screen_sharing_for_host_meetings?: boolean;
                     disable_screen_sharing_for_in_meeting_guests?: boolean;
                     e2e_encryption?: boolean;
-                    entry_exit_chime?: string;
+                    entry_exit_chime?: "host" | "all" | "none";
                     far_end_camera_control?: boolean;
                     feedback?: boolean;
                     file_transfer?: boolean;
@@ -3160,14 +3396,14 @@ declare class UsersEndpoints extends WebEndpoints {
                         language_item_pairList?: {
                             trans_lang_config?: {
                                 speak_language?: {
-                                    name?: string;
-                                    code?: string;
+                                    name?: "Chinese (Simplified)" | "Dutch" | "English" | "French" | "German" | "Italian" | "Japanese" | "Korean" | "Portuguese" | "Russian" | "Spanish" | "Ukrainian";
+                                    code?: "zh" | "nl" | "en" | "fr" | "de" | "it" | "ja" | "ko" | "pt" | "ru" | "es" | "uk";
                                 };
                                 translate_to?: {
                                     all?: boolean;
                                     language_config?: {
-                                        name?: string;
-                                        code?: string;
+                                        name?: "English";
+                                        code?: "en";
                                     }[];
                                 };
                             }[];
@@ -3198,7 +3434,7 @@ declare class UsersEndpoints extends WebEndpoints {
                         third_party_captioning_service?: boolean;
                     };
                     meeting_reactions?: boolean;
-                    meeting_reactions_emojis?: string;
+                    meeting_reactions_emojis?: "all" | "selected";
                     allow_host_panelists_to_use_audible_clap?: boolean;
                     webinar_reactions?: boolean;
                     meeting_survey?: boolean;
@@ -3224,19 +3460,19 @@ declare class UsersEndpoints extends WebEndpoints {
                     virtual_background?: boolean;
                     waiting_room?: boolean;
                     webinar_chat?: {
-                        allow_attendees_chat_with?: number;
+                        allow_attendees_chat_with?: 1 | 2 | 3;
                         allow_auto_save_local_chat_file?: boolean;
-                        allow_panelists_chat_with?: number;
+                        allow_panelists_chat_with?: 1 | 2;
                         allow_panelists_send_direct_message?: boolean;
-                        allow_users_save_chats?: number;
-                        default_attendees_chat_with?: number;
+                        allow_users_save_chats?: 0 | 1 | 2;
+                        default_attendees_chat_with?: 1 | 2;
                         enable?: boolean;
                     };
                     webinar_live_streaming?: {
                         custom_service_instructions?: string;
                         enable?: boolean;
                         live_streaming_reminder?: boolean;
-                        live_streaming_service?: string[];
+                        live_streaming_service?: ("facebook" | "workplace_by_facebook" | "youtube" | "custom_live_streaming_service")[];
                     };
                     meeting_polling?: {
                         enable?: boolean;
@@ -3257,9 +3493,9 @@ declare class UsersEndpoints extends WebEndpoints {
                     webinar_question_answer?: boolean;
                     webinar_survey?: boolean;
                     whiteboard?: boolean;
-                    who_can_share_screen?: string;
-                    who_can_share_screen_when_someone_is_sharing?: string;
-                    participants_share_simultaneously?: string;
+                    who_can_share_screen?: "host" | "all";
+                    who_can_share_screen_when_someone_is_sharing?: "host" | "all";
+                    participants_share_simultaneously?: "multiple" | "one";
                     workplace_by_facebook?: boolean;
                 };
                 other_options?: {
@@ -3288,7 +3524,7 @@ declare class UsersEndpoints extends WebEndpoints {
                             chat_with_sender_email?: boolean;
                             video_file?: boolean;
                         };
-                        type?: number;
+                        type?: 1 | 2 | 3;
                     };
                     auto_recording?: string;
                     cloud_recording?: boolean;
@@ -3336,7 +3572,7 @@ declare class UsersEndpoints extends WebEndpoints {
                     pstn_password_protected?: boolean;
                     require_password_for_all_meetings?: boolean;
                     require_password_for_instant_meetings?: boolean;
-                    require_password_for_pmi_meetings?: string;
+                    require_password_for_pmi_meetings?: "all" | "jbh_only" | "none";
                     require_password_for_scheduled_meetings?: boolean;
                     require_password_for_scheduling_new_meetings?: boolean;
                     upcoming_meeting_reminder?: boolean;
@@ -3361,11 +3597,11 @@ declare class UsersEndpoints extends WebEndpoints {
                 chat?: {
                     share_files?: {
                         enable?: boolean;
-                        share_option?: string;
+                        share_option?: "anyone" | "account" | "organization";
                     };
                     chat_emojis?: {
                         enable?: boolean;
-                        emojis_option?: string;
+                        emojis_option?: "all" | "selected";
                     };
                     record_voice_messages?: boolean;
                     record_video_messages?: boolean;
@@ -3387,19 +3623,19 @@ declare class UsersEndpoints extends WebEndpoints {
                     allow_users_to_search_others_options?: string;
                     allow_users_to_add_contacts?: {
                         enable?: boolean;
-                        selected_option?: number;
+                        selected_option?: 1 | 2 | 3 | 4;
                         user_email_addresses?: string;
                     };
                     allow_users_to_chat_with_others?: {
                         enable?: boolean;
-                        selected_option?: number;
+                        selected_option?: 1 | 2 | 3 | 4;
                         user_email_addresses?: string;
                     };
                     chat_etiquette_tool?: {
                         enable?: boolean;
                         policies?: {
                             id?: string;
-                            status?: string;
+                            status?: "activated" | "deactivated";
                         }[];
                     };
                     send_data_to_third_party_archiving_service?: {
@@ -3414,24 +3650,24 @@ declare class UsersEndpoints extends WebEndpoints {
         } | {
             body?: {
                 authentication_option?: {
-                    action?: string;
+                    action?: "update" | "show" | "hide";
                     default_option?: boolean;
                     domains?: string;
                     id?: string;
                     name?: string;
-                    type?: string;
+                    type?: "enforce_login" | "enforce_login_with_same_account" | "enforce_login_with_domains";
                 };
                 meeting_authentication?: boolean;
             };
         } | {
             body?: {
                 authentication_option?: {
-                    action?: string;
+                    action?: "update" | "show" | "hide";
                     default_option?: boolean;
                     domains?: string;
                     id?: string;
                     name?: string;
-                    type?: string;
+                    type?: "internally" | "enforce_login" | "enforce_login_with_domains";
                 };
                 recording_authentication?: boolean;
             };
@@ -3445,15 +3681,15 @@ declare class UsersEndpoints extends WebEndpoints {
                         enable?: boolean;
                         policies?: {
                             id?: string;
-                            status?: string;
+                            status?: "activated" | "deactivated";
                         }[];
                     };
                     embed_password_in_join_link?: boolean;
-                    encryption_type?: string;
+                    encryption_type?: "enhanced_encryption" | "e2ee";
                     end_to_end_encrypted_meetings?: boolean;
                     meeting_password?: boolean;
                     meeting_password_requirement?: {
-                        consecutive_characters_length?: number;
+                        consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
                         have_letter?: boolean;
                         have_number?: boolean;
                         have_special_character?: boolean;
@@ -3469,8 +3705,8 @@ declare class UsersEndpoints extends WebEndpoints {
                     require_password_for_scheduled_webinar?: boolean;
                     waiting_room?: boolean;
                     waiting_room_settings?: {
-                        participants_to_place_in_waiting_room?: number;
-                        users_who_can_admit_participants_from_waiting_room?: number;
+                        participants_to_place_in_waiting_room?: 0 | 1 | 2;
+                        users_who_can_admit_participants_from_waiting_room?: 0 | 1;
                         whitelisted_domains_for_waiting_room?: string;
                     };
                     webinar_password?: boolean;
@@ -3478,7 +3714,7 @@ declare class UsersEndpoints extends WebEndpoints {
             };
         }) & {
             query?: GroupsUpdateGroupsSettingsQueryParams;
-        })) => Promise<BaseResponse<object>>;
+        })) => Promise<BaseResponse<unknown>>;
         getGroupsWebinarRegistrationSettings: (_: {
             path: GroupsGetGroupsWebinarRegistrationSettingsPathParams;
         } & object & {
@@ -3512,9 +3748,9 @@ declare class UsersEndpoints extends WebEndpoints {
         checkUserEmail: (_: object & {
             query: UsersCheckUserEmailQueryParams;
         }) => Promise<BaseResponse<UsersCheckUserEmailResponse>>;
-        bulkUpdateFeaturesForUser: (_: object & {
-            body: UsersBulkUpdateFeaturesForUserRequestBody;
-        }) => Promise<BaseResponse<UsersBulkUpdateFeaturesForUserResponse>>;
+        bulkUpdateFeaturesForUsers: (_: object & {
+            body: UsersBulkUpdateFeaturesForUsersRequestBody;
+        }) => Promise<BaseResponse<UsersBulkUpdateFeaturesForUsersResponse>>;
         getUsersZAK: (_: object) => Promise<BaseResponse<UsersGetUsersZAKResponse>>;
         getUserSummary: (_: object) => Promise<BaseResponse<UsersGetUserSummaryResponse>>;
         checkUsersPMRoom: (_: object & {
@@ -3588,11 +3824,11 @@ declare class UsersEndpoints extends WebEndpoints {
             path: UsersUpdateUsersPresenceStatusPathParams;
         } & (({
             body: {
-                status: string;
+                status: "Away" | "Available" | "In_Calendar_Event" | "Presenting" | "In_A_Zoom_Meeting" | "On_A_Call" | "Out_of_Office" | "Busy";
             };
         } | {
             body: {
-                status: string;
+                status: "Do_No_Disturb";
                 duration?: number;
             };
         }) & object)) => Promise<BaseResponse<unknown>>;
@@ -3624,18 +3860,18 @@ declare class UsersEndpoints extends WebEndpoints {
                     schedule_for_reminder?: boolean;
                 };
                 feature?: {
-                    concurrent_meeting?: string;
+                    concurrent_meeting?: "Basic" | "Plus" | "None";
                     large_meeting?: boolean;
                     large_meeting_capacity?: number;
                     meeting_capacity?: number;
                     webinar?: boolean;
-                    webinar_capacity?: number;
+                    webinar_capacity?: 100 | 500 | 501 | 1000 | 1001 | 3000 | 5000 | 10000;
                     zoom_events?: boolean;
-                    zoom_events_capacity?: number;
+                    zoom_events_capacity?: 500 | 1000 | 3000 | 5000 | 10000 | 20000 | 30000 | 50000;
                     zoom_events_unlimited?: boolean;
-                    zoom_events_unlimited_capacities?: number[];
+                    zoom_events_unlimited_capacities?: (100 | 500 | 1000 | 3000 | 5000 | 10000 | 20000 | 30000 | 50000)[];
                     zoom_sessions_unlimited?: boolean;
-                    zoom_sessions_unlimited_capacities?: number[];
+                    zoom_sessions_unlimited_capacities?: (100 | 500 | 1000 | 3000 | 5000 | 10000 | 20000 | 30000 | 50000)[];
                     zoom_events_pay_per_attendee?: boolean;
                     zoom_sessions_pay_per_attendee?: boolean;
                     zoom_phone?: boolean;
@@ -3652,6 +3888,12 @@ declare class UsersEndpoints extends WebEndpoints {
                     zoom_clips_plus?: boolean;
                     zoom_mail_calendar?: boolean;
                     zoom_compliance_management?: boolean;
+                    zoom_docs?: boolean;
+                    license_info_list?: {
+                        license_type: "ZOOM_WHITEBOARD" | "ZOOM_TRANSLATED_CAPTIONS" | "ZOOM_SCHEDULER" | "ZOOM_CLIPS" | "ZOOM_VISITOR_MANAGEMENT" | "ZOOM_CMK" | "ZOOM_DOCS" | "ZOOM_REVENUE_ACCELERATOR" | "ZOOM_COMPLIANCE_MANAGEMENT" | "ZOOM_WORKFORCE_MANAGEMENT" | "ZOOM_QUALITY_MANAGEMENT" | "ZOOM_HEALTHCARE_CLINICAL_NOTES";
+                        license_option: 1 | 2 | 512 | 2048 | 65536 | 131072 | 2147483648 | 549755813888 | 1099511627776 | 2199023255552 | 8796093022208 | 17592186044416 | 281474976710656 | 4503599627370496;
+                        subscription_id?: string;
+                    }[];
                 };
                 in_meeting?: {
                     allow_host_to_enable_focus_mode?: boolean;
@@ -3659,8 +3901,8 @@ declare class UsersEndpoints extends WebEndpoints {
                     allow_live_streaming?: boolean;
                     post_meeting_feedback?: boolean;
                     whiteboard?: boolean;
-                    allow_participants_chat_with?: number;
-                    allow_users_save_chats?: number;
+                    allow_participants_chat_with?: 1 | 2 | 3 | 4;
+                    allow_users_save_chats?: 1 | 2 | 3;
                     annotation?: boolean;
                     attendee_on_hold?: boolean;
                     attention_mode_focus_mode?: boolean;
@@ -3681,11 +3923,11 @@ declare class UsersEndpoints extends WebEndpoints {
                     custom_data_center_regions?: boolean;
                     custom_live_streaming_service?: boolean;
                     custom_service_instructions?: string;
-                    data_center_regions?: string[];
+                    data_center_regions?: ("AU" | "LA" | "CA" | "CN" | "DE" | "HK" | "IN" | "IE" | "TY" | "MX" | "NL" | "SG" | "US")[];
                     disable_screen_sharing_for_host_meetings?: boolean;
                     disable_screen_sharing_for_in_meeting_guests?: boolean;
                     e2e_encryption?: boolean;
-                    entry_exit_chime?: string;
+                    entry_exit_chime?: "host" | "all" | "none";
                     far_end_camera_control?: boolean;
                     feedback?: boolean;
                     file_transfer?: boolean;
@@ -3703,7 +3945,7 @@ declare class UsersEndpoints extends WebEndpoints {
                     sign_language_interpretation?: {
                         enable?: boolean;
                         enable_sign_language_interpretation_by_default?: boolean;
-                        languages?: string[];
+                        languages?: ("American" | "Chinese" | "French" | "German" | "Japanese" | "Russian" | "Brazilian" | "Spanish" | "Mexican" | "British")[];
                         custom_languages?: string[];
                     };
                     live_streaming_facebook?: boolean;
@@ -3717,7 +3959,7 @@ declare class UsersEndpoints extends WebEndpoints {
                         third_party_captioning_service?: boolean;
                     };
                     meeting_reactions?: boolean;
-                    meeting_reactions_emojis?: string;
+                    meeting_reactions_emojis?: "all" | "selected";
                     allow_host_panelists_to_use_audible_clap?: boolean;
                     webinar_reactions?: boolean;
                     meeting_survey?: boolean;
@@ -3748,19 +3990,19 @@ declare class UsersEndpoints extends WebEndpoints {
                     };
                     waiting_room?: boolean;
                     webinar_chat?: {
-                        allow_attendees_chat_with?: number;
+                        allow_attendees_chat_with?: 1 | 2 | 3;
                         allow_auto_save_local_chat_file?: boolean;
-                        allow_panelists_chat_with?: number;
+                        allow_panelists_chat_with?: 1 | 2;
                         allow_panelists_send_direct_message?: boolean;
-                        allow_users_save_chats?: number;
-                        default_attendees_chat_with?: number;
+                        allow_users_save_chats?: 0 | 1 | 2;
+                        default_attendees_chat_with?: 1 | 2;
                         enable?: boolean;
                     };
                     webinar_live_streaming?: {
                         custom_service_instructions?: string;
                         enable?: boolean;
                         live_streaming_reminder?: boolean;
-                        live_streaming_service?: string[];
+                        live_streaming_service?: ("facebook" | "workplace_by_facebook" | "youtube" | "custom_live_streaming_service")[];
                     };
                     meeting_polling?: {
                         advanced_polls?: boolean;
@@ -3777,9 +4019,9 @@ declare class UsersEndpoints extends WebEndpoints {
                         enable?: boolean;
                     };
                     webinar_survey?: boolean;
-                    who_can_share_screen?: string;
-                    who_can_share_screen_when_someone_is_sharing?: string;
-                    participants_share_simultaneously?: string;
+                    who_can_share_screen?: "host" | "all";
+                    who_can_share_screen_when_someone_is_sharing?: "host" | "all";
+                    participants_share_simultaneously?: "multiple" | "one";
                     workplace_by_facebook?: boolean;
                     auto_answer?: boolean;
                     allow_show_zoom_windows?: boolean;
@@ -3794,7 +4036,7 @@ declare class UsersEndpoints extends WebEndpoints {
                     ask_host_to_confirm_disclaimer?: boolean;
                     ask_participants_to_consent_disclaimer?: boolean;
                     auto_delete_cmr?: boolean;
-                    auto_delete_cmr_days?: number;
+                    auto_delete_cmr_days?: 30 | 60 | 90 | 120;
                     record_files_separately?: {
                         active_speaker?: boolean;
                         gallery_view?: boolean;
@@ -3807,7 +4049,7 @@ declare class UsersEndpoints extends WebEndpoints {
                     save_panelist_chat?: boolean;
                     save_poll_results?: boolean;
                     save_close_caption?: boolean;
-                    auto_recording?: string;
+                    auto_recording?: "local" | "cloud" | "none";
                     cloud_recording?: boolean;
                     host_pause_stop_recording?: boolean;
                     ip_address_access_control?: {
@@ -3836,14 +4078,14 @@ declare class UsersEndpoints extends WebEndpoints {
                     show_timestamp?: boolean;
                 };
                 schedule_meeting?: {
-                    audio_type?: string;
+                    audio_type?: "both" | "telephony" | "voip" | "thirdParty";
                     default_password_for_scheduled_meetings?: string;
                     embed_password_in_join_link?: boolean;
                     force_pmi_jbh_password?: boolean;
                     host_video?: boolean;
                     join_before_host?: boolean;
                     meeting_password_requirement?: {
-                        consecutive_characters_length?: number;
+                        consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
                         have_letter?: boolean;
                         have_number?: boolean;
                         have_special_character?: boolean;
@@ -3857,7 +4099,7 @@ declare class UsersEndpoints extends WebEndpoints {
                     pmi_password?: string;
                     pstn_password_protected?: boolean;
                     require_password_for_instant_meetings?: boolean;
-                    require_password_for_pmi_meetings?: string;
+                    require_password_for_pmi_meetings?: "jbh_only" | "all" | "none";
                     require_password_for_scheduled_meetings?: boolean;
                     require_password_for_scheduling_new_meetings?: boolean;
                     use_pmi_for_instant_meetings?: boolean;
@@ -3880,24 +4122,24 @@ declare class UsersEndpoints extends WebEndpoints {
         } | {
             body?: {
                 authentication_option?: {
-                    action?: string;
+                    action?: "update" | "show" | "hide";
                     default_option?: boolean;
                     domains?: string;
                     id?: string;
                     name?: string;
-                    type?: string;
+                    type?: "enforce_login" | "enforce_login_with_same_account" | "enforce_login_with_domains";
                 };
                 meeting_authentication?: boolean;
             };
         } | {
             body?: {
                 authentication_option?: {
-                    action?: string;
+                    action?: "update" | "show" | "hide";
                     default_option?: boolean;
                     domains?: string;
                     id?: string;
                     name?: string;
-                    type?: string;
+                    type?: "internally" | "enforce_login" | "enforce_login_with_domains";
                 };
                 recording_authentication?: boolean;
             };
@@ -3908,11 +4150,11 @@ declare class UsersEndpoints extends WebEndpoints {
                     block_user_domain?: boolean;
                     block_user_domain_list?: string[];
                     embed_password_in_join_link?: boolean;
-                    encryption_type?: string;
+                    encryption_type?: "enhanced_encryption" | "e2ee";
                     end_to_end_encrypted_meetings?: boolean;
                     meeting_password?: boolean;
                     meeting_password_requirement?: {
-                        consecutive_characters_length?: number;
+                        consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
                         have_letter?: boolean;
                         have_number?: boolean;
                         have_special_character?: boolean;
@@ -3928,8 +4170,8 @@ declare class UsersEndpoints extends WebEndpoints {
                     require_password_for_scheduled_webinar?: boolean;
                     waiting_room?: boolean;
                     waiting_room_settings?: {
-                        participants_to_place_in_waiting_room?: number;
-                        users_who_can_admit_participants_from_waiting_room?: number;
+                        participants_to_place_in_waiting_room?: 0 | 1 | 2;
+                        users_who_can_admit_participants_from_waiting_room?: 0 | 1;
                         whitelisted_domains_for_waiting_room?: string;
                     };
                     webinar_password?: boolean;
@@ -4098,7 +4340,7 @@ type GroupLockSettingsUpdatedEvent = Event<"group.lock_settings_updated"> & {
                     auto_security?: boolean;
                     block_user_domain?: boolean;
                     embed_password_in_join_link?: boolean;
-                    encryption_type?: string;
+                    encryption_type?: "enhanced_encryption" | "e2ee";
                     end_to_end_encrypted_meetings?: boolean;
                     meeting_password?: boolean;
                     only_authenticated_can_join_from_webclient?: boolean;
@@ -4110,6 +4352,127 @@ type GroupLockSettingsUpdatedEvent = Event<"group.lock_settings_updated"> & {
             };
         };
         time_stamp?: number;
+        old_object?: {
+            id: string;
+            settings: {
+                audio_conferencing?: {
+                    toll_free_and_fee_based_toll_call?: boolean;
+                };
+                email_notification?: {
+                    alternative_host_reminder?: boolean;
+                    cancel_meeting_reminder?: boolean;
+                    cloud_recording_available_reminder?: boolean;
+                    jbh_reminder?: boolean;
+                    schedule_for_reminder?: boolean;
+                };
+                in_meeting?: {
+                    alert_guest_join?: boolean;
+                    allow_users_to_delete_messages_in_meeting_chat?: boolean;
+                    allow_live_streaming?: boolean;
+                    allow_show_zoom_windows?: boolean;
+                    annotation?: boolean;
+                    auto_answer?: boolean;
+                    auto_generated_captions?: boolean;
+                    auto_saving_chat?: boolean;
+                    breakout_room?: boolean;
+                    chat?: boolean;
+                    closed_caption?: boolean;
+                    co_host?: boolean;
+                    custom_data_center_regions?: boolean;
+                    disable_screen_sharing_for_host_meetings?: boolean;
+                    disable_screen_sharing_for_in_meeting_guests?: boolean;
+                    e2e_encryption?: boolean;
+                    entry_exit_chime?: boolean;
+                    far_end_camera_control?: boolean;
+                    feedback?: boolean;
+                    file_transfer?: boolean;
+                    full_transcript?: boolean;
+                    group_hd?: boolean;
+                    language_interpretation?: boolean;
+                    sign_language_interpretation?: boolean;
+                    manual_captions?: boolean;
+                    meeting_reactions?: boolean;
+                    webinar_reactions?: boolean;
+                    meeting_survey?: boolean;
+                    non_verbal_feedback?: boolean;
+                    original_audio?: boolean;
+                    polling?: boolean;
+                    post_meeting_feedback?: boolean;
+                    private_chat?: boolean;
+                    remote_control?: boolean;
+                    remote_support?: boolean;
+                    request_permission_to_unmute?: boolean;
+                    save_caption?: boolean;
+                    save_captions?: boolean;
+                    screen_sharing?: boolean;
+                    sending_default_email_invites?: boolean;
+                    show_a_join_from_your_browser_link?: boolean;
+                    show_browser_join_link?: boolean;
+                    show_meeting_control_toolbar?: boolean;
+                    slide_control?: boolean;
+                    stereo_audio?: boolean;
+                    use_html_format_email?: boolean;
+                    virtual_background?: boolean;
+                    waiting_room?: boolean;
+                    webinar_chat?: boolean;
+                    webinar_live_streaming?: boolean;
+                    webinar_polling?: boolean;
+                    webinar_question_answer?: boolean;
+                    meeting_question_answer?: boolean;
+                    webinar_survey?: boolean;
+                    whiteboard?: boolean;
+                };
+                other_options?: {
+                    blur_snapshot?: boolean;
+                };
+                recording?: {
+                    account_user_access_recording?: boolean;
+                    auto_delete_cmr?: boolean;
+                    auto_recording?: boolean;
+                    cloud_recording?: boolean;
+                    cloud_recording_download?: boolean;
+                    host_delete_cloud_recording?: boolean;
+                    ip_address_access_control?: boolean;
+                    local_recording?: boolean;
+                    prevent_host_access_recording?: boolean;
+                    recording_authentication?: boolean;
+                    archive?: boolean;
+                };
+                schedule_meeting?: {
+                    audio_type?: boolean;
+                    embed_password_in_join_link?: boolean;
+                    force_pmi_jbh_password?: boolean;
+                    host_video?: boolean;
+                    join_before_host?: boolean;
+                    meeting_authentication?: boolean;
+                    mute_upon_entry?: boolean;
+                    participant_video?: boolean;
+                    pstn_password_protected?: boolean;
+                    require_password_for_instant_meetings?: boolean;
+                    require_password_for_pmi_meetings?: boolean;
+                    require_password_for_scheduling_new_meetings?: boolean;
+                    upcoming_meeting_reminder?: boolean;
+                };
+                telephony?: {
+                    telephony_regions?: boolean;
+                    third_party_audio?: boolean;
+                };
+                meeting_security?: {
+                    approved_or_denied_countries_or_regions?: boolean;
+                    auto_security?: boolean;
+                    block_user_domain?: boolean;
+                    embed_password_in_join_link?: boolean;
+                    encryption_type?: "enhanced_encryption" | "e2ee";
+                    end_to_end_encrypted_meetings?: boolean;
+                    meeting_password?: boolean;
+                    only_authenticated_can_join_from_webclient?: boolean;
+                    phone_password?: boolean;
+                    pmi_password?: boolean;
+                    waiting_room?: boolean;
+                    webinar_password?: boolean;
+                };
+            };
+        };
     };
 };
 type GroupAdminDeletedEvent = Event<"group.admin_deleted"> & {
@@ -4158,7 +4521,7 @@ type UserDeletedEvent = Event<"user.deleted"> & {
             first_name?: string;
             last_name?: string;
             email: string;
-            type: number;
+            type: 1 | 2;
         };
     };
 };
@@ -4174,7 +4537,7 @@ type UserDeactivatedEvent = Event<"user.deactivated"> & {
             first_name: string;
             last_name: string;
             email: string;
-            type: number;
+            type: 1 | 2;
         };
     };
 };
@@ -4200,12 +4563,12 @@ type UserSettingsUpdatedEvent = Event<"user.settings_updated"> & {
                     force_pmi_jbh_password?: string;
                     use_pmi_for_scheduled_meetings?: boolean;
                     pstn_password_protected?: string;
-                    jbh_time?: number;
+                    jbh_time?: 0 | 5 | 10 | 15;
                     personal_meeting?: boolean;
                     default_password_for_scheduled_meetings?: boolean;
                     require_password_for_instant_meetings?: boolean;
                     mute_upon_entry?: boolean;
-                    require_password_for_pmi_meetings?: string;
+                    require_password_for_pmi_meetings?: "jbh_only" | "all" | "none";
                     use_pmi_for_instant_meetings?: boolean;
                     require_password_for_scheduled_meetings?: boolean;
                     require_password_for_scheduling_new_meetings?: boolean;
@@ -4218,8 +4581,8 @@ type UserSettingsUpdatedEvent = Event<"user.settings_updated"> & {
                     post_meeting_feedback?: boolean;
                     whiteboard?: boolean;
                     allow_users_to_delete_messages_in_meeting_chat?: boolean;
-                    allow_participants_chat_with?: number;
-                    allow_users_save_chats?: number;
+                    allow_participants_chat_with?: 1 | 2 | 3 | 4;
+                    allow_users_save_chats?: 1 | 2 | 3;
                     private_chat?: boolean;
                     attention_mode_focus_mode?: boolean;
                     allow_host_to_enable_focus_mode?: boolean;
@@ -4245,9 +4608,9 @@ type UserSettingsUpdatedEvent = Event<"user.settings_updated"> & {
                     breakout_room_schedule?: boolean;
                     remote_support?: boolean;
                     screen_sharing?: boolean;
-                    who_can_share_screen?: string;
-                    who_can_share_screen_when_someone_is_sharing?: string;
-                    participants_share_simultaneously?: string;
+                    who_can_share_screen?: "host" | "all";
+                    who_can_share_screen_when_someone_is_sharing?: "host" | "all";
+                    participants_share_simultaneously?: "multiple" | "one";
                     closed_caption?: boolean;
                     group_hd?: boolean;
                     far_end_camera_control?: boolean;
@@ -4267,14 +4630,14 @@ type UserSettingsUpdatedEvent = Event<"user.settings_updated"> & {
                         }[];
                     };
                     custom_data_center_regions?: boolean;
-                    data_center_regions?: string[];
+                    data_center_regions?: ("AU" | "LA" | "CA" | "CN" | "DE" | "HK" | "IN" | "IE" | "TY" | "MX" | "NL" | "SG" | "US")[];
                     language_interpretation?: {
                         enable?: boolean;
                         languages?: string[];
                         custom_languages?: string[];
                     };
                     meeting_reactions?: boolean;
-                    meeting_reactions_emojis?: string;
+                    meeting_reactions_emojis?: "all" | "selected";
                     allow_host_panelists_to_use_audible_clap?: boolean;
                     webinar_reactions?: boolean;
                     show_a_join_from_your_browser_link?: boolean;
@@ -4288,23 +4651,23 @@ type UserSettingsUpdatedEvent = Event<"user.settings_updated"> & {
                     custom_service_instructions?: string;
                     webinar_live_streaming?: {
                         enable?: boolean;
-                        live_streaming_service?: string[];
+                        live_streaming_service?: ("facebook" | "workplace_by_facebook" | "youtube" | "custom_live_streaming_service")[];
                         custom_service_instructions?: string;
                         live_streaming_reminder?: boolean;
                     };
                     webinar_chat?: {
                         enable?: boolean;
-                        allow_panelists_chat_with?: number;
-                        allow_attendees_chat_with?: number;
-                        default_attendees_chat_with?: number;
+                        allow_panelists_chat_with?: 1 | 2;
+                        allow_attendees_chat_with?: 1 | 2 | 3;
+                        default_attendees_chat_with?: 1 | 2;
                         allow_panelists_send_direct_message?: boolean;
-                        allow_users_save_chats?: number;
+                        allow_users_save_chats?: 0 | 1 | 2;
                         allow_auto_save_local_chat_file?: boolean;
                     };
                     sign_language_interpretation?: {
                         enable?: boolean;
                         enable_sign_language_interpretation_by_default?: boolean;
-                        languages?: string[];
+                        languages?: ("American" | "Chinese" | "French" | "German" | "Japanese" | "Russian" | "Brazilian" | "Spanish" | "Mexican" | "British")[];
                         custom_languages?: string[];
                     };
                     meeting_question_answer?: boolean;
@@ -4348,9 +4711,9 @@ type UserSettingsUpdatedEvent = Event<"user.settings_updated"> & {
                     save_chat_text?: boolean;
                     show_timestamp?: boolean;
                     recording_audio_transcript?: boolean;
-                    auto_recording?: string;
+                    auto_recording?: "local" | "cloud" | "none";
                     auto_delete_cmr?: boolean;
-                    auto_delete_cmr_days?: number;
+                    auto_delete_cmr_days?: 30 | 60 | 90 | 120;
                     record_files_separately?: {
                         active_speaker?: boolean;
                         gallery_view?: boolean;
@@ -4392,23 +4755,23 @@ type UserSettingsUpdatedEvent = Event<"user.settings_updated"> & {
                 feature?: {
                     meeting_capacity?: number;
                     large_meeting?: boolean;
-                    large_meeting_capacity?: number;
+                    large_meeting_capacity?: 500 | 1000;
                     webinar?: boolean;
-                    webinar_capacity?: number;
+                    webinar_capacity?: 100 | 500 | 1000 | 3000 | 5000 | 10000;
                     zoom_events?: boolean;
-                    zoom_events_capacity?: number;
+                    zoom_events_capacity?: 500 | 1000 | 3000 | 5000 | 10000 | 20000 | 30000 | 50000;
                     cn_meeting?: boolean;
                     in_meeting?: boolean;
                     zoom_phone?: boolean;
-                    concurrent_meeting?: string;
+                    concurrent_meeting?: "Basic" | "Plus" | "None";
                 };
                 meeting_security?: {
                     auto_security?: boolean;
                     waiting_room?: boolean;
                     waiting_room_settings?: {
-                        participants_to_place_in_waiting_room?: number;
+                        participants_to_place_in_waiting_room?: 0 | 1 | 2;
                         whitelisted_domains_for_waiting_room?: string;
-                        users_who_can_admit_participants_from_waiting_room?: number;
+                        users_who_can_admit_participants_from_waiting_room?: 0 | 1;
                     };
                     meeting_password?: boolean;
                     require_password_for_scheduled_meeting?: boolean;
@@ -4423,12 +4786,264 @@ type UserSettingsUpdatedEvent = Event<"user.settings_updated"> & {
                         have_special_character?: boolean;
                         only_allow_numeric?: boolean;
                         have_upper_and_lower_characters?: boolean;
-                        consecutive_characters_length?: number;
+                        consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
                         weak_enhance_detection?: boolean;
                     };
                     embed_password_in_join_link?: boolean;
                     end_to_end_encrypted_meetings?: boolean;
-                    encryption_type?: string;
+                    encryption_type?: "enhanced_encryption" | "e2ee";
+                    block_user_domain?: boolean;
+                    only_authenticated_can_join_from_webclient?: boolean;
+                    block_user_domain_list?: string[];
+                };
+                tsp?: {
+                    call_out?: boolean;
+                    call_out_countries?: string[];
+                    show_international_numbers_link?: boolean;
+                    display_toll_free_numbers?: boolean;
+                };
+            };
+        };
+        old_object?: {
+            id?: string;
+            settings?: {
+                schedule_meeting?: {
+                    host_video?: boolean;
+                    participants_video?: boolean;
+                    audio_type?: string;
+                    join_before_host?: boolean;
+                    force_pmi_jbh_password?: string;
+                    use_pmi_for_scheduled_meetings?: boolean;
+                    pstn_password_protected?: string;
+                    jbh_time?: 0 | 5 | 10 | 15;
+                    personal_meeting?: boolean;
+                    default_password_for_scheduled_meetings?: boolean;
+                    require_password_for_instant_meetings?: boolean;
+                    mute_upon_entry?: boolean;
+                    require_password_for_pmi_meetings?: "jbh_only" | "all" | "none";
+                    use_pmi_for_instant_meetings?: boolean;
+                    require_password_for_scheduled_meetings?: boolean;
+                    require_password_for_scheduling_new_meetings?: boolean;
+                    pmi_password?: string;
+                    upcoming_meeting_reminder?: boolean;
+                };
+                in_meeting?: {
+                    e2e_encryption?: boolean;
+                    chat?: boolean;
+                    post_meeting_feedback?: boolean;
+                    whiteboard?: boolean;
+                    allow_users_to_delete_messages_in_meeting_chat?: boolean;
+                    allow_participants_chat_with?: 1 | 2 | 3 | 4;
+                    allow_users_save_chats?: 1 | 2 | 3;
+                    private_chat?: boolean;
+                    attention_mode_focus_mode?: boolean;
+                    allow_host_to_enable_focus_mode?: boolean;
+                    auto_saving_chat?: boolean;
+                    entry_exit_chime?: string;
+                    record_play_voice?: boolean;
+                    file_transfer?: boolean;
+                    feedback?: boolean;
+                    co_host?: boolean;
+                    polling?: boolean;
+                    meeting_polling?: {
+                        enable?: boolean;
+                        advanced_polls?: boolean;
+                        require_answers_to_be_anonymous?: boolean;
+                        allow_alternative_host_to_add_edit?: boolean;
+                        allow_host_to_upload_image?: boolean;
+                    };
+                    attendee_on_hold?: boolean;
+                    annotation?: boolean;
+                    remote_control?: boolean;
+                    non_verbal_feedback?: boolean;
+                    breakout_room?: boolean;
+                    breakout_room_schedule?: boolean;
+                    remote_support?: boolean;
+                    screen_sharing?: boolean;
+                    who_can_share_screen?: "host" | "all";
+                    who_can_share_screen_when_someone_is_sharing?: "host" | "all";
+                    participants_share_simultaneously?: "multiple" | "one";
+                    closed_caption?: boolean;
+                    group_hd?: boolean;
+                    far_end_camera_control?: boolean;
+                    share_dual_camera?: boolean;
+                    waiting_room?: boolean;
+                    virtual_background?: boolean;
+                    virtual_background_settings?: {
+                        enable?: boolean;
+                        allow_videos?: boolean;
+                        allow_upload_custom?: boolean;
+                        files?: {
+                            id?: string;
+                            name?: string;
+                            type?: string;
+                            is_default?: boolean;
+                            size?: number;
+                        }[];
+                    };
+                    custom_data_center_regions?: boolean;
+                    data_center_regions?: ("AU" | "LA" | "CA" | "CN" | "DE" | "HK" | "IN" | "IE" | "TY" | "MX" | "NL" | "SG" | "US")[];
+                    language_interpretation?: {
+                        enable?: boolean;
+                        languages?: string[];
+                        custom_languages?: string[];
+                    };
+                    meeting_reactions?: boolean;
+                    meeting_reactions_emojis?: "all" | "selected";
+                    allow_host_panelists_to_use_audible_clap?: boolean;
+                    webinar_reactions?: boolean;
+                    show_a_join_from_your_browser_link?: boolean;
+                    join_from_mobile?: boolean;
+                    join_from_desktop?: boolean;
+                    allow_live_streaming?: boolean;
+                    live_streaming_facebook?: boolean;
+                    workplace_by_facebook?: boolean;
+                    live_streaming_youtube?: boolean;
+                    custom_live_streaming_service?: boolean;
+                    custom_service_instructions?: string;
+                    webinar_live_streaming?: {
+                        enable?: boolean;
+                        live_streaming_service?: ("facebook" | "workplace_by_facebook" | "youtube" | "custom_live_streaming_service")[];
+                        custom_service_instructions?: string;
+                        live_streaming_reminder?: boolean;
+                    };
+                    webinar_chat?: {
+                        enable?: boolean;
+                        allow_panelists_chat_with?: 1 | 2;
+                        allow_attendees_chat_with?: 1 | 2 | 3;
+                        default_attendees_chat_with?: 1 | 2;
+                        allow_panelists_send_direct_message?: boolean;
+                        allow_users_save_chats?: 0 | 1 | 2;
+                        allow_auto_save_local_chat_file?: boolean;
+                    };
+                    sign_language_interpretation?: {
+                        enable?: boolean;
+                        enable_sign_language_interpretation_by_default?: boolean;
+                        languages?: ("American" | "Chinese" | "French" | "German" | "Japanese" | "Russian" | "Brazilian" | "Spanish" | "Mexican" | "British")[];
+                        custom_languages?: string[];
+                    };
+                    meeting_question_answer?: boolean;
+                    closed_captioning?: {
+                        enable?: boolean;
+                        third_party_captioning_service?: boolean;
+                        auto_transcribing?: boolean;
+                        view_full_transcript?: boolean;
+                        save_caption?: boolean;
+                    };
+                    slide_control?: boolean;
+                    meeting_survey?: boolean;
+                    webinar_polling?: {
+                        enable?: boolean;
+                        advanced_polls?: boolean;
+                        require_answers_to_be_anonymous?: boolean;
+                        allow_alternative_host_to_add_edit?: boolean;
+                        allow_host_to_upload_image?: boolean;
+                    };
+                    webinar_survey?: boolean;
+                    disable_screen_sharing_for_host_meetings?: boolean;
+                    disable_screen_sharing_for_in_meeting_guests?: boolean;
+                    auto_answer?: boolean;
+                    allow_show_zoom_windows?: boolean;
+                };
+                email_notification?: {
+                    cloud_recording_available_reminder?: boolean;
+                    recording_available_reminder_schedulers?: boolean;
+                    recording_available_reminder_alternative_hosts?: boolean;
+                    jbh_reminder?: boolean;
+                    cancel_meeting_reminder?: boolean;
+                    alternative_host_reminder?: boolean;
+                    schedule_for_reminder?: boolean;
+                };
+                recording?: {
+                    local_recording?: boolean;
+                    cloud_recording?: boolean;
+                    record_speaker_view?: boolean;
+                    record_gallery_view?: boolean;
+                    record_audio_file?: boolean;
+                    save_chat_text?: boolean;
+                    show_timestamp?: boolean;
+                    recording_audio_transcript?: boolean;
+                    auto_recording?: "local" | "cloud" | "none";
+                    auto_delete_cmr?: boolean;
+                    auto_delete_cmr_days?: 30 | 60 | 90 | 120;
+                    record_files_separately?: {
+                        active_speaker?: boolean;
+                        gallery_view?: boolean;
+                        shared_screen?: boolean;
+                    };
+                    display_participant_name?: boolean;
+                    recording_thumbnails?: boolean;
+                    optimize_recording_for_3rd_party_video_editor?: boolean;
+                    recording_highlight?: boolean;
+                    save_panelist_chat?: boolean;
+                    save_poll_results?: boolean;
+                    save_close_caption?: boolean;
+                    record_audio_file_each_participant?: boolean;
+                    host_pause_stop_recording?: boolean;
+                    recording_disclaimer?: boolean;
+                    ask_participants_to_consent_disclaimer?: boolean;
+                    ask_host_to_confirm_disclaimer?: boolean;
+                    recording_password_requirement?: {
+                        length?: number;
+                        have_letter?: boolean;
+                        have_number?: boolean;
+                        have_special_character?: boolean;
+                        only_allow_numeric?: boolean;
+                    };
+                    ip_address_access_control?: {
+                        enable?: boolean;
+                        ip_addresses_or_ranges?: string;
+                    };
+                };
+                telephony?: {
+                    third_party_audio?: boolean;
+                    audio_conference_info?: string;
+                    show_international_numbers_link?: boolean;
+                    telephony_regions?: {
+                        allowed_values?: string[];
+                        selection_values?: string;
+                    };
+                };
+                feature?: {
+                    meeting_capacity?: number;
+                    large_meeting?: boolean;
+                    large_meeting_capacity?: 500 | 1000;
+                    webinar?: boolean;
+                    webinar_capacity?: 100 | 500 | 1000 | 3000 | 5000 | 10000;
+                    zoom_events?: boolean;
+                    zoom_events_capacity?: 500 | 1000 | 3000 | 5000 | 10000 | 20000 | 30000 | 50000;
+                    cn_meeting?: boolean;
+                    in_meeting?: boolean;
+                    zoom_phone?: boolean;
+                    concurrent_meeting?: "Basic" | "Plus" | "None";
+                };
+                meeting_security?: {
+                    auto_security?: boolean;
+                    waiting_room?: boolean;
+                    waiting_room_settings?: {
+                        participants_to_place_in_waiting_room?: 0 | 1 | 2;
+                        whitelisted_domains_for_waiting_room?: string;
+                        users_who_can_admit_participants_from_waiting_room?: 0 | 1;
+                    };
+                    meeting_password?: boolean;
+                    require_password_for_scheduled_meeting?: boolean;
+                    pmi_password?: boolean;
+                    phone_password?: boolean;
+                    webinar_password?: boolean;
+                    require_password_for_scheduled_webinar?: boolean;
+                    meeting_password_requirement?: {
+                        length?: number;
+                        have_letter?: boolean;
+                        have_number?: boolean;
+                        have_special_character?: boolean;
+                        only_allow_numeric?: boolean;
+                        have_upper_and_lower_characters?: boolean;
+                        consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
+                        weak_enhance_detection?: boolean;
+                    };
+                    embed_password_in_join_link?: boolean;
+                    end_to_end_encrypted_meetings?: boolean;
+                    encryption_type?: "enhanced_encryption" | "e2ee";
                     block_user_domain?: boolean;
                     only_authenticated_can_join_from_webclient?: boolean;
                     block_user_domain_list?: string[];
@@ -4453,7 +5068,7 @@ type UserInvitationAcceptedEvent = Event<"user.invitation_accepted"> & {
             first_name?: string;
             last_name?: string;
             email: string;
-            type: number;
+            type: 1 | 2;
         };
     };
 };
@@ -4507,9 +5122,9 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                     alert_guest_join?: boolean;
                     allow_users_to_delete_messages_in_meeting_chat?: boolean;
                     allow_live_streaming?: boolean;
-                    allow_participants_chat_with?: number;
+                    allow_participants_chat_with?: 1 | 2 | 3 | 4;
                     allow_show_zoom_windows?: boolean;
-                    allow_users_save_chats?: number;
+                    allow_users_save_chats?: 1 | 2 | 3;
                     annotation?: boolean;
                     auto_answer?: boolean;
                     auto_saving_chat?: boolean;
@@ -4529,7 +5144,7 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                     custom_data_center_regions?: boolean;
                     custom_live_streaming_service?: boolean;
                     custom_service_instructions?: string;
-                    data_center_regions?: string[];
+                    data_center_regions?: ("AU" | "LA" | "CA" | "CN" | "DE" | "HK" | "IN" | "IE" | "TY" | "MX" | "NL" | "SG" | "US")[];
                     disable_screen_sharing_for_host_meetings?: boolean;
                     disable_screen_sharing_for_in_meeting_guests?: boolean;
                     e2e_encryption?: boolean;
@@ -4551,7 +5166,7 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                     sign_language_interpretation?: {
                         enable?: boolean;
                         enable_sign_language_interpretation_by_default?: boolean;
-                        languages?: string[];
+                        languages?: ("American" | "Chinese" | "French" | "German" | "Japanese" | "Russian" | "Brazilian" | "Spanish" | "Mexican" | "British")[];
                         custom_languages?: string[];
                     };
                     live_streaming_facebook?: boolean;
@@ -4573,7 +5188,7 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                         enable?: boolean;
                     };
                     meeting_reactions?: boolean;
-                    meeting_reactions_emojis?: string;
+                    meeting_reactions_emojis?: "all" | "selected";
                     allow_host_panelists_to_use_audible_clap?: boolean;
                     webinar_reactions?: boolean;
                     meeting_survey?: boolean;
@@ -4611,19 +5226,19 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                     };
                     waiting_room?: boolean;
                     webinar_chat?: {
-                        allow_attendees_chat_with?: number;
+                        allow_attendees_chat_with?: 1 | 2 | 3;
                         allow_auto_save_local_chat_file?: boolean;
-                        allow_panelists_chat_with?: number;
+                        allow_panelists_chat_with?: 1 | 2;
                         allow_panelists_send_direct_message?: boolean;
-                        allow_users_save_chats?: number;
-                        default_attendees_chat_with?: number;
+                        allow_users_save_chats?: 0 | 1 | 2;
+                        default_attendees_chat_with?: 1 | 2;
                         enable?: boolean;
                     };
                     webinar_live_streaming?: {
                         custom_service_instructions?: string;
                         enable?: boolean;
                         live_streaming_reminder?: boolean;
-                        live_streaming_service?: string[];
+                        live_streaming_service?: ("facebook" | "workplace_by_facebook" | "youtube" | "custom_live_streaming_service")[];
                     };
                     webinar_polling?: {
                         advanced_polls?: boolean;
@@ -4636,9 +5251,9 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                     webinar_question_answer?: boolean;
                     webinar_survey?: boolean;
                     whiteboard?: boolean;
-                    who_can_share_screen?: string;
-                    who_can_share_screen_when_someone_is_sharing?: string;
-                    participants_share_simultaneously?: string;
+                    who_can_share_screen?: "host" | "all";
+                    who_can_share_screen_when_someone_is_sharing?: "host" | "all";
+                    participants_share_simultaneously?: "multiple" | "one";
                     workplace_by_facebook?: boolean;
                 };
                 other_options?: {
@@ -4665,7 +5280,7 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                             chat_with_sender_email?: boolean;
                             video_file?: boolean;
                         };
-                        type?: number;
+                        type?: 1 | 2 | 3;
                     };
                     auto_recording?: boolean;
                     cloud_recording?: boolean;
@@ -4714,7 +5329,7 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                     personal_meeting?: boolean;
                     pstn_password_protected?: boolean;
                     require_password_for_instant_meetings?: boolean;
-                    require_password_for_pmi_meetings?: string;
+                    require_password_for_pmi_meetings?: "none" | "all" | "jbh_only";
                     require_password_for_scheduled_meetings?: boolean;
                     require_password_for_scheduling_new_meetings?: boolean;
                     upcoming_meeting_reminder?: boolean;
@@ -4749,16 +5364,16 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                             keywords?: string[];
                             name?: string;
                             regular_expression?: string;
-                            status?: string;
-                            trigger_action?: number;
+                            status?: "activated" | "deactivated";
+                            trigger_action?: 1 | 2;
                         }[];
                     };
                     embed_password_in_join_link?: boolean;
-                    encryption_type?: string;
+                    encryption_type?: "enhanced_encryption" | "e2ee";
                     end_to_end_encrypted_meetings?: boolean;
                     meeting_password?: boolean;
                     meeting_password_requirement?: {
-                        consecutive_characters_length?: number;
+                        consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
                         have_letter?: boolean;
                         have_number?: boolean;
                         have_special_character?: boolean;
@@ -4774,8 +5389,8 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                     require_password_for_scheduled_webinar?: boolean;
                     waiting_room?: boolean;
                     waiting_room_settings?: {
-                        participants_to_place_in_waiting_room?: number;
-                        users_who_can_admit_participants_from_waiting_room?: number;
+                        participants_to_place_in_waiting_room?: 0 | 1 | 2;
+                        users_who_can_admit_participants_from_waiting_room?: 0 | 1;
                         whitelisted_domains_for_waiting_room?: string;
                     };
                     webinar_password?: boolean;
@@ -4783,11 +5398,11 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                 chat?: {
                     share_files?: {
                         enable?: boolean;
-                        share_option?: string;
+                        share_option?: "anyone" | "account" | "organization";
                     };
                     chat_emojis?: {
                         enable?: boolean;
-                        emojis_option?: string;
+                        emojis_option?: "all" | "selected";
                     };
                     record_voice_messages?: boolean;
                     record_video_messages?: boolean;
@@ -4799,19 +5414,19 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
                     allow_users_to_search_others_options?: string;
                     allow_users_to_add_contacts?: {
                         enable?: boolean;
-                        selected_option?: number;
+                        selected_option?: 1 | 2 | 3 | 4;
                         user_email_addresses?: string;
                     };
                     allow_users_to_chat_with_others?: {
                         enable?: boolean;
-                        selected_option?: number;
+                        selected_option?: 1 | 2 | 3 | 4;
                         user_email_addresses?: string;
                     };
                     chat_etiquette_tool?: {
                         enable?: boolean;
                         policies?: {
                             id?: string;
-                            status?: string;
+                            status?: "activated" | "deactivated";
                         }[];
                     };
                     send_data_to_third_party_archiving_service?: {
@@ -4821,6 +5436,348 @@ type GroupSettingsUpdatedEvent = Event<"group.settings_updated"> & {
             };
         };
         time_stamp?: number;
+        old_object: {
+            id: string;
+            settings: {
+                audio_conferencing?: {
+                    toll_free_and_fee_based_toll_call?: {
+                        allow_webinar_attendees_dial?: boolean;
+                        enable?: boolean;
+                        numbers?: {
+                            code?: string;
+                            country_code?: string;
+                            country_name?: string;
+                            display_number?: string;
+                            number?: string;
+                        }[];
+                    };
+                };
+                email_notification?: {
+                    alternative_host_reminder?: boolean;
+                    cancel_meeting_reminder?: boolean;
+                    cloud_recording_available_reminder?: boolean;
+                    jbh_reminder?: boolean;
+                    recording_available_reminder_alternative_hosts?: boolean;
+                    recording_available_reminder_schedulers?: boolean;
+                    schedule_for_reminder?: boolean;
+                };
+                in_meeting?: {
+                    alert_guest_join?: boolean;
+                    allow_users_to_delete_messages_in_meeting_chat?: boolean;
+                    allow_live_streaming?: boolean;
+                    allow_participants_chat_with?: 1 | 2 | 3 | 4;
+                    allow_show_zoom_windows?: boolean;
+                    allow_users_save_chats?: 1 | 2 | 3;
+                    annotation?: boolean;
+                    auto_answer?: boolean;
+                    auto_saving_chat?: boolean;
+                    breakout_room?: boolean;
+                    breakout_room_schedule?: boolean;
+                    chat?: boolean;
+                    meeting_question_answer?: boolean;
+                    closed_caption?: boolean;
+                    closed_captioning?: {
+                        auto_transcribing?: boolean;
+                        enable?: boolean;
+                        save_caption?: boolean;
+                        third_party_captioning_service?: boolean;
+                        view_full_transcript?: boolean;
+                    };
+                    co_host?: boolean;
+                    custom_data_center_regions?: boolean;
+                    custom_live_streaming_service?: boolean;
+                    custom_service_instructions?: string;
+                    data_center_regions?: ("AU" | "LA" | "CA" | "CN" | "DE" | "HK" | "IN" | "IE" | "TY" | "MX" | "NL" | "SG" | "US")[];
+                    disable_screen_sharing_for_host_meetings?: boolean;
+                    disable_screen_sharing_for_in_meeting_guests?: boolean;
+                    e2e_encryption?: boolean;
+                    entry_exit_chime?: boolean;
+                    far_end_camera_control?: boolean;
+                    feedback?: boolean;
+                    file_transfer?: boolean;
+                    group_hd?: boolean;
+                    join_from_desktop?: boolean;
+                    join_from_mobile?: boolean;
+                    language_interpretation?: {
+                        custom_languages?: string[];
+                        enable_language_interpretation_by_default?: boolean;
+                        allow_participants_to_speak_in_listening_channel?: boolean;
+                        allow_up_to_25_custom_languages_when_scheduling_meetings?: boolean;
+                        enable?: boolean;
+                        languages?: string[];
+                    };
+                    sign_language_interpretation?: {
+                        enable?: boolean;
+                        enable_sign_language_interpretation_by_default?: boolean;
+                        languages?: ("American" | "Chinese" | "French" | "German" | "Japanese" | "Russian" | "Brazilian" | "Spanish" | "Mexican" | "British")[];
+                        custom_languages?: string[];
+                    };
+                    live_streaming_facebook?: boolean;
+                    live_streaming_youtube?: boolean;
+                    manual_captioning?: {
+                        allow_to_type?: boolean;
+                        auto_generated_captions?: boolean;
+                        full_transcript?: boolean;
+                        manual_captions?: boolean;
+                        save_captions?: boolean;
+                        third_party_captioning_service?: boolean;
+                    };
+                    meeting_polling?: {
+                        advanced_polls?: boolean;
+                        require_answers_to_be_anonymous?: boolean;
+                        allow_alternative_host_to_add_edit?: boolean;
+                        manage_saved_polls_and_quizzes?: boolean;
+                        allow_host_to_upload_image?: boolean;
+                        enable?: boolean;
+                    };
+                    meeting_reactions?: boolean;
+                    meeting_reactions_emojis?: "all" | "selected";
+                    allow_host_panelists_to_use_audible_clap?: boolean;
+                    webinar_reactions?: boolean;
+                    meeting_survey?: boolean;
+                    non_verbal_feedback?: boolean;
+                    only_host_view_device_list?: boolean;
+                    original_audio?: boolean;
+                    polling?: boolean;
+                    post_meeting_feedback?: boolean;
+                    private_chat?: boolean;
+                    record_play_own_voice?: boolean;
+                    remote_control?: boolean;
+                    remote_support?: boolean;
+                    request_permission_to_unmute?: boolean;
+                    screen_sharing?: boolean;
+                    sending_default_email_invites?: boolean;
+                    show_a_join_from_your_browser_link?: boolean;
+                    show_device_list?: boolean;
+                    show_meeting_control_toolbar?: boolean;
+                    slide_control?: boolean;
+                    stereo_audio?: boolean;
+                    unchecked_data_center_regions?: string[];
+                    use_html_format_email?: boolean;
+                    virtual_background?: boolean;
+                    virtual_background_settings?: {
+                        allow_upload_custom?: boolean;
+                        allow_videos?: boolean;
+                        enable?: boolean;
+                        files?: {
+                            id?: string;
+                            is_default?: boolean;
+                            name?: string;
+                            size?: number;
+                            type?: string;
+                        }[];
+                    };
+                    waiting_room?: boolean;
+                    webinar_chat?: {
+                        allow_attendees_chat_with?: 1 | 2 | 3;
+                        allow_auto_save_local_chat_file?: boolean;
+                        allow_panelists_chat_with?: 1 | 2;
+                        allow_panelists_send_direct_message?: boolean;
+                        allow_users_save_chats?: 0 | 1 | 2;
+                        default_attendees_chat_with?: 1 | 2;
+                        enable?: boolean;
+                    };
+                    webinar_live_streaming?: {
+                        custom_service_instructions?: string;
+                        enable?: boolean;
+                        live_streaming_reminder?: boolean;
+                        live_streaming_service?: ("facebook" | "workplace_by_facebook" | "youtube" | "custom_live_streaming_service")[];
+                    };
+                    webinar_polling?: {
+                        advanced_polls?: boolean;
+                        require_answers_to_be_anonymous?: boolean;
+                        allow_alternative_host_to_add_edit?: boolean;
+                        manage_saved_polls_and_quizzes?: boolean;
+                        allow_host_to_upload_image?: boolean;
+                        enable?: boolean;
+                    };
+                    webinar_question_answer?: boolean;
+                    webinar_survey?: boolean;
+                    whiteboard?: boolean;
+                    who_can_share_screen?: "host" | "all";
+                    who_can_share_screen_when_someone_is_sharing?: "host" | "all";
+                    participants_share_simultaneously?: "multiple" | "one";
+                    workplace_by_facebook?: boolean;
+                };
+                other_options?: {
+                    allow_users_contact_support_via_chat?: boolean;
+                    blur_snapshot?: boolean;
+                    webinar_registration_options?: {
+                        allow_host_to_enable_social_share_buttons?: boolean;
+                    };
+                };
+                profile?: {
+                    recording_storage_location?: {
+                        allowed_values?: string[];
+                        value?: string;
+                    };
+                };
+                recording?: {
+                    account_user_access_recording?: boolean;
+                    archive?: {
+                        enable?: boolean;
+                        settings?: {
+                            audio_file?: boolean;
+                            cc_transcript_file?: boolean;
+                            chat_file?: boolean;
+                            chat_with_sender_email?: boolean;
+                            video_file?: boolean;
+                        };
+                        type?: 1 | 2 | 3;
+                    };
+                    auto_recording?: boolean;
+                    cloud_recording?: boolean;
+                    cloud_recording_download?: boolean;
+                    cloud_recording_download_host?: boolean;
+                    display_participant_name?: boolean;
+                    host_delete_cloud_recording?: boolean;
+                    ip_address_access_control?: {
+                        enable?: boolean;
+                        ip_addresses_or_ranges?: string;
+                    };
+                    local_recording?: boolean;
+                    optimize_recording_for_3rd_party_video_editor?: boolean;
+                    prevent_host_access_recording?: boolean;
+                    record_audio_file?: boolean;
+                    record_audio_file_each_participant?: boolean;
+                    record_files_separately?: {
+                        active_speaker?: boolean;
+                        gallery_view?: boolean;
+                        shared_screen?: boolean;
+                    };
+                    record_gallery_view?: boolean;
+                    record_speaker_view?: boolean;
+                    recording_audio_transcript?: boolean;
+                    recording_highlight?: boolean;
+                    smart_recording?: {
+                        create_recording_highlights?: boolean;
+                        create_smart_chapters?: boolean;
+                        create_next_steps?: boolean;
+                    };
+                    recording_thumbnails?: boolean;
+                    save_chat_text?: boolean;
+                    save_close_caption?: boolean;
+                    save_panelist_chat?: boolean;
+                    save_poll_results?: boolean;
+                    show_timestamp?: boolean;
+                };
+                schedule_meeting?: {
+                    audio_type?: boolean;
+                    embed_password_in_join_link?: boolean;
+                    force_pmi_jbh_password?: boolean;
+                    host_video?: boolean;
+                    join_before_host?: boolean;
+                    mute_upon_entry?: boolean;
+                    participant_video?: boolean;
+                    personal_meeting?: boolean;
+                    pstn_password_protected?: boolean;
+                    require_password_for_instant_meetings?: boolean;
+                    require_password_for_pmi_meetings?: "none" | "all" | "jbh_only";
+                    require_password_for_scheduled_meetings?: boolean;
+                    require_password_for_scheduling_new_meetings?: boolean;
+                    upcoming_meeting_reminder?: boolean;
+                    use_pmi_for_instant_meetings?: boolean;
+                    use_pmi_for_schedule_meetings?: boolean;
+                    always_display_zoom_meeting_as_topic?: {
+                        enable?: boolean;
+                        display_topic_for_scheduled_meetings?: boolean;
+                    };
+                    always_display_zoom_webinar_as_topic?: {
+                        enable?: boolean;
+                        display_topic_for_scheduled_webinars?: boolean;
+                    };
+                };
+                telephony?: {
+                    audio_conference_info?: string;
+                    telephony_regions?: {
+                        selection_values?: string;
+                    };
+                    third_party_audio?: boolean;
+                };
+                meeting_security?: {
+                    auto_security?: boolean;
+                    block_user_domain?: boolean;
+                    block_user_domain_list?: string[];
+                    chat_etiquette_tool?: {
+                        enable?: boolean;
+                        policies?: {
+                            description?: string;
+                            id?: string;
+                            is_locked?: boolean;
+                            keywords?: string[];
+                            name?: string;
+                            regular_expression?: string;
+                            status?: "activated" | "deactivated";
+                            trigger_action?: 1 | 2;
+                        }[];
+                    };
+                    embed_password_in_join_link?: boolean;
+                    encryption_type?: "enhanced_encryption" | "e2ee";
+                    end_to_end_encrypted_meetings?: boolean;
+                    meeting_password?: boolean;
+                    meeting_password_requirement?: {
+                        consecutive_characters_length?: 0 | 4 | 5 | 6 | 7 | 8;
+                        have_letter?: boolean;
+                        have_number?: boolean;
+                        have_special_character?: boolean;
+                        have_upper_and_lower_characters?: boolean;
+                        length?: number;
+                        only_allow_numeric?: boolean;
+                        weak_enhance_detection?: boolean;
+                    };
+                    only_authenticated_can_join_from_webclient?: boolean;
+                    phone_password?: boolean;
+                    pmi_password?: boolean;
+                    require_password_for_scheduled_meeting?: boolean;
+                    require_password_for_scheduled_webinar?: boolean;
+                    waiting_room?: boolean;
+                    waiting_room_settings?: {
+                        participants_to_place_in_waiting_room?: 0 | 1 | 2;
+                        users_who_can_admit_participants_from_waiting_room?: 0 | 1;
+                        whitelisted_domains_for_waiting_room?: string;
+                    };
+                    webinar_password?: boolean;
+                };
+                chat?: {
+                    share_files?: {
+                        enable?: boolean;
+                        share_option?: "anyone" | "account" | "organization";
+                    };
+                    chat_emojis?: {
+                        enable?: boolean;
+                        emojis_option?: "all" | "selected";
+                    };
+                    record_voice_messages?: boolean;
+                    record_video_messages?: boolean;
+                    screen_capture?: boolean;
+                    create_public_channels?: boolean;
+                    create_private_channels?: boolean;
+                    share_links_in_chat?: boolean;
+                    schedule_meetings_in_chat?: boolean;
+                    allow_users_to_search_others_options?: string;
+                    allow_users_to_add_contacts?: {
+                        enable?: boolean;
+                        selected_option?: 1 | 2 | 3 | 4;
+                        user_email_addresses?: string;
+                    };
+                    allow_users_to_chat_with_others?: {
+                        enable?: boolean;
+                        selected_option?: 1 | 2 | 3 | 4;
+                        user_email_addresses?: string;
+                    };
+                    chat_etiquette_tool?: {
+                        enable?: boolean;
+                        policies?: {
+                            id?: string;
+                            status?: "activated" | "deactivated";
+                        }[];
+                    };
+                    send_data_to_third_party_archiving_service?: {
+                        enable?: boolean;
+                    };
+                };
+            };
+        };
     };
 };
 type UserDisassociatedEvent = Event<"user.disassociated"> & {
@@ -4835,7 +5792,7 @@ type UserDisassociatedEvent = Event<"user.disassociated"> & {
             first_name: string;
             last_name: string;
             email: string;
-            type: number;
+            type: 1 | 2;
         };
     };
 };
@@ -4851,6 +5808,10 @@ type GroupUpdatedEvent = Event<"group.updated"> & {
             id: string;
             name: string;
         };
+        old_object: {
+            id: string;
+            name?: string;
+        };
     };
 };
 type UserPresenceStatusUpdatedEvent = Event<"user.presence_status_updated"> & {
@@ -4862,10 +5823,10 @@ type UserPresenceStatusUpdatedEvent = Event<"user.presence_status_updated"> & {
             date_time: string;
             email: string;
             id: string;
-            presence_status: string;
+            presence_status: "Available" | "Away" | "Do_Not_Disturb" | "In_Meeting" | "Presenting" | "On_Phone_Call" | "In_Calendar_Event" | "Offline" | "Busy" | "Mobile_signed_in";
             app?: {
-                type: string;
-                presence_status: string;
+                type: "desktop" | "mobile" | "pad" | "pzr";
+                presence_status: "Available" | "Away" | "Do_Not_Disturb" | "In_Meeting" | "Presenting" | "On_Phone_Call" | "In_Calendar_Event" | "Offline" | "Busy";
             };
         };
     };
@@ -4882,7 +5843,7 @@ type UserActivatedEvent = Event<"user.activated"> & {
             first_name: string;
             last_name: string;
             email: string;
-            type: number;
+            type: 1 | 2;
         };
     };
 };
@@ -4893,11 +5854,11 @@ type UserSignedInEvent = Event<"user.signed_in"> & {
         account_id: string;
         object: {
             id: string;
-            client_type: string;
+            client_type: "browser" | "mac" | "win" | "iphone" | "android" | "ipad" | "chromeos" | "linux";
             date_time: string;
             email: string;
             version: string;
-            login_type: number;
+            login_type: 0 | 1 | 100 | 101;
         };
     };
 };
@@ -4908,11 +5869,11 @@ type UserSignedOutEvent = Event<"user.signed_out"> & {
         account_id: string;
         object: {
             id: string;
-            client_type: string;
+            client_type: "browser" | "mac" | "win" | "iphone" | "android" | "ipad" | "chromeos" | "linux";
             date_time: string;
             email: string;
             version: string;
-            login_type: number;
+            login_type: 0 | 1 | 100 | 101;
         };
     };
 };
@@ -4956,14 +5917,14 @@ type UserUpdatedEvent = Event<"user.updated"> & {
         account_id: string;
         operator?: string;
         operator_id?: string;
-        operation?: string;
+        operation?: "change_password" | "sign_out_from_all_devices";
         object: {
             id: string;
             first_name?: string;
             last_name?: string;
             display_name?: string;
             email?: string;
-            type?: number;
+            type?: 1 | 2;
             phone_number?: string;
             phone_country?: string;
             company?: string;
@@ -4993,6 +5954,41 @@ type UserUpdatedEvent = Event<"user.updated"> & {
             primary_group_id?: string;
         };
         time_stamp?: number;
+        old_object?: {
+            id: string;
+            first_name?: string;
+            last_name?: string;
+            display_name?: string;
+            email?: string;
+            type?: 1 | 2;
+            phone_number?: string;
+            phone_country?: string;
+            company?: string;
+            pmi?: number;
+            use_pmi?: boolean;
+            timezone?: string;
+            pic_url?: string;
+            vanity_name?: string;
+            host_key?: string;
+            role?: string;
+            dept?: string;
+            language?: string;
+            settings?: {
+                feature?: {
+                    large_meeting_capacity?: number;
+                    webinar?: boolean;
+                    webinar_capacity?: number;
+                };
+                meeting_capacity?: number;
+                large_meeting?: string;
+            };
+            custom_attributes?: {
+                key: string;
+                name: string;
+                value: number;
+            }[];
+            primary_group_id?: string;
+        };
     };
 };
 type GroupDeletedEvent = Event<"group.deleted"> & {
@@ -5016,46 +6012,19 @@ type UserCreatedEvent = Event<"user.created"> & {
         account_id: string;
         operator: string;
         operator_id: string;
-        creation_type: string;
+        creation_type: "create" | "ssoCreate" | "autoCreate" | "custCreate";
         object: {
             id: string;
             first_name?: string;
             last_name?: string;
             display_name?: string;
             email: string;
-            type: number;
+            type: 1 | 2;
         };
     };
 };
 type UsersEvents = GroupAdminAddedEvent | GroupLockSettingsUpdatedEvent | GroupAdminDeletedEvent | GroupMemberDeletedEvent | UserDeletedEvent | UserDeactivatedEvent | UserSettingsUpdatedEvent | UserInvitationAcceptedEvent | GroupCreatedEvent | GroupSettingsUpdatedEvent | UserDisassociatedEvent | GroupUpdatedEvent | UserPresenceStatusUpdatedEvent | UserActivatedEvent | UserSignedInEvent | UserSignedOutEvent | UserPersonalNotesUpdatedEvent | GroupMemberAddedEvent | UserUpdatedEvent | GroupDeletedEvent | UserCreatedEvent;
 declare class UsersEventProcessor extends EventManager<UsersEndpoints, UsersEvents> {
-}
-
-/**
- * Credentials for access token & refresh token, which are used to access Zoom's APIs.
- *
- * As access token is short-lived (usually a single hour), its expiration time is checked
- * first. If it's possible to use the access token, it's used; however, if it has expired
- * or is close to expiring, the refresh token should be used to generate a new access token
- * before the API call is made. Refresh tokens are generally valid for 90 days.
- *
- * If neither the access token nor the refresh token is available, {@link OAuthTokenRefreshFailedError}
- * shall be thrown, informing the developer that neither value can be used, and the user must re-authorize.
- * It's likely that this error will be rare, but it _can_ be thrown.
- */
-interface OAuthToken {
-    accessToken: string;
-    expirationTimeIso: string;
-    refreshToken: string;
-    scopes: string[];
-}
-declare class OAuth extends InteractiveAuth<OAuthToken> {
-    private assertResponseAccessToken;
-    private fetchAccessToken;
-    getToken(): Promise<string>;
-    initRedirectCode(code: string): Promise<void>;
-    private mapOAuthToken;
-    private refreshAccessToken;
 }
 
 type UsersOAuthOptions<R extends Receiver> = CommonClientOptions<OAuth, R>;
@@ -5072,4 +6041,5 @@ declare class UsersS2SAuthClient<ReceiverType extends Receiver = HttpReceiver, O
     protected initEventProcessor(endpoints: UsersEndpoints): UsersEventProcessor;
 }
 
-export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommonHttpRequestError, ConsoleLogger, type ContactGroupsAddContactGroupMembersPathParams, type ContactGroupsAddContactGroupMembersRequestBody, type ContactGroupsAddContactGroupMembersResponse, type ContactGroupsCreateContactGroupRequestBody, type ContactGroupsCreateContactGroupResponse, type ContactGroupsDeleteContactGroupPathParams, type ContactGroupsGetContactGroupPathParams, type ContactGroupsGetContactGroupResponse, type ContactGroupsListContactGroupMembersPathParams, type ContactGroupsListContactGroupMembersQueryParams, type ContactGroupsListContactGroupMembersResponse, type ContactGroupsListContactGroupsQueryParams, type ContactGroupsListContactGroupsResponse, type ContactGroupsRemoveMembersInContactGroupPathParams, type ContactGroupsRemoveMembersInContactGroupQueryParams, type ContactGroupsUpdateContactGroupPathParams, type ContactGroupsUpdateContactGroupRequestBody, type GroupAdminAddedEvent, type GroupAdminDeletedEvent, type GroupCreatedEvent, type GroupDeletedEvent, type GroupLockSettingsUpdatedEvent, type GroupMemberAddedEvent, type GroupMemberDeletedEvent, type GroupSettingsUpdatedEvent, type GroupUpdatedEvent, type GroupsAddGroupAdminsPathParams, type GroupsAddGroupAdminsRequestBody, type GroupsAddGroupMembersPathParams, type GroupsAddGroupMembersRequestBody, type GroupsCreateGroupRequestBody, type GroupsDeleteGroupAdminPathParams, type GroupsDeleteGroupMemberPathParams, type GroupsDeleteGroupPathParams, type GroupsDeleteVirtualBackgroundFilesPathParams, type GroupsDeleteVirtualBackgroundFilesQueryParams, type GroupsGetGroupPathParams, type GroupsGetGroupResponse, type GroupsGetGroupsSettingsPathParams, type GroupsGetGroupsSettingsQueryParams, type GroupsGetGroupsSettingsResponse, type GroupsGetGroupsWebinarRegistrationSettingsPathParams, type GroupsGetGroupsWebinarRegistrationSettingsQueryParams, type GroupsGetGroupsWebinarRegistrationSettingsResponse, type GroupsGetLockedSettingsPathParams, type GroupsGetLockedSettingsQueryParams, type GroupsGetLockedSettingsResponse, type GroupsListGroupAdminsPathParams, type GroupsListGroupAdminsQueryParams, type GroupsListGroupAdminsResponse, type GroupsListGroupChannelsPathParams, type GroupsListGroupChannelsResponse, type GroupsListGroupMembersPathParams, type GroupsListGroupMembersQueryParams, type GroupsListGroupMembersResponse, type GroupsListGroupsResponse, type GroupsUpdateGroupMemberPathParams, type GroupsUpdateGroupMemberRequestBody, type GroupsUpdateGroupPathParams, type GroupsUpdateGroupRequestBody, type GroupsUpdateGroupsSettingsPathParams, type GroupsUpdateGroupsSettingsQueryParams, type GroupsUpdateGroupsSettingsRequestBody, type GroupsUpdateGroupsSettingsResponse, type GroupsUpdateGroupsWebinarRegistrationSettingsPathParams, type GroupsUpdateGroupsWebinarRegistrationSettingsQueryParams, type GroupsUpdateGroupsWebinarRegistrationSettingsRequestBody, type GroupsUpdateLockedSettingsPathParams, type GroupsUpdateLockedSettingsQueryParams, type GroupsUpdateLockedSettingsRequestBody, type GroupsUploadVirtualBackgroundFilesPathParams, type GroupsUploadVirtualBackgroundFilesRequestBody, type GroupsUploadVirtualBackgroundFilesResponse, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, LogLevel, type Logger, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, S2SRawResponseError, type StateStore, StatusCode, type TokenStore, type UserActivatedEvent, type UserCreatedEvent, type UserDeactivatedEvent, type UserDeletedEvent, type UserDisassociatedEvent, type UserInvitationAcceptedEvent, type UserPersonalNotesUpdatedEvent, type UserPresenceStatusUpdatedEvent, type UserSettingsUpdatedEvent, type UserSignedInEvent, type UserSignedOutEvent, type UserUpdatedEvent, type UsersAddAssistantsPathParams, type UsersAddAssistantsRequestBody, type UsersAddAssistantsResponse, type UsersBulkUpdateFeaturesForUserRequestBody, type UsersBulkUpdateFeaturesForUserResponse, type UsersCheckUserEmailQueryParams, type UsersCheckUserEmailResponse, type UsersCheckUsersPMRoomQueryParams, type UsersCheckUsersPMRoomResponse, type UsersCreateUsersRequestBody, type UsersCreateUsersResponse, type UsersDeleteSchedulerPathParams, type UsersDeleteUserAssistantPathParams, type UsersDeleteUserAssistantsPathParams, type UsersDeleteUserPathParams, type UsersDeleteUserQueryParams, type UsersDeleteUserSchedulersPathParams, type UsersDeleteUsersProfilePicturePathParams, type UsersDeleteVirtualBackgroundFilesPathParams, type UsersDeleteVirtualBackgroundFilesQueryParams, UsersEndpoints, UsersEventProcessor, type UsersGetCollaborationDeviceDetailPathParams, type UsersGetCollaborationDeviceDetailResponse, type UsersGetMeetingTemplateDetailPathParams, type UsersGetMeetingTemplateDetailResponse, type UsersGetUserPathParams, type UsersGetUserPermissionsPathParams, type UsersGetUserPermissionsResponse, type UsersGetUserPresenceStatusPathParams, type UsersGetUserPresenceStatusResponse, type UsersGetUserQueryParams, type UsersGetUserResponse, type UsersGetUserSettingsPathParams, type UsersGetUserSettingsQueryParams, type UsersGetUserSettingsResponse, type UsersGetUserSummaryResponse, type UsersGetUsersTokenPathParams, type UsersGetUsersTokenQueryParams, type UsersGetUsersTokenResponse, type UsersGetUsersZAKResponse, type UsersListUserAssistantsPathParams, type UsersListUserAssistantsResponse, type UsersListUserSchedulersPathParams, type UsersListUserSchedulersResponse, type UsersListUsersCollaborationDevicesPathParams, type UsersListUsersCollaborationDevicesResponse, type UsersListUsersQueryParams, type UsersListUsersResponse, UsersOAuthClient, type UsersOAuthOptions, type UsersRevokeUsersSSOTokenPathParams, UsersS2SAuthClient, type UsersS2SAuthOptions, type UsersUpdateUserPathParams, type UsersUpdateUserQueryParams, type UsersUpdateUserRequestBody, type UsersUpdateUserSettingsPathParams, type UsersUpdateUserSettingsQueryParams, type UsersUpdateUserSettingsRequestBody, type UsersUpdateUserStatusPathParams, type UsersUpdateUserStatusRequestBody, type UsersUpdateUsersEmailPathParams, type UsersUpdateUsersEmailRequestBody, type UsersUpdateUsersPasswordPathParams, type UsersUpdateUsersPasswordRequestBody, type UsersUpdateUsersPresenceStatusPathParams, type UsersUpdateUsersPresenceStatusRequestBody, type UsersUploadUsersProfilePicturePathParams, type UsersUploadUsersProfilePictureRequestBody, type UsersUploadUsersProfilePictureResponse, type UsersUploadVirtualBackgroundFilesPathParams, type UsersUploadVirtualBackgroundFilesRequestBody, type UsersUploadVirtualBackgroundFilesResponse, isCoreError, isStateStore };
+export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, LogLevel, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, ReceiverInconsistentStateError, ReceiverOAuthFlowError, S2SRawResponseError, StatusCode, UsersEndpoints, UsersEventProcessor, UsersOAuthClient, UsersS2SAuthClient, isCoreError, isStateStore };
+export type { ClientCredentialsToken, ContactGroupsAddContactGroupMembersPathParams, ContactGroupsAddContactGroupMembersRequestBody, ContactGroupsAddContactGroupMembersResponse, ContactGroupsCreateContactGroupRequestBody, ContactGroupsCreateContactGroupResponse, ContactGroupsDeleteContactGroupPathParams, ContactGroupsGetContactGroupPathParams, ContactGroupsGetContactGroupResponse, ContactGroupsListContactGroupMembersPathParams, ContactGroupsListContactGroupMembersQueryParams, ContactGroupsListContactGroupMembersResponse, ContactGroupsListContactGroupsQueryParams, ContactGroupsListContactGroupsResponse, ContactGroupsRemoveMembersInContactGroupPathParams, ContactGroupsRemoveMembersInContactGroupQueryParams, ContactGroupsUpdateContactGroupPathParams, ContactGroupsUpdateContactGroupRequestBody, DivisionsAssignDivisionPathParams, DivisionsAssignDivisionRequestBody, DivisionsAssignDivisionResponse, DivisionsCreateDivisionRequestBody, DivisionsCreateDivisionResponse, DivisionsDeleteDivisionPathParams, DivisionsGetDivisionPathParams, DivisionsGetDivisionResponse, DivisionsListDivisionMembersPathParams, DivisionsListDivisionMembersQueryParams, DivisionsListDivisionMembersResponse, DivisionsListDivisionsQueryParams, DivisionsListDivisionsResponse, DivisionsUpdateDivisionPathParams, DivisionsUpdateDivisionRequestBody, GroupAdminAddedEvent, GroupAdminDeletedEvent, GroupCreatedEvent, GroupDeletedEvent, GroupLockSettingsUpdatedEvent, GroupMemberAddedEvent, GroupMemberDeletedEvent, GroupSettingsUpdatedEvent, GroupUpdatedEvent, GroupsAddGroupAdminsPathParams, GroupsAddGroupAdminsRequestBody, GroupsAddGroupAdminsResponse, GroupsAddGroupMembersPathParams, GroupsAddGroupMembersRequestBody, GroupsAddGroupMembersResponse, GroupsCreateGroupRequestBody, GroupsCreateGroupResponse, GroupsDeleteGroupAdminPathParams, GroupsDeleteGroupMemberPathParams, GroupsDeleteGroupPathParams, GroupsDeleteVirtualBackgroundFilesPathParams, GroupsDeleteVirtualBackgroundFilesQueryParams, GroupsGetGroupPathParams, GroupsGetGroupResponse, GroupsGetGroupsSettingsPathParams, GroupsGetGroupsSettingsQueryParams, GroupsGetGroupsSettingsResponse, GroupsGetGroupsWebinarRegistrationSettingsPathParams, GroupsGetGroupsWebinarRegistrationSettingsQueryParams, GroupsGetGroupsWebinarRegistrationSettingsResponse, GroupsGetLockedSettingsPathParams, GroupsGetLockedSettingsQueryParams, GroupsGetLockedSettingsResponse, GroupsListGroupAdminsPathParams, GroupsListGroupAdminsQueryParams, GroupsListGroupAdminsResponse, GroupsListGroupChannelsPathParams, GroupsListGroupChannelsResponse, GroupsListGroupMembersPathParams, GroupsListGroupMembersQueryParams, GroupsListGroupMembersResponse, GroupsListGroupsQueryParams, GroupsListGroupsResponse, GroupsUpdateGroupMemberPathParams, GroupsUpdateGroupMemberRequestBody, GroupsUpdateGroupPathParams, GroupsUpdateGroupRequestBody, GroupsUpdateGroupsSettingsPathParams, GroupsUpdateGroupsSettingsQueryParams, GroupsUpdateGroupsSettingsRequestBody, GroupsUpdateGroupsWebinarRegistrationSettingsPathParams, GroupsUpdateGroupsWebinarRegistrationSettingsQueryParams, GroupsUpdateGroupsWebinarRegistrationSettingsRequestBody, GroupsUpdateLockedSettingsPathParams, GroupsUpdateLockedSettingsQueryParams, GroupsUpdateLockedSettingsRequestBody, GroupsUploadVirtualBackgroundFilesPathParams, GroupsUploadVirtualBackgroundFilesRequestBody, GroupsUploadVirtualBackgroundFilesResponse, HttpReceiverOptions, JwtToken, Logger, OAuthToken, Receiver, ReceiverInitOptions, S2SAuthToken, StateStore, TokenStore, UserActivatedEvent, UserCreatedEvent, UserDeactivatedEvent, UserDeletedEvent, UserDisassociatedEvent, UserInvitationAcceptedEvent, UserPersonalNotesUpdatedEvent, UserPresenceStatusUpdatedEvent, UserSettingsUpdatedEvent, UserSignedInEvent, UserSignedOutEvent, UserUpdatedEvent, UsersAddAssistantsPathParams, UsersAddAssistantsRequestBody, UsersAddAssistantsResponse, UsersBulkUpdateFeaturesForUsersRequestBody, UsersBulkUpdateFeaturesForUsersResponse, UsersCheckUserEmailQueryParams, UsersCheckUserEmailResponse, UsersCheckUsersPMRoomQueryParams, UsersCheckUsersPMRoomResponse, UsersCreateUsersRequestBody, UsersCreateUsersResponse, UsersDeleteSchedulerPathParams, UsersDeleteUserAssistantPathParams, UsersDeleteUserAssistantsPathParams, UsersDeleteUserPathParams, UsersDeleteUserQueryParams, UsersDeleteUserSchedulersPathParams, UsersDeleteUsersProfilePicturePathParams, UsersDeleteVirtualBackgroundFilesPathParams, UsersDeleteVirtualBackgroundFilesQueryParams, UsersEvents, UsersGetCollaborationDeviceDetailPathParams, UsersGetCollaborationDeviceDetailResponse, UsersGetMeetingTemplateDetailPathParams, UsersGetMeetingTemplateDetailResponse, UsersGetUserPathParams, UsersGetUserPermissionsPathParams, UsersGetUserPermissionsResponse, UsersGetUserPresenceStatusPathParams, UsersGetUserPresenceStatusResponse, UsersGetUserQueryParams, UsersGetUserResponse, UsersGetUserSettingsPathParams, UsersGetUserSettingsQueryParams, UsersGetUserSettingsResponse, UsersGetUserSummaryResponse, UsersGetUsersTokenPathParams, UsersGetUsersTokenQueryParams, UsersGetUsersTokenResponse, UsersGetUsersZAKResponse, UsersListUserAssistantsPathParams, UsersListUserAssistantsResponse, UsersListUserSchedulersPathParams, UsersListUserSchedulersResponse, UsersListUsersCollaborationDevicesPathParams, UsersListUsersCollaborationDevicesResponse, UsersListUsersQueryParams, UsersListUsersResponse, UsersOAuthOptions, UsersRevokeUsersSSOTokenPathParams, UsersS2SAuthOptions, UsersUpdateUserPathParams, UsersUpdateUserQueryParams, UsersUpdateUserRequestBody, UsersUpdateUserSettingsPathParams, UsersUpdateUserSettingsQueryParams, UsersUpdateUserSettingsRequestBody, UsersUpdateUserStatusPathParams, UsersUpdateUserStatusRequestBody, UsersUpdateUsersEmailPathParams, UsersUpdateUsersEmailRequestBody, UsersUpdateUsersPasswordPathParams, UsersUpdateUsersPasswordRequestBody, UsersUpdateUsersPresenceStatusPathParams, UsersUpdateUsersPresenceStatusRequestBody, UsersUploadUsersProfilePicturePathParams, UsersUploadUsersProfilePictureRequestBody, UsersUploadUsersProfilePictureResponse, UsersUploadVirtualBackgroundFilesPathParams, UsersUploadVirtualBackgroundFilesRequestBody, UsersUploadVirtualBackgroundFilesResponse };

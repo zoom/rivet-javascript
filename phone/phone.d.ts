@@ -1,87 +1,7 @@
-import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { AxiosResponse } from 'axios';
+import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { Server } from 'node:http';
 import { ServerOptions } from 'node:https';
-
-type AllPropsOptional<T, True, False> = Exclude<{
-    [P in keyof T]: undefined extends T[P] ? True : False;
-}[keyof T], undefined> extends True ? True : False;
-type Constructor<T> = new (...args: any[]) => T;
-type MaybeArray<T> = T | T[];
-type MaybePromise<T> = T | Promise<T>;
-type StringIndexed<V = any> = Record<string, V>;
-
-/**
- * {@link StateStore} defines methods for generating and verifying OAuth state.
- *
- * This interface is implemented internally for the default state store; however,
- * it can also be implemented and passed to an OAuth client as well.
- */
-interface StateStore {
-    /**
-     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
-     */
-    generateState(): MaybePromise<string>;
-    /**
-     * Verify that the state received during OAuth callback is valid and not forged.
-     *
-     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
-     *
-     * @param state The state parameter that was received during OAuth callback
-     */
-    verifyState(state: string): MaybePromise<void>;
-}
-/**
- * Guard if an object implements the {@link StateStore} interface — most notably,
- * `generateState()` and `verifyState(state: string)`.
- */
-declare const isStateStore: (obj: unknown) => obj is StateStore;
-
-interface TokenStore<Token> {
-    getLatestToken(): MaybePromise<Token | null | undefined>;
-    storeToken(token: Token): MaybePromise<void>;
-}
-
-interface RivetError<ErrorCode extends string = string> extends Error {
-    readonly errorCode: ErrorCode;
-}
-
-declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
-    readonly ApiResponseError: "zoom_rivet_api_response_error";
-    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
-    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
-    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
-    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
-    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
-    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
-    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
-    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
-    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
-    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
-    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
-    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
-    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
-    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
-    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
-    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
-}[K]>;
-declare const ApiResponseError: Constructor<Error>;
-declare const AwsReceiverRequestError: Constructor<Error>;
-declare const ClientCredentialsRawResponseError: Constructor<Error>;
-declare const S2SRawResponseError: Constructor<Error>;
-declare const CommonHttpRequestError: Constructor<Error>;
-declare const ReceiverInconsistentStateError: Constructor<Error>;
-declare const ReceiverOAuthFlowError: Constructor<Error>;
-declare const HTTPReceiverConstructionError: Constructor<Error>;
-declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
-declare const HTTPReceiverRequestError: Constructor<Error>;
-declare const OAuthInstallerNotInitializedError: Constructor<Error>;
-declare const OAuthTokenDoesNotExistError: Constructor<Error>;
-declare const OAuthTokenFetchFailedError: Constructor<Error>;
-declare const OAuthTokenRawResponseError: Constructor<Error>;
-declare const OAuthTokenRefreshFailedError: Constructor<Error>;
-declare const OAuthStateVerificationFailedError: Constructor<Error>;
-declare const ProductClientConstructionError: Constructor<Error>;
 
 declare enum LogLevel {
     ERROR = "error",
@@ -142,6 +62,19 @@ declare class ConsoleLogger implements Logger {
     private static isMoreOrEqualSevere;
 }
 
+type AllPropsOptional<T, True, False> = Exclude<{
+    [P in keyof T]: undefined extends T[P] ? True : False;
+}[keyof T], undefined> extends True ? True : False;
+type Constructor<T> = new (...args: any[]) => T;
+type MaybeArray<T> = T | T[];
+type MaybePromise<T> = T | Promise<T>;
+type StringIndexed<V = any> = Record<string, V>;
+
+interface TokenStore<Token> {
+    getLatestToken(): MaybePromise<Token | null | undefined>;
+    storeToken(token: Token): MaybePromise<void>;
+}
+
 interface AuthOptions<Token> {
     clientId: string;
     clientSecret: string;
@@ -187,6 +120,17 @@ declare abstract class Auth<Token = unknown> {
     }>, "grant_type">): Promise<AxiosResponse>;
 }
 
+interface ClientCredentialsToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    scopes: string[];
+}
+
+interface JwtToken {
+    token: string;
+    expirationTimeIso: string;
+}
+
 interface S2SAuthToken {
     accessToken: string;
     expirationTimeIso: string;
@@ -225,12 +169,31 @@ declare class EventManager<Endpoints, Events> {
     protected withContext<EventName extends EventKeys<Events>, Context>(): ContextListener<Events, EventName, Context>;
 }
 
+declare enum StatusCode {
+    OK = 200,
+    TEMPORARY_REDIRECT = 302,
+    BAD_REQUEST = 400,
+    NOT_FOUND = 404,
+    METHOD_NOT_ALLOWED = 405,
+    INTERNAL_SERVER_ERROR = 500
+}
+interface ReceiverInitOptions {
+    eventEmitter?: GenericEventManager | undefined;
+    interactiveAuth?: InteractiveAuth | undefined;
+}
+interface Receiver {
+    canInstall(): true | false;
+    init(options: ReceiverInitOptions): void;
+    start(...args: any[]): MaybePromise<unknown>;
+    stop(...args: any[]): MaybePromise<unknown>;
+}
+
 interface HttpReceiverOptions extends Partial<SecureServerOptions> {
     endpoints?: MaybeArray<string> | undefined;
+    logger?: Logger | undefined;
+    logLevel?: LogLevel | undefined;
     port?: number | string | undefined;
-    webhooksSecretToken: string;
-    logger?: Logger;
-    logLevel?: LogLevel;
+    webhooksSecretToken?: string | undefined;
 }
 type SecureServerOptions = {
     [K in (typeof secureServerOptionKeys)[number]]: ServerOptions[K];
@@ -243,10 +206,15 @@ declare class HttpReceiver implements Receiver {
     private logger;
     constructor(options: HttpReceiverOptions);
     canInstall(): true;
+    private buildDeletedStateCookieHeader;
+    private buildStateCookieHeader;
+    private getRequestCookie;
     private getServerCreator;
     private hasEndpoint;
     private hasSecureOptions;
     init({ eventEmitter, interactiveAuth }: ReceiverInitOptions): void;
+    private setResponseCookie;
+    private areNormalizedUrlsEqual;
     start(port?: number | string): Promise<Server>;
     stop(): Promise<void>;
     private writeTemporaryRedirect;
@@ -269,6 +237,7 @@ interface WebEndpointOptions {
     baseUrl?: string | undefined;
     doubleEncodeUrl?: boolean | undefined;
     timeout?: number | undefined;
+    userAgentName?: string | undefined;
 }
 type EndpointArguments<PathSchema extends StringIndexed | NoParams, BodySchema extends StringIndexed | NoParams, QuerySchema extends StringIndexed | NoParams> = (PathSchema extends NoParams ? object : AllPropsOptional<PathSchema, "t", "f"> extends "t" ? {
     path?: PathSchema;
@@ -290,6 +259,7 @@ declare class WebEndpoints {
     constructor(options: WebEndpointOptions);
     protected buildEndpoint<PathSchema extends StringIndexed | NoParams, BodySchema extends StringIndexed | NoParams, QuerySchema extends StringIndexed | NoParams, ResponseData = unknown>({ method, baseUrlOverride, urlPathBuilder, requestMimeType }: BuildEndpointOptions<PathSchema>): (_: EndpointArguments<PathSchema, BodySchema, QuerySchema>) => Promise<BaseResponse<ResponseData>>;
     private buildUserAgent;
+    private getCustomUserAgentName;
     private getHeaders;
     private getRequestBody;
     private isOk;
@@ -297,7 +267,7 @@ declare class WebEndpoints {
     private makeRequest;
 }
 
-type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A> & ExtractInstallerOptions<A, R> & {
+type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A> & ExtractInstallerOptions<A, R> & Pick<WebEndpointOptions, "userAgentName"> & {
     disableReceiver?: boolean | undefined;
     logger?: Logger | undefined;
     logLevel?: LogLevel | undefined;
@@ -305,38 +275,68 @@ type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A>
 interface ClientReceiverOptions<R extends Receiver> {
     receiver: R;
 }
-type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = IsReceiverDisabled<O> extends true ? O : O & (ClientReceiverOptions<R> | HttpReceiverOptions);
+type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = (O & {
+    disableReceiver: true;
+}) | (O & (ClientReceiverOptions<R> | HttpReceiverOptions));
 type ExtractInstallerOptions<A extends Auth, R extends Receiver> = A extends InteractiveAuth ? [
     ReturnType<R["canInstall"]>
 ] extends [true] ? WideInstallerOptions : object : object;
 type ExtractAuthTokenType<A> = A extends Auth<infer T> ? T : never;
-type GenericClientOptions = CommonClientOptions<any, any>;
 type GetAuthOptions<A extends Auth> = AuthOptions<ExtractAuthTokenType<A>> & (A extends S2SAuth ? S2SAuthOptions : object);
-type IsReceiverDisabled<O extends Pick<GenericClientOptions, "disableReceiver">> = [
-    O["disableReceiver"]
-] extends [true] ? true : false;
 type WideInstallerOptions = {
     installerOptions: InstallerOptions;
 };
 declare abstract class ProductClient<AuthType extends Auth, EndpointsType extends WebEndpoints, EventProcessorType extends GenericEventManager, OptionsType extends CommonClientOptions<AuthType, ReceiverType>, ReceiverType extends Receiver> {
     private readonly auth;
     readonly endpoints: EndpointsType;
-    readonly webEventConsumer: EventProcessorType;
+    readonly webEventConsumer?: EventProcessorType | undefined;
     private readonly receiver?;
     constructor(options: ClientConstructorOptions<AuthType, OptionsType, ReceiverType>);
     protected abstract initAuth(options: OptionsType): AuthType;
     protected abstract initEndpoints(auth: AuthType, options: OptionsType): EndpointsType;
-    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType;
+    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType | undefined;
     private initDefaultReceiver;
-    start(this: IsReceiverDisabled<OptionsType> extends true ? never : this): Promise<ReturnType<ReceiverType["start"]>>;
+    start(): Promise<ReturnType<ReceiverType["start"]>>;
 }
 
+/**
+ * {@link StateStore} defines methods for generating and verifying OAuth state.
+ *
+ * This interface is implemented internally for the default state store; however,
+ * it can also be implemented and passed to an OAuth client as well.
+ */
+interface StateStore {
+    /**
+     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
+     */
+    generateState(): MaybePromise<string>;
+    /**
+     * Verify that the state received during OAuth callback is valid and not forged.
+     *
+     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
+     *
+     * @param state The state parameter that was received during OAuth callback
+     */
+    verifyState(state: string): MaybePromise<void>;
+}
+/**
+ * Guard if an object implements the {@link StateStore} interface — most notably,
+ * `generateState()` and `verifyState(state: string)`.
+ */
+declare const isStateStore: (obj: unknown) => obj is StateStore;
+
+interface AuthorizationUrlResult {
+    fullUrl: string;
+    generatedState: string;
+}
 interface InstallerOptions {
     directInstall?: boolean | undefined;
     installPath?: string | undefined;
     redirectUri: string;
     redirectUriPath?: string | undefined;
     stateStore: StateStore | string;
+    stateCookieName?: string | undefined;
+    stateCookieMaxAge?: number | undefined;
 }
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
@@ -350,35 +350,86 @@ interface InstallerOptions {
  */
 declare abstract class InteractiveAuth<Token = unknown> extends Auth<Token> {
     installerOptions?: ReturnType<typeof this.setInstallerOptions>;
-    getAuthorizationUrl(): Promise<string>;
+    getAuthorizationUrl(): Promise<AuthorizationUrlResult>;
     getFullRedirectUri(): string;
-    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore }: InstallerOptions): {
+    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore, stateCookieName, stateCookieMaxAge }: InstallerOptions): {
         directInstall: boolean;
         installPath: string;
         redirectUri: string;
         redirectUriPath: string;
         stateStore: StateStore;
+        stateCookieName: string;
+        stateCookieMaxAge: number;
     };
 }
 
-declare enum StatusCode {
-    OK = 200,
-    TEMPORARY_REDIRECT = 302,
-    BAD_REQUEST = 400,
-    NOT_FOUND = 404,
-    METHOD_NOT_ALLOWED = 405,
-    INTERNAL_SERVER_ERROR = 500
+/**
+ * Credentials for access token & refresh token, which are used to access Zoom's APIs.
+ *
+ * As access token is short-lived (usually a single hour), its expiration time is checked
+ * first. If it's possible to use the access token, it's used; however, if it has expired
+ * or is close to expiring, the refresh token should be used to generate a new access token
+ * before the API call is made. Refresh tokens are generally valid for 90 days.
+ *
+ * If neither the access token nor the refresh token is available, {@link OAuthTokenRefreshFailedError}
+ * shall be thrown, informing the developer that neither value can be used, and the user must re-authorize.
+ * It's likely that this error will be rare, but it _can_ be thrown.
+ */
+interface OAuthToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    refreshToken: string;
+    scopes: string[];
 }
-interface ReceiverInitOptions {
-    eventEmitter: GenericEventManager;
-    interactiveAuth?: InteractiveAuth | undefined;
+declare class OAuth extends InteractiveAuth<OAuthToken> {
+    private assertResponseAccessToken;
+    private fetchAccessToken;
+    getToken(): Promise<string>;
+    initRedirectCode(code: string): Promise<void>;
+    private mapOAuthToken;
+    private refreshAccessToken;
 }
-interface Receiver {
-    canInstall(): true | false;
-    init(options: ReceiverInitOptions): void;
-    start(...args: any[]): MaybePromise<unknown>;
-    stop(...args: any[]): MaybePromise<unknown>;
+
+interface RivetError<ErrorCode extends string = string> extends Error {
+    readonly errorCode: ErrorCode;
 }
+
+declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
+    readonly ApiResponseError: "zoom_rivet_api_response_error";
+    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
+    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
+    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
+    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
+    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
+    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
+    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
+    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
+    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
+    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
+    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
+    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
+    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
+    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
+    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
+    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
+}[K]>;
+declare const ApiResponseError: Constructor<Error>;
+declare const AwsReceiverRequestError: Constructor<Error>;
+declare const ClientCredentialsRawResponseError: Constructor<Error>;
+declare const S2SRawResponseError: Constructor<Error>;
+declare const CommonHttpRequestError: Constructor<Error>;
+declare const ReceiverInconsistentStateError: Constructor<Error>;
+declare const ReceiverOAuthFlowError: Constructor<Error>;
+declare const HTTPReceiverConstructionError: Constructor<Error>;
+declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
+declare const HTTPReceiverRequestError: Constructor<Error>;
+declare const OAuthInstallerNotInitializedError: Constructor<Error>;
+declare const OAuthTokenDoesNotExistError: Constructor<Error>;
+declare const OAuthTokenFetchFailedError: Constructor<Error>;
+declare const OAuthTokenRawResponseError: Constructor<Error>;
+declare const OAuthTokenRefreshFailedError: Constructor<Error>;
+declare const OAuthStateVerificationFailedError: Constructor<Error>;
+declare const ProductClientConstructionError: Constructor<Error>;
 
 interface AwsLambdaReceiverOptions {
     webhooksSecretToken: string;
@@ -401,7 +452,7 @@ type AccountsListAccountsZoomPhoneSettingsResponse = {
     call_live_transcription?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
         transcription_start_prompt?: {
             enable?: boolean;
@@ -412,24 +463,24 @@ type AccountsListAccountsZoomPhoneSettingsResponse = {
     local_survivability_mode?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     external_calling_on_zoom_room_common_area?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     select_outbound_caller_id?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
         allow_hide_outbound_caller_id?: boolean;
     };
     personal_audio_library?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
         allow_music_on_hold_customization?: boolean;
         allow_voicemail_and_message_greeting_customization?: boolean;
@@ -437,7 +488,7 @@ type AccountsListAccountsZoomPhoneSettingsResponse = {
     voicemail?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
         allow_videomail?: boolean;
         allow_download?: boolean;
@@ -448,12 +499,12 @@ type AccountsListAccountsZoomPhoneSettingsResponse = {
     voicemail_transcription?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     voicemail_notification_by_email?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
         include_voicemail_file?: boolean;
         include_voicemail_transcription?: boolean;
@@ -462,12 +513,12 @@ type AccountsListAccountsZoomPhoneSettingsResponse = {
     shared_voicemail_notification_by_email?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     restricted_call_hours?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
         time_zone?: {
             id?: string;
@@ -480,7 +531,7 @@ type AccountsListAccountsZoomPhoneSettingsResponse = {
     allowed_call_locations?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
         locations_applied?: boolean;
         allow_internal_calls?: boolean;
@@ -488,14 +539,14 @@ type AccountsListAccountsZoomPhoneSettingsResponse = {
     check_voicemails_over_phone?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     auto_call_recording?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
-        recording_calls?: string;
+        recording_calls?: "inbound" | "outbound" | "both";
         recording_transcription?: boolean;
         recording_start_prompt?: boolean;
         recording_start_prompt_audio_id?: string;
@@ -504,9 +555,9 @@ type AccountsListAccountsZoomPhoneSettingsResponse = {
         disconnect_on_recording_failure?: boolean;
         play_recording_beep_tone?: {
             enable?: boolean;
-            play_beep_member?: string;
-            play_beep_volume?: number;
-            play_beep_time_interval?: number;
+            play_beep_member?: "allMembers" | "recordingUser";
+            play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+            play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
         };
         inbound_audio_notification?: {
             recording_start_prompt?: boolean;
@@ -522,152 +573,152 @@ type AccountsListAccountsZoomPhoneSettingsResponse = {
     ad_hoc_call_recording?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     international_calling?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     outbound_calling?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     outbound_sms?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     sms?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
         international_sms?: boolean;
     };
     sms_etiquette_tool?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     zoom_phone_on_mobile?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
         allow_calling_sms_mms?: boolean;
     };
     zoom_phone_on_pwa?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     e2e_encryption?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     call_handling_forwarding_to_other_users?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
-        call_forwarding_type?: number;
+        call_forwarding_type?: 1 | 2 | 3 | 4;
     };
     call_overflow?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
-        call_overflow_type?: number;
+        call_overflow_type?: 1 | 2 | 3 | 4;
     };
     call_transferring?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     } & {
-        call_transferring_type?: number;
+        call_transferring_type?: 1 | 2 | 3 | 4;
     };
     elevate_to_meeting?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     call_park?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     hand_off_to_room?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     mobile_switch_to_carrier?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     delegation?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     audio_intercom?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     block_calls_without_caller_id?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     block_external_calls?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     call_queue_opt_out_reason?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     auto_delete_data_after_retention_duration?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     auto_call_from_third_party_apps?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     override_default_port?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     peer_to_peer_media?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     advanced_encryption?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     display_call_feedback_survey?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     block_list_for_inbound_calls_and_messaging?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account";
     };
     block_calls_as_threat?: {
         enable?: boolean;
@@ -678,7 +729,7 @@ type AccountsListAccountsZoomPhoneSettingsResponse = {
 type AccountsListAccountsCustomizedOutboundCallerIDPhoneNumbersQueryParams = {
     selected?: boolean;
     site_id?: string;
-    extension_type?: string;
+    extension_type?: "autoReceptionist" | "callQueue" | "sharedLineGroup";
     keyword?: string;
     page_size?: number;
     next_page_token?: string;
@@ -707,15 +758,16 @@ type AccountsListAccountsCustomizedOutboundCallerIDPhoneNumbersResponse = {
 type AccountsAddPhoneNumbersForAccountsCustomizedOutboundCallerIDRequestBody = {
     phone_number_ids?: string[];
 };
+type AccountsAddPhoneNumbersForAccountsCustomizedOutboundCallerIDResponse = never;
 type AccountsDeletePhoneNumbersForAccountsCustomizedOutboundCallerIDQueryParams = {
     customize_ids?: string[];
 };
 type AlertsListAlertSettingsWithPagingQueryQueryParams = {
     page_size?: number;
     next_page_token?: string;
-    module?: number;
-    rule?: number;
-    status?: number;
+    module?: 1 | 2 | 3 | 4 | 5;
+    rule?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
+    status?: 0 | 1;
 };
 type AlertsListAlertSettingsWithPagingQueryResponse = {
     next_page_token?: string;
@@ -726,46 +778,46 @@ type AlertsListAlertSettingsWithPagingQueryResponse = {
         module?: number;
         rule?: number;
         rule_conditions?: {
-            rule_condition_type?: number;
+            rule_condition_type?: 1 | 2 | 3 | 4 | 5;
             rule_condition_value?: string;
         }[];
         targets?: {
             target_name?: string;
         }[];
-        time_frame_type?: string;
+        time_frame_type?: "all_day" | "specific_time";
         time_frame_from?: string;
         time_frame_to?: string;
-        frequency?: number;
+        frequency?: 5 | 10 | 15 | 30 | 60;
         email_recipients?: string[];
         chat_channels?: {
             chat_channel_name?: string;
             token?: string;
             end_point?: string;
         }[];
-        status?: number;
+        status?: 0 | 1;
     }[];
 };
 type AlertsAddAlertSettingRequestBody = {
     alert_setting_name: string;
     module: number;
     rule: number;
-    target_type: number;
+    target_type: 1 | 2 | 3 | 4 | 5;
     target_ids?: string[];
     rule_conditions: {
-        rule_condition_type?: number;
+        rule_condition_type?: 1 | 2 | 3 | 4 | 5;
         rule_condition_value?: string;
     }[];
-    time_frame_type: string;
+    time_frame_type: "all_day" | "specific_time";
     time_frame_from: string;
     time_frame_to: string;
-    frequency?: number;
+    frequency?: 5 | 10 | 15 | 30 | 60;
     email_recipients?: string[];
     chat_channels?: {
         chat_channel_name?: string;
         token?: string;
         end_point?: string;
     }[];
-    status?: number;
+    status?: 0 | 1;
 };
 type AlertsAddAlertSettingResponse = {
     alert_setting_id?: string;
@@ -780,13 +832,13 @@ type AlertsGetAlertSettingDetailsResponse = {
     module?: number;
     rule?: number;
     rule_conditions?: {
-        rule_condition_type?: number;
+        rule_condition_type?: 1 | 2 | 3 | 4 | 5;
         rule_condition_value?: string;
     }[];
     targets?: {
         target_id?: string;
         target_name?: string;
-        target_type?: number;
+        target_type?: 1 | 2 | 3 | 4 | 5;
         target_extension_number?: number;
         site?: {
             id?: string;
@@ -795,21 +847,21 @@ type AlertsGetAlertSettingDetailsResponse = {
         assignees?: {
             extension_number?: number;
             name?: string;
-            extension_type?: string;
+            extension_type?: "user" | "commonArea";
             extension_id?: string;
         }[];
     }[];
-    time_frame_type?: string;
+    time_frame_type?: "all_day" | "specific_time";
     time_frame_from?: string;
     time_frame_to?: string;
-    frequency?: number;
+    frequency?: 5 | 10 | 15 | 30 | 60;
     email_recipients?: string[];
     chat_channels?: {
         chat_channel_name?: string;
         token?: string;
         end_point?: string;
     }[];
-    status?: number;
+    status?: 0 | 1;
 };
 type AlertsDeleteAlertSettingPathParams = {
     alertSettingId: string;
@@ -820,21 +872,21 @@ type AlertsUpdateAlertSettingPathParams = {
 type AlertsUpdateAlertSettingRequestBody = {
     alert_setting_name?: string;
     rule_conditions?: {
-        rule_condition_type?: number;
+        rule_condition_type?: 1 | 2 | 3 | 4 | 5;
         rule_condition_value?: string;
     }[];
     target_ids?: string[];
-    time_frame_type?: string;
+    time_frame_type?: "all_day" | "specific_time";
     time_frame_from?: string;
     time_frame_to?: string;
-    frequency?: number;
+    frequency?: 5 | 10 | 15 | 30 | 60;
     email_recipients?: string[];
     chat_channels?: {
         chat_channel_name?: string;
         token?: string;
         end_point?: string;
     }[];
-    status?: number;
+    status?: 0 | 1;
 };
 type AudioLibraryGetAudioItemPathParams = {
     audioId: string;
@@ -844,7 +896,7 @@ type AudioLibraryGetAudioItemResponse = {
     name?: string;
     play_url?: string;
     text?: string;
-    voice_language?: string;
+    voice_language?: "en-US" | "en-GB" | "en-GB-WLS" | "en-AU" | "en-IN" | "en-ZA" | "en-NZ" | "es-ES" | "es-US" | "es-MX" | "fr-CA" | "da-DK" | "de-DE" | "fr-FR" | "it-IT" | "is-IS" | "nl-NL" | "pt-PT" | "ja-JP" | "ko-KO" | "ko-KR" | "pt-BR" | "pl-PL" | "zh-CN" | "zh-TW" | "cmn-CN" | "tr-TR" | "nb-NO" | "ro-RO" | "ru-RU" | "sv-SE" | "cy-GB" | "ca-ES" | "de-AT" | "arb";
     voice_accent?: string;
 };
 type AudioLibraryDeleteAudioItemPathParams = {
@@ -946,7 +998,7 @@ type AutoReceptionistsGetAutoReceptionistResponse = {
     extension_number?: number;
     name?: string;
     timezone?: string;
-    audio_prompt_language?: string;
+    audio_prompt_language?: "en-US" | "en-GB" | "es-US" | "fr-CA" | "da-DK" | "de-DE" | "es-ES" | "fr-FR" | "it-IT" | "nl-NL" | "pt-PT" | "ja" | "ko-KR" | "pt-BR" | "zh-CN";
     holiday_hours?: {
         id?: string;
         name?: string;
@@ -961,7 +1013,7 @@ type AutoReceptionistsGetAutoReceptionistResponse = {
         id?: string;
         name?: string;
     };
-    recording_storage_location?: string;
+    recording_storage_location?: "US" | "AU" | "CA" | "DE" | "IN" | "JP" | "SG" | "BR" | "CN" | "MX";
     own_storage_name?: string;
 };
 type AutoReceptionistsDeleteNonPrimaryAutoReceptionistPathParams = {
@@ -975,9 +1027,9 @@ type AutoReceptionistsUpdateAutoReceptionistRequestBody = {
     department?: string;
     extension_number?: number;
     name?: string;
-    audio_prompt_language?: string;
+    audio_prompt_language?: "en-US" | "en-GB" | "es-US" | "fr-CA" | "da-DK" | "de-DE" | "es-ES" | "fr-FR" | "it-IT" | "nl-NL" | "pt-PT" | "ja" | "ko-KR" | "pt-BR" | "zh-CN";
     timezone?: string;
-    recording_storage_location?: string;
+    recording_storage_location?: "US" | "AU" | "CA" | "DE" | "IN" | "JP" | "SG" | "BR" | "CN" | "MX";
 };
 type AutoReceptionistsAssignPhoneNumbersPathParams = {
     autoReceptionistId: string;
@@ -1008,7 +1060,7 @@ type AutoReceptionistsGetAutoReceptionistPolicyResponse = {
     voicemail_transcription?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "site";
         modified?: boolean;
     };
     voicemail_notification_by_email?: {
@@ -1017,7 +1069,7 @@ type AutoReceptionistsGetAutoReceptionistPolicyResponse = {
         forward_voicemail_to_email?: boolean;
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "site";
         modified?: boolean;
     };
     sms?: {
@@ -1025,7 +1077,7 @@ type AutoReceptionistsGetAutoReceptionistPolicyResponse = {
         international_sms?: boolean;
         international_sms_countries?: string[];
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "site";
         modified?: boolean;
     };
 };
@@ -1111,24 +1163,24 @@ type BlockedListListBlockedListsQueryParams = {
 };
 type BlockedListListBlockedListsResponse = {
     blocked_list?: {
-        block_type?: string;
+        block_type?: "inbound" | "outbound" | "threat";
         comment?: string;
         id?: string;
-        match_type?: string;
+        match_type?: "phoneNumber" | "prefix";
         phone_number?: string;
-        status?: string;
+        status?: "active" | "inactive";
     }[];
     next_page_token?: string;
     page_size?: number;
     total_records?: number;
 };
 type BlockedListCreateBlockedListRequestBody = {
-    block_type?: string;
+    block_type?: "inbound" | "outbound" | "threat";
     comment?: string;
     country?: string;
-    match_type?: string;
+    match_type?: "phoneNumber" | "prefix";
     phone_number?: string;
-    status?: string;
+    status?: "active" | "inactive";
 };
 type BlockedListCreateBlockedListResponse = {
     id?: string;
@@ -1137,12 +1189,12 @@ type BlockedListGetBlockedListDetailsPathParams = {
     blockedListId: string;
 };
 type BlockedListGetBlockedListDetailsResponse = {
-    block_type?: string;
+    block_type?: "inbound" | "outbound" | "threat";
     comment?: string;
     id?: string;
-    match_type?: string;
+    match_type?: "phoneNumber" | "prefix";
     phone_number?: string;
-    status?: string;
+    status?: "active" | "inactive";
 };
 type BlockedListDeleteBlockedListPathParams = {
     blockedListId: string;
@@ -1151,12 +1203,12 @@ type BlockedListUpdateBlockedListPathParams = {
     blockedListId: string;
 };
 type BlockedListUpdateBlockedListRequestBody = {
-    block_type?: string;
+    block_type?: "inbound" | "outbound";
     comment?: string;
     country?: string;
-    match_type?: string;
+    match_type?: "phoneNumber" | "prefix";
     phone_number?: string;
-    status?: string;
+    status?: "active" | "inactive";
 };
 type CallHandlingGetCallHandlingSettingsPathParams = {
     extensionId: string;
@@ -1172,8 +1224,8 @@ type CallHandlingGetCallHandlingSettingsResponse = {
             };
             call_distribution?: {
                 handle_multiple_calls?: boolean;
-                ring_duration?: number;
-                ring_mode?: string;
+                ring_duration?: 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
+                ring_mode?: "simultaneous" | "sequential" | "rotating" | "longest_idle";
                 skip_offline_device_phone_number?: boolean;
             };
             call_forwarding_settings?: {
@@ -1188,34 +1240,34 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                     phone_numbers?: string[];
                 };
             }[];
-            call_not_answer_action?: number;
+            call_not_answer_action?: 1 | 2 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
             connect_to_operator?: boolean;
             custom_hours_settings?: {
                 from?: string;
                 to?: string;
-                type?: number;
-                weekday?: number;
+                type?: 0 | 1 | 2;
+                weekday?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
             }[];
             greeting_prompt?: {
                 id?: string;
                 name?: string;
             };
             max_call_in_queue?: number;
-            max_wait_time?: number;
+            max_wait_time?: 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60 | 120 | 180 | 240 | 300 | 600 | 900 | 1200 | 1500 | 1800;
             music_on_hold?: {
                 id?: string;
                 name?: string;
             };
             receive_call?: boolean;
             require_press_1_before_connecting?: boolean;
-            ring_mode?: string;
+            ring_mode?: "simultaneous" | "sequential";
             routing?: {
-                action?: number;
+                action?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 14 | 15 | 18 | 19;
                 forward_to?: {
                     display_name?: string;
                     extension_id?: string;
                     extension_number?: number;
-                    extension_type?: string;
+                    extension_type?: "user" | "autoReceptionist" | "callQueue" | "commonArea";
                     id?: string;
                     phone_number?: string;
                     description?: string;
@@ -1234,7 +1286,7 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                     display_name?: string;
                     extension_id?: string;
                     extension_number?: number;
-                    extension_type?: string;
+                    extension_type?: "user" | "commonArea" | "sharedLineGroup" | "callQueue";
                     id?: string;
                 };
                 connect_to_operator?: boolean;
@@ -1262,7 +1314,7 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                     display_name?: string;
                     extension_id?: string;
                     extension_number?: number;
-                    extension_type?: string;
+                    extension_type?: "user" | "autoReceptionist" | "callQueue" | "commonArea";
                     id?: string;
                     phone_number?: string;
                     description?: string;
@@ -1275,7 +1327,7 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                     display_name?: string;
                     extension_id?: string;
                     extension_number?: number;
-                    extension_type?: string;
+                    extension_type?: "user" | "commonArea" | "sharedLineGroup" | "callQueue";
                     id?: string;
                 };
                 connect_to_operator?: boolean;
@@ -1297,10 +1349,10 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                 play_callee_voicemail_greeting?: boolean;
                 busy_play_callee_voicemail_greeting?: boolean;
             };
-            type?: number;
-            wrap_up_time?: number;
+            type?: 1 | 2;
+            wrap_up_time?: 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60 | 120 | 180 | 240 | 300;
         };
-        sub_setting_type?: string;
+        sub_setting_type?: "call_forwarding" | "custom_hours" | "call_handling";
     }[];
     closed_hours?: {
         settings?: {
@@ -1317,18 +1369,18 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                     phone_numbers?: string[];
                 };
             }[];
-            call_not_answer_action?: number;
+            call_not_answer_action?: 1 | 2 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
             connect_to_operator?: boolean;
-            max_wait_time?: number;
+            max_wait_time?: 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
             require_press_1_before_connecting?: boolean;
-            ring_mode?: string;
+            ring_mode?: "simultaneous" | "sequential";
             routing?: {
-                action?: number;
+                action?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 14 | 15 | 18 | 19;
                 forward_to?: {
                     display_name?: string;
                     extension_id?: string;
                     extension_number?: number;
-                    extension_type?: string;
+                    extension_type?: "user" | "autoReceptionist" | "callQueue" | "commonArea";
                     id?: string;
                     phone_number?: string;
                     description?: string;
@@ -1347,7 +1399,7 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                     display_name?: string;
                     extension_id?: string;
                     extension_number?: number;
-                    extension_type?: string;
+                    extension_type?: "user" | "commonArea" | "sharedLineGroup" | "callQueue";
                     id?: string;
                 };
                 connect_to_operator?: boolean;
@@ -1375,7 +1427,7 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                     display_name?: string;
                     extension_id?: string;
                     extension_number?: number;
-                    extension_type?: string;
+                    extension_type?: "user" | "autoReceptionist" | "callQueue" | "commonArea";
                     id?: string;
                     phone_number?: string;
                     description?: string;
@@ -1388,7 +1440,7 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                     display_name?: string;
                     extension_id?: string;
                     extension_number?: number;
-                    extension_type?: string;
+                    extension_type?: "user" | "commonArea" | "sharedLineGroup" | "callQueue";
                     id?: string;
                 };
                 connect_to_operator?: boolean;
@@ -1411,7 +1463,7 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                 busy_play_callee_voicemail_greeting?: boolean;
             };
         };
-        sub_setting_type?: string;
+        sub_setting_type?: "call_forwarding" | "call_handling";
     }[];
     holiday_hours?: {
         details?: {
@@ -1429,20 +1481,20 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                         phone_numbers?: string[];
                     };
                 }[];
-                call_not_answer_action?: number;
+                call_not_answer_action?: 1 | 2 | 4 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14;
                 connect_to_operator?: boolean;
                 from?: string;
-                max_wait_time?: number;
+                max_wait_time?: 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
                 name?: string;
                 require_press_1_before_connecting?: boolean;
-                ring_mode?: string;
+                ring_mode?: "simultaneous" | "sequential";
                 routing?: {
                     action?: number;
                     forward_to?: {
                         display_name?: string;
                         extension_id?: string;
                         extension_number?: number;
-                        extension_type?: string;
+                        extension_type?: "user" | "autoReceptionist" | "callQueue" | "commonArea";
                         id?: string;
                         phone_number?: string;
                         description?: string;
@@ -1452,7 +1504,7 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                         display_name?: string;
                         extension_id?: string;
                         extension_number?: number;
-                        extension_type?: string;
+                        extension_type?: "user" | "commonArea" | "sharedLineGroup" | "callQueue";
                         id?: string;
                     };
                     connect_to_operator?: boolean;
@@ -1468,14 +1520,14 @@ type CallHandlingGetCallHandlingSettingsResponse = {
                 };
                 to?: string;
             };
-            sub_setting_type?: string;
+            sub_setting_type?: "call_forwarding" | "call_handling" | "holiday";
         }[];
         holiday_id?: string;
     }[];
 };
 type CallHandlingAddCallHandlingSettingPathParams = {
     extensionId: string;
-    settingType: string;
+    settingType: "business_hours" | "closed_hours" | "holiday_hours";
 };
 type CallHandlingAddCallHandlingSettingRequestBody = {
     settings?: {
@@ -1483,14 +1535,14 @@ type CallHandlingAddCallHandlingSettingRequestBody = {
         description?: string;
         phone_number?: string;
     };
-    sub_setting_type?: string;
+    sub_setting_type?: "call_forwarding";
 } | {
     settings?: {
         name?: string;
         from?: string;
         to?: string;
     };
-    sub_setting_type?: string;
+    sub_setting_type?: "holiday";
 };
 type CallHandlingAddCallHandlingSettingResponse = {
     call_forwarding_id?: string;
@@ -1499,7 +1551,7 @@ type CallHandlingAddCallHandlingSettingResponse = {
 };
 type CallHandlingDeleteCallHandlingSettingPathParams = {
     extensionId: string;
-    settingType: string;
+    settingType: "business_hours" | "closed_hours" | "holiday_hours";
 };
 type CallHandlingDeleteCallHandlingSettingQueryParams = {
     call_forwarding_id?: string;
@@ -1507,7 +1559,7 @@ type CallHandlingDeleteCallHandlingSettingQueryParams = {
 };
 type CallHandlingUpdateCallHandlingSettingPathParams = {
     extensionId: string;
-    settingType: string;
+    settingType: "business_hours" | "closed_hours" | "holiday_hours";
 };
 type CallHandlingUpdateCallHandlingSettingRequestBody = {
     settings?: {
@@ -1522,7 +1574,7 @@ type CallHandlingUpdateCallHandlingSettingRequestBody = {
         }[];
         require_press_1_before_connecting?: boolean;
     };
-    sub_setting_type?: string;
+    sub_setting_type?: "call_forwarding";
 } | {
     settings?: {
         from?: string;
@@ -1530,19 +1582,19 @@ type CallHandlingUpdateCallHandlingSettingRequestBody = {
         name?: string;
         to?: string;
     };
-    sub_setting_type?: string;
+    sub_setting_type?: "holiday";
 } | {
     settings?: {
         allow_members_to_reset?: boolean;
         custom_hours_settings?: {
             from?: string;
             to?: string;
-            type?: number;
-            weekday?: number;
+            type?: 0 | 1 | 2;
+            weekday?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
         }[];
-        type?: number;
+        type?: 1 | 2;
     };
-    sub_setting_type?: string;
+    sub_setting_type?: "custom_hours";
 } | {
     settings?: {
         allow_callers_check_voicemail?: boolean;
@@ -1550,12 +1602,12 @@ type CallHandlingUpdateCallHandlingSettingRequestBody = {
         audio_while_connecting_id?: string;
         call_distribution?: {
             handle_multiple_calls?: boolean;
-            ring_duration?: number;
-            ring_mode?: string;
+            ring_duration?: 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
+            ring_mode?: "simultaneous" | "sequential" | "rotating" | "longest_idle";
             skip_offline_device_phone_number?: boolean;
         };
-        call_not_answer_action?: number;
-        busy_on_another_call_action?: number;
+        call_not_answer_action?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 14 | 15 | 18 | 19;
+        busy_on_another_call_action?: 1 | 2 | 4 | 6 | 7 | 8 | 9 | 10 | 12 | 21 | 22;
         busy_require_press_1_before_connecting?: boolean;
         un_answered_require_press_1_before_connecting?: boolean;
         overflow_play_callee_voicemail_greeting?: boolean;
@@ -1570,20 +1622,20 @@ type CallHandlingUpdateCallHandlingSettingRequestBody = {
         busy_forward_to_extension_id?: string;
         greeting_prompt_id?: string;
         max_call_in_queue?: number;
-        max_wait_time?: number;
+        max_wait_time?: 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60 | 120 | 180 | 240 | 300 | 600 | 900 | 1200 | 1500 | 1800;
         music_on_hold_id?: string;
         operator_extension_id?: string;
         receive_call?: boolean;
-        ring_mode?: string;
+        ring_mode?: "simultaneous" | "sequential";
         voicemail_greeting_id?: string;
         voicemail_leaving_instruction_id?: string;
         message_greeting_id?: string;
         forward_to_zcc_phone_number?: string;
         forward_to_partner_contact_center_id?: string;
         forward_to_teams_id?: string;
-        wrap_up_time?: number;
+        wrap_up_time?: 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60 | 120 | 180 | 240 | 300;
     };
-    sub_setting_type?: string;
+    sub_setting_type?: "call_handling";
 };
 type CallLogsGetAccountsCallHistoryQueryParams = {
     page_size?: number;
@@ -1591,43 +1643,46 @@ type CallLogsGetAccountsCallHistoryQueryParams = {
     to?: string;
     next_page_token?: string;
     keyword?: string;
-    directions?: string[];
-    connect_types?: string[];
-    number_types?: string[];
-    call_types?: string[];
-    extension_types?: string[];
-    call_results?: string[];
+    directions?: ("inbound" | "outbound")[];
+    connect_types?: ("internal" | "external")[];
+    number_types?: ("zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zoom_revenue_accelerator")[];
+    call_types?: ("general" | "emergency")[];
+    extension_types?: ("user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact")[];
+    call_results?: ("answered" | "accepted" | "picked_up" | "connected" | "succeeded" | "voicemail" | "hang_up" | "canceled" | "call_failed" | "unconnected" | "rejected" | "busy" | "ring_timeout" | "overflowed" | "no_answer" | "invalid_key" | "invalid_operation" | "abandoned" | "system_blocked" | "service_unavailable")[];
     group_ids?: string[];
     site_ids?: string[];
     department?: string;
     cost_center?: string;
-    time_type?: string;
-    recording_status?: string;
+    time_type?: "start_time" | "end_time";
+    recording_status?: "recorded" | "non_recorded";
+    with_voicemail?: boolean;
 };
 type CallLogsGetAccountsCallHistoryResponse = {
     call_logs?: {
         id?: string;
         call_id?: string;
-        direction?: string;
+        direction?: "inbound" | "outbound";
         international?: boolean;
         start_time?: string;
         answer_time?: string;
         end_time?: string;
         duration?: number;
-        connect_type?: string;
+        connect_type?: "internal" | "external";
         sbc_id?: string;
         sbc_name?: string;
         sip_group_id?: string;
         sip_group_name?: string;
-        call_type?: string;
-        call_result?: string;
+        call_type?: "general" | "emergency";
+        call_result?: "answered" | "accepted" | "picked_up" | "connected" | "succeeded" | "voicemail" | "hang_up" | "canceled" | "call_failed" | "unconnected" | "rejected" | "busy" | "ring_timeout" | "overflowed" | "no_answer" | "invalid_key" | "invalid_operation" | "abandoned" | "system_blocked" | "service_unavailable";
+        hide_caller_id?: boolean;
+        end_to_end?: boolean;
         caller_ext_id?: string;
         caller_did_number?: string;
         caller_ext_number?: string;
         caller_name?: string;
         caller_email?: string;
-        caller_ext_type?: string;
-        caller_number_type?: string;
+        caller_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+        caller_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zoom_revenue_accelerator";
         caller_device_type?: string;
         caller_country_iso_code?: string;
         caller_country_code?: string;
@@ -1636,19 +1691,18 @@ type CallLogsGetAccountsCallHistoryResponse = {
         callee_ext_number?: string;
         callee_name?: string;
         callee_email?: string;
-        callee_ext_type?: string;
-        callee_number_type?: string;
+        callee_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+        callee_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zoom_revenue_accelerator";
         callee_device_type?: string;
         callee_country_iso_code?: string;
         callee_country_code?: string;
-        client_code?: string;
         department?: string;
         cost_center?: string;
         site_id?: string;
         group_id?: string;
         site_name?: string;
         spam?: string;
-        recording_status?: string;
+        recording_status?: "recorded" | "non_recorded";
     }[];
     from?: string;
     to?: string;
@@ -1663,22 +1717,24 @@ type CallLogsGetCallPathPathParams = {
 type CallLogsGetCallPathResponse = {
     id?: string;
     call_id?: string;
-    connect_type?: string;
-    call_type?: string;
-    direction?: string;
+    connect_type?: "internal" | "external";
+    call_type?: "general" | "emergency";
+    direction?: "inbound" | "outbound";
     international?: boolean;
+    hide_caller_id?: boolean;
+    end_to_end?: boolean;
     caller_ext_id?: string;
     caller_name?: string;
     caller_did_number?: string;
     caller_ext_number?: string;
     caller_email?: string;
-    caller_ext_type?: string;
+    caller_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
     callee_ext_id?: string;
     callee_name?: string;
     callee_email?: string;
     callee_did_number?: string;
     callee_ext_number?: string;
-    callee_ext_type?: string;
+    callee_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
     department?: string;
     cost_center?: string;
     site_id?: string;
@@ -1690,16 +1746,18 @@ type CallLogsGetCallPathResponse = {
     call_path?: {
         id?: string;
         call_id?: string;
-        connect_type?: string;
-        call_type?: string;
-        direction?: string;
+        connect_type?: "internal" | "external";
+        call_type?: "general" | "emergency";
+        direction?: "inbound" | "outbound";
+        hide_caller_id?: boolean;
+        end_to_end?: boolean;
         caller_ext_id?: string;
         caller_name?: string;
         caller_email?: string;
         caller_did_number?: string;
         caller_ext_number?: string;
-        caller_ext_type?: string;
-        caller_number_type?: string;
+        caller_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+        caller_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zra_phone_number";
         caller_device_type?: string;
         caller_country_iso_code?: string;
         caller_country_code?: string;
@@ -1708,8 +1766,8 @@ type CallLogsGetCallPathResponse = {
         callee_did_number?: string;
         callee_ext_number?: string;
         callee_email?: string;
-        callee_ext_type?: string;
-        callee_number_type?: string;
+        callee_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+        callee_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zra_phone_number";
         callee_device_type?: string;
         callee_country_iso_code?: string;
         callee_country_code?: string;
@@ -1722,21 +1780,21 @@ type CallLogsGetCallPathResponse = {
         start_time?: string;
         answer_time?: string;
         end_time?: string;
-        event?: string;
-        result?: string;
-        result_reason?: string;
+        event?: "incoming" | "transfer_from_zoom_contact_center" | "shared_line_incoming" | "outgoing" | "call_me_on" | "outgoing_to_zoom_contact_center" | "warm_transfer" | "forward" | "ring_to_member" | "overflow" | "direct_transfer" | "barge" | "monitor" | "whisper" | "listen" | "takeover" | "conference_barge" | "park" | "timeout" | "park_pick_up" | "merge" | "shared";
+        result?: "answered" | "accepted" | "picked_up" | "connected" | "succeeded" | "voicemail" | "hang_up" | "canceled" | "call_failed" | "unconnected" | "rejected" | "busy" | "ring_timeout" | "overflowed" | "no_answer" | "invalid_key" | "invalid_operation" | "abandoned" | "system_blocked" | "service_unavailable";
+        result_reason?: "answered_by_other" | "pickup_by_other" | "call_out_by_other";
         device_private_ip?: string;
         device_public_ip?: string;
         operator_ext_number?: string;
         operator_ext_id?: string;
-        operator_ext_type?: string;
+        operator_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
         operator_name?: string;
         press_key?: string;
         segment?: number;
         node?: number;
         is_node?: number;
         recording_id?: string;
-        recording_type?: string;
+        recording_type?: "automatic" | "ad-hoc";
         hold_time?: number;
         waiting_time?: number;
         voicemail_id?: string;
@@ -1748,6 +1806,66 @@ type CallLogsAddClientCodeToCallHistoryPathParams = {
 type CallLogsAddClientCodeToCallHistoryRequestBody = {
     client_code: string;
 };
+type CallLogsGetCallHistoryDetailPathParams = {
+    callHistoryId: string;
+};
+type CallLogsGetCallHistoryDetailResponse = {
+    id?: string;
+    call_path_id?: string;
+    call_id?: string;
+    connect_type?: "internal" | "external";
+    call_type?: "general" | "emergency";
+    direction?: "inbound" | "outbound";
+    hide_caller_id?: boolean;
+    end_to_end?: boolean;
+    caller_ext_id?: string;
+    caller_name?: string;
+    caller_email?: string;
+    caller_did_number?: string;
+    caller_ext_number?: string;
+    caller_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+    caller_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zra_phone_number";
+    caller_device_type?: string;
+    caller_country_iso_code?: string;
+    caller_country_code?: string;
+    callee_ext_id?: string;
+    callee_name?: string;
+    callee_did_number?: string;
+    callee_ext_number?: string;
+    callee_email?: string;
+    callee_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+    callee_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zra_phone_number";
+    callee_device_type?: string;
+    callee_country_iso_code?: string;
+    callee_country_code?: string;
+    client_code?: string;
+    department?: string;
+    cost_center?: string;
+    site_id?: string;
+    group_id?: string;
+    site_name?: string;
+    start_time?: string;
+    answer_time?: string;
+    end_time?: string;
+    event?: "incoming" | "transfer_from_zoom_contact_center" | "shared_line_incoming" | "outgoing" | "call_me_on" | "outgoing_to_zoom_contact_center" | "warm_transfer" | "forward" | "ring_to_member" | "overflow" | "direct_transfer" | "barge" | "monitor" | "whisper" | "listen" | "takeover" | "conference_barge" | "park" | "timeout" | "park_pick_up" | "merge" | "shared";
+    result?: "answered" | "accepted" | "picked_up" | "connected" | "succeeded" | "voicemail" | "hang_up" | "canceled" | "call_failed" | "unconnected" | "rejected" | "busy" | "ring_timeout" | "overflowed" | "no_answer" | "invalid_key" | "invalid_operation" | "abandoned" | "system_blocked" | "service_unavailable";
+    result_reason?: "answered_by_other" | "pickup_by_other" | "call_out_by_other";
+    device_private_ip?: string;
+    device_public_ip?: string;
+    operator_ext_number?: string;
+    operator_ext_id?: string;
+    operator_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+    operator_name?: string;
+    press_key?: string;
+    segment?: number;
+    node?: number;
+    is_node?: number;
+    recording_id?: string;
+    recording_type?: "ad-hoc" | "automatic";
+    hold_time?: number;
+    waiting_time?: number;
+    voicemail_id?: string;
+};
 type CallLogsGetAccountsCallLogsQueryParams = {
     page_size?: number;
     from?: string;
@@ -1755,7 +1873,7 @@ type CallLogsGetAccountsCallLogsQueryParams = {
     type?: string;
     next_page_token?: string;
     path?: string;
-    time_type?: string;
+    time_type?: "startTime" | "endTime";
     site_id?: string;
     charged_call_logs?: boolean;
 };
@@ -1764,21 +1882,21 @@ type CallLogsGetAccountsCallLogsResponse = {
         answer_start_time?: string;
         call_end_time?: string;
         call_id?: string;
-        call_type?: string;
+        call_type?: "voip" | "pstn" | "tollfree" | "international" | "contactCenter";
         callee_country_code?: string;
         callee_country_iso_code?: string;
         callee_did_number?: string;
         callee_name?: string;
         callee_number?: string;
-        callee_number_type?: number;
-        callee_number_source?: string;
+        callee_number_type?: 1 | 2 | 3;
+        callee_number_source?: "internal" | "external" | "byop";
         caller_country_code?: string;
         caller_country_iso_code?: string;
         caller_did_number?: string;
         caller_name?: string;
         caller_number?: string;
-        caller_number_type?: number;
-        caller_number_source?: string;
+        caller_number_type?: 1 | 2;
+        caller_number_source?: "internal" | "external" | "byop";
         caller_billing_reference_id?: string;
         charge?: string;
         client_code?: string;
@@ -1792,12 +1910,12 @@ type CallLogsGetAccountsCallLogsResponse = {
             extension_number?: number;
             id?: string;
             name?: string;
-            type?: string;
+            type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "sharedLineGroup";
         };
         path?: string;
         rate?: string;
         recording_id?: string;
-        recording_type?: string;
+        recording_type?: "OnDemand" | "Automatic";
         result?: string;
         site?: {
             id?: string;
@@ -1821,30 +1939,30 @@ type CallLogsGetCallLogDetailsPathParams = {
 };
 type CallLogsGetCallLogDetailsResponse = {
     call_id?: string;
-    call_type?: string;
+    call_type?: "voip" | "pstn" | "tollfree" | "international" | "contactCenter";
     callee_country_code?: string;
     callee_country_iso_code?: string;
     callee_did_number?: string;
     callee_name?: string;
     callee_number?: string;
-    callee_number_type?: number;
-    callee_number_source?: string;
-    callee_status?: string;
+    callee_number_type?: 1 | 2 | 3;
+    callee_number_source?: "internal" | "external" | "byop";
+    callee_status?: "inactive" | "deleted";
     callee_deleted_time?: string;
     caller_country_code?: string;
     caller_country_iso_code?: string;
     caller_did_number?: string;
     caller_name?: string;
     caller_number?: string;
-    caller_number_type?: number;
-    caller_number_source?: string;
+    caller_number_type?: 1 | 2;
+    caller_number_source?: "internal" | "external" | "byop";
     caller_billing_reference_id?: string;
-    caller_status?: string;
+    caller_status?: "inactive" | "deleted";
     caller_deleted_time?: string;
     date_time?: string;
     device_private_ip?: string;
     device_public_ip?: string;
-    direction?: string;
+    direction?: "inbound" | "outbound";
     duration?: number;
     has_recording?: boolean;
     has_voicemail?: boolean;
@@ -1859,8 +1977,8 @@ type CallLogsGetCallLogDetailsResponse = {
             extension_number?: string;
             id?: string;
             name?: string;
-            type?: string;
-            extension_status?: string;
+            type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
+            extension_status?: "inactive" | "deleted";
             extension_deleted_time?: string;
         };
         id?: string;
@@ -1882,6 +2000,24 @@ type CallLogsAddClientCodeToCallLogPathParams = {
 type CallLogsAddClientCodeToCallLogRequestBody = {
     client_code: string;
 };
+type CallLogsGetUserAICallSummaryDetailPathParams = {
+    userId: string;
+    aiCallSummaryId: string;
+};
+type CallLogsGetUserAICallSummaryDetailResponse = {
+    ai_call_summary_id?: string;
+    account_id?: string;
+    call_id?: string;
+    user_id?: string;
+    call_summary_rate?: "thumb_up" | "thumb_down";
+    transcript_language?: string;
+    call_summary?: string;
+    next_steps?: string;
+    detailed_summary?: string;
+    created_time?: string;
+    modified_time?: string;
+    edited?: boolean;
+};
 type CallLogsGetUsersCallHistoryPathParams = {
     userId: string;
 };
@@ -1891,35 +2027,39 @@ type CallLogsGetUsersCallHistoryQueryParams = {
     to?: string;
     next_page_token?: string;
     keyword?: string;
-    directions?: string[];
-    connect_types?: string[];
-    number_types?: string[];
-    call_types?: string[];
-    extension_types?: string[];
-    call_results?: string[];
+    directions?: ("inbound" | "outbound")[];
+    connect_types?: ("internal" | "external")[];
+    number_types?: ("zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zoom_revenue_accelerator")[];
+    call_types?: ("general" | "emergency")[];
+    extension_types?: ("user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact")[];
+    call_results?: ("answered" | "connected" | "voicemail" | "hang_up" | "no_answer" | "invalid_operation" | "abandoned" | "blocked" | "service_unavailable")[];
     group_ids?: string[];
     site_ids?: string[];
     department?: string;
     cost_center?: string;
-    time_type?: string;
-    recording_status?: string;
+    time_type?: "start_time" | "end_time";
+    recording_status?: "recorded" | "non_recorded";
+    with_voicemail?: boolean;
 };
 type CallLogsGetUsersCallHistoryResponse = {
     call_logs?: {
         id?: string;
+        call_path_id?: string;
         call_id?: string;
         group_id?: string;
-        connect_type?: string;
-        call_type?: string;
-        direction?: string;
+        connect_type?: "internal" | "external";
+        call_type?: "general" | "emergency";
+        direction?: "inbound" | "outbound";
+        hide_caller_id?: boolean;
+        end_to_end?: boolean;
         caller_ext_id?: string;
         caller_name?: string;
         caller_email?: string;
         caller_employee_id?: string;
         caller_did_number?: string;
         caller_ext_number?: string;
-        caller_ext_type?: string;
-        caller_number_type?: string;
+        caller_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+        caller_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zoom_revenue_accelerator";
         caller_device_private_ip?: string;
         caller_device_public_ip?: string;
         caller_device_type?: string;
@@ -1934,8 +2074,8 @@ type CallLogsGetUsersCallHistoryResponse = {
         callee_ext_number?: string;
         callee_email?: string;
         callee_employee_id?: string;
-        callee_ext_type?: string;
-        callee_number_type?: string;
+        callee_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+        callee_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zoom_revenue_accelerator";
         callee_device_private_ip?: string;
         callee_device_public_ip?: string;
         callee_device_type?: string;
@@ -1947,15 +2087,15 @@ type CallLogsGetUsersCallHistoryResponse = {
         start_time?: string;
         answer_time?: string;
         end_time?: string;
-        event?: string;
-        result?: string;
-        result_reason?: string;
+        event?: "incoming" | "transfer_from_zoom_contact_center" | "shared_line_incoming" | "outgoing" | "call_me_on" | "outgoing_to_zoom_contact_center" | "warm_transfer" | "forward" | "ring_to_member" | "overflow" | "direct_transfer" | "barge" | "monitor" | "whisper" | "listen" | "takeover" | "conference_barge" | "park" | "timeout" | "park_pick_up" | "merge" | "shared";
+        result?: "answered" | "accepted" | "picked_up" | "connected" | "succeeded" | "voicemail" | "hang_up" | "canceled" | "call_failed" | "unconnected" | "rejected" | "busy" | "ring_timeout" | "overflowed" | "no_answer" | "invalid_key" | "invalid_operation" | "abandoned" | "system_blocked" | "service_unavailable";
+        result_reason?: "answered_by_other" | "pickup_by_other" | "call_out_by_other";
         operator_ext_number?: string;
         operator_ext_id?: string;
-        operator_ext_type?: string;
+        operator_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
         operator_name?: string;
         recording_id?: string;
-        recording_type?: string;
+        recording_type?: "ad-hoc" | "automatic";
         voicemail_id?: string;
         talk_time?: number;
         hold_time?: number;
@@ -1979,19 +2119,22 @@ type CallLogsSyncUsersCallHistoryQueryParams = {
 type CallLogsSyncUsersCallHistoryResponse = {
     call_logs?: {
         id?: string;
+        call_path_id?: string;
         call_id?: string;
         group_id?: string;
-        connect_type?: string;
-        call_type?: string;
-        direction?: string;
+        connect_type?: "internal" | "external";
+        call_type?: "general" | "emergency";
+        direction?: "inbound" | "outbound";
+        hide_caller_id?: boolean;
+        end_to_end?: boolean;
         caller_ext_id?: string;
         caller_name?: string;
         caller_email?: string;
         caller_employee_id?: string;
         caller_did_number?: string;
         caller_ext_number?: string;
-        caller_ext_type?: string;
-        caller_number_type?: string;
+        caller_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+        caller_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zoom_revenue_accelerator";
         caller_device_private_ip?: string;
         caller_device_public_ip?: string;
         caller_device_type?: string;
@@ -2006,8 +2149,8 @@ type CallLogsSyncUsersCallHistoryResponse = {
         callee_ext_number?: string;
         callee_email?: string;
         callee_employee_id?: string;
-        callee_ext_type?: string;
-        callee_number_type?: string;
+        callee_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+        callee_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number" | "zoom_revenue_accelerator";
         callee_device_private_ip?: string;
         callee_device_public_ip?: string;
         callee_device_type?: string;
@@ -2019,15 +2162,15 @@ type CallLogsSyncUsersCallHistoryResponse = {
         start_time?: string;
         answer_time?: string;
         end_time?: string;
-        event?: string;
-        result?: string;
-        result_reason?: string;
+        event?: "incoming" | "transfer_from_zoom_contact_center" | "shared_line_incoming" | "outgoing" | "call_me_on" | "outgoing_to_zoom_contact_center" | "warm_transfer" | "forward" | "ring_to_member" | "overflow" | "direct_transfer" | "barge" | "monitor" | "whisper" | "listen" | "takeover" | "conference_barge" | "park" | "timeout" | "park_pick_up" | "merge" | "shared";
+        result?: "answered" | "accepted" | "picked_up" | "connected" | "succeeded" | "voicemail" | "hang_up" | "canceled" | "call_failed" | "unconnected" | "rejected" | "busy" | "ring_timeout" | "overflowed" | "no_answer" | "invalid_key" | "invalid_operation" | "abandoned" | "system_blocked" | "service_unavailable";
+        result_reason?: "answered_by_other" | "pickup_by_other" | "call_out_by_other";
         operator_ext_number?: string;
         operator_ext_id?: string;
-        operator_ext_type?: string;
+        operator_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
         operator_name?: string;
         recording_id?: string;
-        recording_type?: string;
+        recording_type?: "ad-hoc" | "automatic";
         voicemail_id?: string;
         talk_time?: number;
         hold_time?: number;
@@ -2047,10 +2190,10 @@ type CallLogsGetUsersCallLogsQueryParams = {
     page_size?: number;
     from?: string;
     to?: string;
-    type?: string;
+    type?: "all" | "missed";
     next_page_token?: string;
     phone_number?: string;
-    time_type?: string;
+    time_type?: "startTime" | "endTime";
 };
 type CallLogsGetUsersCallLogsResponse = {
     call_logs?: {
@@ -2069,15 +2212,15 @@ type CallLogsGetUsersCallLogsResponse = {
         callee_did_number?: string;
         callee_name?: string;
         callee_number?: string;
-        callee_number_type?: number;
-        callee_number_source?: string;
+        callee_number_type?: 1 | 2 | 3;
+        callee_number_source?: "internal" | "external" | "byop";
         caller_country_code?: string;
         caller_country_iso_code?: string;
         caller_did_number?: string;
         caller_name?: string;
         caller_number?: string;
-        caller_number_type?: number;
-        caller_number_source?: string;
+        caller_number_type?: 1 | 2;
+        caller_number_source?: "internal" | "external" | "byop";
         caller_billing_reference_id?: string;
         charge?: string;
         client_code?: string;
@@ -2086,7 +2229,7 @@ type CallLogsGetUsersCallLogsResponse = {
         duration?: number;
         forwarded_by?: {
             extension_number?: string;
-            extension_type?: string;
+            extension_type?: "user" | "callQueue" | "commonAreaPhone" | "autoReceptionist" | "sharedLineGroup";
             location?: string;
             name?: string;
             number_type?: number;
@@ -2111,7 +2254,7 @@ type CallLogsGetUsersCallLogsResponse = {
         };
         path?: string;
         rate?: string;
-        recording_type?: string;
+        recording_type?: "OnDemand" | "Automatic";
         result?: string;
         site?: {
             id?: string;
@@ -2134,7 +2277,7 @@ type CallLogsSyncUsersCallLogsPathParams = {
     userId: string;
 };
 type CallLogsSyncUsersCallLogsQueryParams = {
-    sync_type?: string;
+    sync_type?: "FSync" | "ISync" | "BSync";
     count?: number;
     sync_token?: string;
 };
@@ -2156,16 +2299,16 @@ type CallLogsSyncUsersCallLogsResponse = {
         callee_did_number?: string;
         callee_name?: string;
         callee_number?: string;
-        callee_number_type?: number;
-        callee_number_source?: string;
+        callee_number_type?: 1 | 2 | 3;
+        callee_number_source?: "internal" | "external" | "byop";
         caller_user_id?: string;
         caller_country_code?: string;
         caller_country_iso_code?: string;
         caller_did_number?: string;
         caller_name?: string;
         caller_number?: string;
-        caller_number_type?: number;
-        caller_number_source?: string;
+        caller_number_type?: 1 | 2;
+        caller_number_source?: "internal" | "external" | "byop";
         caller_billing_reference_id?: string;
         charge?: string;
         client_code?: string;
@@ -2174,7 +2317,7 @@ type CallLogsSyncUsersCallLogsResponse = {
         duration?: number;
         forwarded_by?: {
             extension_number?: string;
-            extension_type?: string;
+            extension_type?: "user" | "callQueue" | "commonAreaPhone" | "autoReceptionist" | "sharedLineGroup";
             location?: string;
             name?: string;
             number_type?: number;
@@ -2199,7 +2342,7 @@ type CallLogsSyncUsersCallLogsResponse = {
         };
         path?: string;
         rate?: string;
-        recording_type?: string;
+        recording_type?: "OnDemand" | "Automatic";
         result?: string;
         site?: {
             id?: string;
@@ -2214,6 +2357,40 @@ type CallLogsSyncUsersCallLogsResponse = {
 type CallLogsDeleteUsersCallLogPathParams = {
     userId: string;
     callLogId: string;
+};
+type CallQueuesListCallQueueAnalyticsQueryParams = {
+    page_size?: number;
+    from?: string;
+    to?: string;
+    next_page_token?: string;
+    site_id?: string;
+    call_queue_ext_ids?: string[];
+    department?: string;
+    cost_center?: string;
+};
+type CallQueuesListCallQueueAnalyticsResponse = {
+    call_queues?: {
+        call_queue_id?: string;
+        call_queue_name?: string;
+        call_queue_ext_id?: string;
+        inbound_calls?: number;
+        completed_calls?: number;
+        abandoned_calls?: number;
+        overflowed_calls?: number;
+        avg_handle_time?: number;
+        avg_wrap_up_time?: number;
+        avg_in_queue_wait_time?: number;
+        max_in_queue_wait_time?: number;
+        outbound_calls?: number;
+        outbound_connected_calls?: number;
+        outbound_unconnected_calls?: number;
+        site_name?: string;
+        site_id?: string;
+    }[];
+    from?: string;
+    to?: string;
+    page_size?: number;
+    next_page_token?: string;
 };
 type CallQueuesListCallQueuesQueryParams = {
     next_page_token?: string;
@@ -2231,13 +2408,13 @@ type CallQueuesListCallQueuesResponse = {
         phone_numbers?: {
             id?: string;
             number?: string;
-            source?: string;
+            source?: "internal" | "external";
         }[];
         site?: {
             id?: string;
             name?: string;
         };
-        status?: string;
+        status?: "active" | "inactive";
     }[];
     next_page_token?: string;
     page_size?: number;
@@ -2276,7 +2453,7 @@ type CallQueuesGetCallQueueDetailsResponse = {
     members?: {
         users?: {
             id?: string;
-            level?: string;
+            level?: "manager" | "user";
             name?: string;
             receive_call?: boolean;
             extension_id?: string;
@@ -2291,16 +2468,17 @@ type CallQueuesGetCallQueueDetailsResponse = {
     phone_numbers?: {
         id?: string;
         number?: string;
-        source?: string;
+        source?: "internal" | "external";
     }[];
     site?: {
         id?: string;
         name?: string;
     };
-    status?: string;
+    status?: "active" | "inactive";
     policy?: {
         voicemail_access_members?: ({
             access_user_id?: string;
+            access_user_type?: "commonArea" | "user";
             allow_download?: boolean;
             allow_delete?: boolean;
             allow_sharing?: boolean;
@@ -2309,8 +2487,8 @@ type CallQueuesGetCallQueueDetailsResponse = {
         })[];
     };
     timezone?: string;
-    audio_prompt_language?: string;
-    recording_storage_location?: string;
+    audio_prompt_language?: "en-US" | "en-GB" | "es-US" | "fr-CA" | "da-DK" | "de-DE" | "es-ES" | "fr-FR" | "it-IT" | "nl-NL" | "pt-PT" | "ja" | "ko-KR" | "pt-BR" | "zh-CN";
+    recording_storage_location?: "US" | "AU" | "CA" | "DE" | "IN" | "JP" | "SG" | "BR" | "CN" | "MX";
     own_storage_name?: string;
 };
 type CallQueuesDeleteCallQueuePathParams = {
@@ -2326,10 +2504,10 @@ type CallQueuesUpdateCallQueueDetailsRequestBody = {
     extension_number?: number;
     name?: string;
     site_id?: string;
-    status?: string;
+    status?: "active" | "inactive";
     timezone?: string;
-    audio_prompt_language?: string;
-    recording_storage_location?: string;
+    audio_prompt_language?: "en-US" | "en-GB" | "es-US" | "fr-CA" | "da-DK" | "de-DE" | "es-ES" | "fr-FR" | "it-IT" | "nl-NL" | "pt-PT" | "ja" | "ko-KR" | "pt-BR" | "zh-CN";
+    recording_storage_location?: "US" | "AU" | "CA" | "DE" | "IN" | "JP" | "SG" | "BR" | "CN" | "MX";
 };
 type CallQueuesListCallQueueMembersPathParams = {
     callQueueId: string;
@@ -2337,7 +2515,7 @@ type CallQueuesListCallQueueMembersPathParams = {
 type CallQueuesListCallQueueMembersResponse = {
     call_queue_members?: {
         id?: string;
-        level?: string;
+        level?: "commonArea" | "user";
         name?: string;
         receive_call?: boolean;
         extension_id?: string;
@@ -2381,21 +2559,23 @@ type CallQueuesUnassignPhoneNumberPathParams = {
     callQueueId: string;
     phoneNumberId: string;
 };
-type CallQueuesAddPolicySettingToCallQueuePathParams = {
+type CallQueuesAddPolicySubsettingToCallQueuePathParams = {
     callQueueId: string;
     policyType: string;
 };
-type CallQueuesAddPolicySettingToCallQueueRequestBody = {
+type CallQueuesAddPolicySubsettingToCallQueueRequestBody = {
     voicemail_access_members?: {
         access_user_id?: string;
+        access_user_type?: "commonArea" | "user";
         allow_download?: boolean;
         allow_delete?: boolean;
         allow_sharing?: boolean;
     }[];
 };
-type CallQueuesAddPolicySettingToCallQueueResponse = {
+type CallQueuesAddPolicySubsettingToCallQueueResponse = {
     voicemail_access_members?: ({
         access_user_id?: string;
+        access_user_type?: "commonArea" | "user";
         allow_download?: boolean;
         allow_delete?: boolean;
         allow_sharing?: boolean;
@@ -2417,6 +2597,7 @@ type CallQueuesUpdateCallQueuesPolicySubsettingPathParams = {
 type CallQueuesUpdateCallQueuesPolicySubsettingRequestBody = {
     voicemail_access_members?: ({
         access_user_id?: string;
+        access_user_type?: "commonArea" | "user";
         allow_download?: boolean;
         allow_delete?: boolean;
         allow_sharing?: boolean;
@@ -2440,10 +2621,10 @@ type CallQueuesGetCallQueueRecordingsResponse = {
     recordings?: {
         callee_name?: string;
         callee_number?: string;
-        callee_number_type?: string;
+        callee_number_type?: "1" | "2" | "3";
         caller_name?: string;
         caller_number?: string;
-        caller_number_type?: number;
+        caller_number_type?: 1 | 2;
         date_time?: string;
         direction?: string;
         download_url?: string;
@@ -2456,17 +2637,17 @@ type CallQueuesGetCallQueueRecordingsResponse = {
 type CarrierResellerListPhoneNumbersQueryParams = {
     page_size?: number;
     next_page_token?: string;
-    assigned_status?: string;
+    assigned_status?: "assigned" | "unassigned" | "returned";
     sub_account_id?: string;
     keyword?: string;
 };
 type CarrierResellerListPhoneNumbersResponse = {
     carrier_reseller_numbers?: {
-        assigned_status?: string;
+        assigned_status?: "assigned" | "unassigned" | "returned";
         carrier_code?: number;
         country_iso_code?: string;
         phone_number?: string;
-        status?: string;
+        status?: "inactive" | "active";
         sub_account_id?: string;
         sub_account_name?: string;
     }[];
@@ -2476,7 +2657,7 @@ type CarrierResellerListPhoneNumbersResponse = {
 };
 type CarrierResellerCreatePhoneNumbersRequestBody = {
     phone_number?: string;
-    status?: string;
+    status?: "active" | "inactive";
 }[];
 type CarrierResellerActivatePhoneNumbersRequestBody = string[];
 type CarrierResellerDeletePhoneNumberPathParams = {
@@ -2493,6 +2674,8 @@ type CommonAreasListCommonAreasResponse = {
             type?: number;
             billing_account_id?: string;
             billing_account_name?: string;
+            billing_subscription_id?: string;
+            billing_subscription_name?: string;
         }[];
         display_name?: string;
         extension_number?: number;
@@ -2501,18 +2684,18 @@ type CommonAreasListCommonAreasResponse = {
             display_name?: string;
             id?: string;
             number?: string;
-            source?: string;
+            source?: "internal" | "external";
         }[];
         site?: {
             id?: string;
             name?: string;
         };
-        status?: string;
+        status?: "online" | "offline";
         desk_phones?: {
             id?: string;
             display_name?: string;
             device_type?: string;
-            status?: string;
+            status?: "online" | "offline";
         }[];
     }[];
     next_page_token?: string;
@@ -2521,6 +2704,7 @@ type CommonAreasListCommonAreasResponse = {
 type CommonAreasAddCommonAreaRequestBody = {
     calling_plans?: {
         type?: number;
+        billing_subscription_id?: string;
     }[];
     country_iso_code?: string;
     display_name: string;
@@ -2533,6 +2717,18 @@ type CommonAreasAddCommonAreaResponse = {
     display_name?: string;
     id?: string;
 };
+type CommonAreasGenerateActivationCodesForCommonAreasRequestBody = {
+    common_area_ids: string[];
+};
+type CommonAreasGenerateActivationCodesForCommonAreasResponse = {
+    common_areas_activation_codes?: {
+        common_area_id?: string;
+        display_name?: string;
+        extension_number?: number;
+        activation_code?: string;
+        activation_code_expiration?: string;
+    }[];
+};
 type CommonAreasListActivationCodesQueryParams = {
     page_size?: number;
     next_page_token?: string;
@@ -2544,7 +2740,7 @@ type CommonAreasListActivationCodesResponse = {
         extension_number?: number;
         activation_code?: string;
         activation_code_expiration?: string;
-        status?: string;
+        status?: "used" | "not_used";
         site?: {
             site_id?: string;
             name?: string;
@@ -2569,6 +2765,8 @@ type CommonAreasGetCommonAreaDetailsResponse = {
         type?: number;
         billing_account_id?: string;
         billing_account_name?: string;
+        billing_subscription_id?: string;
+        billing_subscription_name?: string;
     }[];
     cost_center?: string;
     country?: {
@@ -2586,7 +2784,7 @@ type CommonAreasGetCommonAreaDetailsResponse = {
         country?: string;
         id?: string;
         state_code?: string;
-        status?: number;
+        status?: 1 | 2 | 3 | 4 | 5 | 6;
         zip?: string;
     };
     id?: string;
@@ -2599,13 +2797,13 @@ type CommonAreasGetCommonAreaDetailsResponse = {
         display_name?: string;
         id?: string;
         number?: string;
-        source?: string;
+        source?: "internal" | "external";
     }[];
     policy?: {
         international_calling?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "site";
             modified?: boolean;
         };
         outbound_calling?: {
@@ -2618,7 +2816,7 @@ type CommonAreasGetCommonAreaDetailsResponse = {
         id?: string;
         name?: string;
     };
-    status?: string;
+    status?: "online" | "offline";
 };
 type CommonAreasDeleteCommonAreaPathParams = {
     commonAreaId: string;
@@ -2651,6 +2849,7 @@ type CommonAreasAssignCallingPlansToCommonAreaRequestBody = {
     calling_plans: {
         type: number;
         billing_account_id?: string;
+        billing_subscription_id?: string;
     }[];
 };
 type CommonAreasAssignCallingPlansToCommonAreaResponse = {
@@ -2701,23 +2900,23 @@ type CommonAreasGetCommonAreaSettingsResponse = {
         id?: string;
         display_name?: string;
         device_type?: string;
-        status?: string;
+        status?: "online" | "offline";
         mac_address?: string;
         hot_desking?: {
-            status?: string;
+            status?: "unsupported" | "on" | "off";
         };
         private_ip?: string;
         public_ip?: string;
     }[];
 };
-type CommonAreasAddCommonAreaSettingsPathParams = {
+type CommonAreasAddCommonAreaSettingPathParams = {
     commonAreaId: string;
     settingType: string;
 };
-type CommonAreasAddCommonAreaSettingsRequestBody = {
+type CommonAreasAddCommonAreaSettingRequestBody = {
     device_id?: string;
 };
-type CommonAreasAddCommonAreaSettingsResponse = {
+type CommonAreasAddCommonAreaSettingResponse = {
     desk_phones?: {
         id?: string;
         display_name?: string;
@@ -2730,15 +2929,15 @@ type CommonAreasDeleteCommonAreaSettingPathParams = {
 type CommonAreasDeleteCommonAreaSettingQueryParams = {
     device_id: string;
 };
-type CommonAreasUpdateCommonAreaSettingsPathParams = {
+type CommonAreasUpdateCommonAreaSettingPathParams = {
     commonAreaId: string;
     settingType: string;
 };
-type CommonAreasUpdateCommonAreaSettingsRequestBody = {
+type CommonAreasUpdateCommonAreaSettingRequestBody = {
     desk_phones?: {
         id?: string;
         hot_desking?: {
-            status?: string;
+            status?: "on" | "off";
         };
     }[];
 };
@@ -2863,7 +3062,7 @@ type DashboardGetCallDetailsFromCallLogResponse = {
         phone_number?: string;
         site_id?: string;
         id?: string;
-        extension_type?: string;
+        extension_type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
         display_name?: string;
     };
     caller?: {
@@ -2878,7 +3077,7 @@ type DashboardGetCallDetailsFromCallLogResponse = {
         phone_number?: string;
         site_id?: string;
         id?: string;
-        extension_type?: string;
+        extension_type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
         display_name?: string;
     };
     date_time?: string;
@@ -2886,10 +3085,163 @@ type DashboardGetCallDetailsFromCallLogResponse = {
     duration?: number;
     mos?: string;
 };
-type DashboardListTrackedLocationsQueryParams = {
-    type?: number;
+type DashboardListDefaultEmergencyAddressUsersQueryParams = {
+    status: "set" | "not_set";
     site_id?: string;
-    location_type?: string;
+    keyword?: string;
+    page_size?: number;
+    next_page_token?: string;
+};
+type DashboardListDefaultEmergencyAddressUsersResponse = {
+    next_page_token?: string;
+    page_size?: number;
+    total_records?: number;
+    records?: {
+        email?: string;
+        user_display_name?: string;
+        extension_id?: string;
+        extension_number?: number;
+        site_name?: string;
+        site_id?: string;
+        status?: "set" | "not_set";
+    }[];
+};
+type DashboardListDetectablePersonalLocationUsersQueryParams = {
+    status: "set" | "not_set";
+    site_id?: string;
+    keyword?: string;
+    page_size?: number;
+    next_page_token?: string;
+};
+type DashboardListDetectablePersonalLocationUsersResponse = {
+    next_page_token?: string;
+    page_size?: number;
+    total_records?: number;
+    records?: {
+        email?: string;
+        user_display_name?: string;
+        extension_id?: string;
+        extension_number?: number;
+        site_name?: string;
+        site_id?: string;
+        status?: "set" | "not_set";
+    }[];
+};
+type DashboardListUsersPermissionForLocationSharingQueryParams = {
+    site_id?: string;
+    keyword?: string;
+    page_size?: number;
+    next_page_token?: string;
+};
+type DashboardListUsersPermissionForLocationSharingResponse = {
+    next_page_token?: string;
+    page_size?: number;
+    total_records?: number;
+    user_permissions?: {
+        email?: string;
+        user_display_name?: string;
+        extension_id?: string;
+        extension_number?: number;
+        site_name?: string;
+        site_id?: string;
+        device_permissions?: {
+            last_seen_time?: number;
+            location_sharing?: "allowed" | "disallowed";
+            platform?: string;
+        }[];
+    }[];
+};
+type DashboardListNomadicEmergencyServicesUsersQueryParams = {
+    status: "enabled" | "disabled";
+    site_id?: string;
+    keyword?: string;
+    page_size?: number;
+    next_page_token?: string;
+};
+type DashboardListNomadicEmergencyServicesUsersResponse = {
+    next_page_token?: string;
+    page_size?: number;
+    total_records?: number;
+    records?: {
+        email?: string;
+        user_display_name?: string;
+        extension_id?: string;
+        extension_number?: number;
+        site_name?: string;
+        site_id?: string;
+        status?: "enabled" | "disabled";
+        reason_for_disabling?: 1 | 2 | 3 | 4 | 5;
+    }[];
+};
+type DashboardListRealTimeLocationForIPPhonesQueryParams = {
+    location_type: "company" | "personal" | "unknown";
+    site_id?: string;
+    keyword?: string;
+    page_size?: number;
+    next_page_token?: string;
+};
+type DashboardListRealTimeLocationForIPPhonesResponse = {
+    records?: {
+        device_id?: string;
+        device_name?: string;
+        site_id?: string;
+        site_name?: string;
+        public_ip?: string;
+        private_ip?: string;
+        bssid?: string;
+        emergency_address?: string;
+        mac_address?: string;
+        location_name?: string;
+        network_switch?: {
+            port?: string;
+            mac_address?: string;
+        };
+        location_type?: "company" | "personal" | "unknown";
+        assigned_info?: {
+            extension_id?: string;
+            extension_number?: number;
+            user_email?: string;
+            user_display_name?: string;
+        }[];
+    }[];
+    total_records?: number;
+    page_size?: number;
+    next_page_token?: string;
+};
+type DashboardListRealTimeLocationForUsersQueryParams = {
+    location_type: "company" | "personal" | "unknown";
+    site_id?: string;
+    keyword?: string;
+    page_size?: number;
+    next_page_token?: string;
+};
+type DashboardListRealTimeLocationForUsersResponse = {
+    next_page_token?: string;
+    page_size?: number;
+    total_records?: number;
+    records?: {
+        email?: string;
+        bssid?: string;
+        user_display_name?: string;
+        extension_id?: string;
+        extension_number?: number;
+        site_name?: string;
+        site_id?: string;
+        public_ip?: string;
+        private_ip?: string;
+        emergency_address?: string;
+        location_name?: string;
+        network_switch?: {
+            port?: string;
+            mac_address?: string;
+        };
+        location_type?: "company" | "personal" | "unknown";
+    }[];
+};
+type DashboardListTrackedLocationsQueryParams = {
+    type?: 1 | 2 | 3 | 4 | 5 | 6;
+    site_id?: string;
+    location_type?: "company" | "personal" | "unknown";
     keyword?: string;
 };
 type DashboardListTrackedLocationsResponse = {
@@ -2919,7 +3271,7 @@ type DashboardListTrackedLocationsResponse = {
             id?: string;
             name?: string;
         };
-        type?: string;
+        type?: "company" | "personal" | "unknown";
         zip?: string;
     }[];
     next_page_token?: string;
@@ -2931,11 +3283,11 @@ type DashboardListPastCallMetricsQueryParams = {
     to?: string;
     phone_number?: string;
     extension_number?: string;
-    quality_type?: string;
+    quality_type?: "good" | "bad";
     department?: string;
     cost_center?: string;
-    directions?: string[];
-    durations?: number[];
+    directions?: ("inbound" | "outbound" | "internal")[];
+    durations?: (0 | 1 | 2 | 3)[];
     site_id?: string;
     page_size?: number;
     next_page_token?: string;
@@ -2968,7 +3320,7 @@ type DashboardListPastCallMetricsResponse = {
             site_id?: string;
         };
         date_time?: string;
-        direction?: string;
+        direction?: "inbound" | "outbound" | "internal";
         duration?: number;
         mos?: string;
     }[];
@@ -2989,14 +3341,14 @@ type DeviceLineKeysGetDeviceLineKeysInformationResponse = {
         owner_extension_name?: string;
         owner_extension_number?: number;
         extension_number?: number;
-        extension_type?: string;
+        extension_type?: "User" | "CommonArea";
         extension_id?: string;
         display_name?: string;
         phone_number?: string;
         outbound_caller_ids?: {
             extension_id?: string;
             phone_number?: string;
-            usage_type?: string;
+            usage_type?: "Main Company Number" | "Additional Company Number" | "Direct Number" | "Phone Number";
         }[];
     }[];
 };
@@ -3077,8 +3429,8 @@ type DialByNameDirectoryDeleteUsersFromDirectoryOfSiteQueryParams = {
 type EmergencyAddressesListEmergencyAddressesQueryParams = {
     site_id?: string;
     user_id?: string;
-    level?: number;
-    status?: number;
+    level?: 0 | 1 | 2;
+    status?: 1 | 2 | 3 | 4 | 5 | 6;
     address_keyword?: string;
     next_page_token?: string;
     page_size?: number;
@@ -3091,7 +3443,7 @@ type EmergencyAddressesListEmergencyAddressesResponse = {
         country?: string;
         id?: string;
         is_default?: boolean;
-        level?: number;
+        level?: 0 | 1 | 2;
         owner?: {
             extension_number?: number;
             id?: string;
@@ -3102,7 +3454,7 @@ type EmergencyAddressesListEmergencyAddressesResponse = {
             name?: string;
         };
         state_code?: string;
-        status?: number;
+        status?: 1 | 2 | 3 | 4 | 5 | 6;
         zip?: string;
     }[];
     next_page_token?: string;
@@ -3127,7 +3479,7 @@ type EmergencyAddressesAddEmergencyAddressResponse = {
     country?: string;
     id?: string;
     is_default?: boolean;
-    level?: number;
+    level?: 0 | 1 | 2;
     owner?: {
         extension_number?: string;
         id?: string;
@@ -3138,7 +3490,7 @@ type EmergencyAddressesAddEmergencyAddressResponse = {
         name?: string;
     };
     state_code?: string;
-    status?: number;
+    status?: 1 | 2 | 3 | 4 | 5 | 6;
     zip?: string;
 };
 type EmergencyAddressesGetEmergencyAddressDetailsPathParams = {
@@ -3151,7 +3503,7 @@ type EmergencyAddressesGetEmergencyAddressDetailsResponse = {
     country?: string;
     id?: string;
     is_default?: boolean;
-    level?: number;
+    level?: 0 | 1 | 2;
     owner?: {
         extension_number?: number;
         id?: string;
@@ -3162,7 +3514,7 @@ type EmergencyAddressesGetEmergencyAddressDetailsResponse = {
         name?: string;
     };
     state_code?: string;
-    status?: number;
+    status?: 1 | 2 | 3 | 4 | 5 | 6;
     zip?: string;
 };
 type EmergencyAddressesDeleteEmergencyAddressPathParams = {
@@ -3187,7 +3539,7 @@ type EmergencyAddressesUpdateEmergencyAddressResponse = {
     country?: string;
     id?: string;
     is_default?: boolean;
-    level?: number;
+    level?: 0 | 1 | 2;
     owner?: {
         extension_number?: number;
         id?: string;
@@ -3198,7 +3550,7 @@ type EmergencyAddressesUpdateEmergencyAddressResponse = {
         name?: string;
     };
     state_code?: string;
-    status?: number;
+    status?: 1 | 2 | 3 | 4 | 5 | 6;
     zip?: string;
 };
 type EmergencyServiceLocationsBatchAddEmergencyServiceLocationsRequestBody = {
@@ -3271,6 +3623,7 @@ type EmergencyServiceLocationsListEmergencyServiceLocationsResponse = {
             name?: string;
         };
         emergency_address?: {
+            id?: string;
             address_line1?: string;
             address_line2?: string;
             city?: string;
@@ -3283,6 +3636,7 @@ type EmergencyServiceLocationsListEmergencyServiceLocationsResponse = {
     }[];
     next_page_token?: string;
     page_size?: number;
+    total_records?: number;
 };
 type EmergencyServiceLocationsAddEmergencyServiceLocationRequestBody = {
     bssid?: string;
@@ -3377,6 +3731,8 @@ type ExternalContactsListExternalContactsResponse = {
         name?: string;
         phone_numbers?: string[];
         auto_call_recorded?: boolean;
+        profile_picture_download_url?: string;
+        enable_internal_extension?: boolean;
     }[];
     next_page_token?: string;
     page_size?: number;
@@ -3390,6 +3746,11 @@ type ExternalContactsAddExternalContactRequestBody = {
     phone_numbers?: string[];
     routing_path?: string;
     auto_call_recorded?: boolean;
+    profile_picture?: {
+        type?: "JPG" | "JPEG" | "PNG" | "GIF";
+        base64_encoding?: string;
+    };
+    enable_internal_extension?: boolean;
 };
 type ExternalContactsAddExternalContactResponse = {
     name?: string;
@@ -3407,6 +3768,8 @@ type ExternalContactsGetExternalContactDetailsResponse = {
     name?: string;
     phone_numbers?: string[];
     auto_call_recorded?: boolean;
+    profile_picture_download_url?: string;
+    enable_internal_extension?: boolean;
 };
 type ExternalContactsDeleteExternalContactPathParams = {
     externalContactId: string;
@@ -3423,6 +3786,11 @@ type ExternalContactsUpdateExternalContactRequestBody = {
     phone_numbers?: string[];
     routing_path?: string;
     auto_call_recorded?: boolean;
+    profile_picture?: {
+        type?: "JPG" | "JPEG" | "PNG" | "GIF";
+        base64_encoding?: string;
+    };
+    enable_internal_extension?: boolean;
 };
 type FirmwareUpdateRulesListFirmwareUpdateRulesQueryParams = {
     site_id?: string;
@@ -3444,7 +3812,7 @@ type FirmwareUpdateRulesAddFirmwareUpdateRuleRequestBody = {
     version: string;
     device_type: string;
     device_model: string;
-    restart_type?: number;
+    restart_type?: 1 | 2;
 };
 type FirmwareUpdateRulesAddFirmwareUpdateRuleResponse = {
     rule_Id?: string;
@@ -3462,7 +3830,7 @@ type FirmwareUpdateRulesDeleteFirmwareUpdateRulePathParams = {
     ruleId: string;
 };
 type FirmwareUpdateRulesDeleteFirmwareUpdateRuleQueryParams = {
-    restart_type?: number;
+    restart_type?: 1 | 2;
 };
 type FirmwareUpdateRulesUpdateFirmwareUpdateRulePathParams = {
     ruleId: string;
@@ -3471,7 +3839,7 @@ type FirmwareUpdateRulesUpdateFirmwareUpdateRuleRequestBody = {
     version: string;
     device_type: string;
     device_model: string;
-    restart_type?: number;
+    restart_type?: 1 | 2;
 };
 type FirmwareUpdateRulesListUpdatableFirmwaresQueryParams = {
     is_update?: boolean;
@@ -3485,7 +3853,7 @@ type FirmwareUpdateRulesListUpdatableFirmwaresResponse = {
             version?: string;
             update_log?: string;
             expire_time?: string;
-            status?: number;
+            status?: 1 | 2 | 3;
         }[];
     }[];
 };
@@ -3502,7 +3870,7 @@ type GroupCallPickupListGroupCallPickupObjectsResponse = {
         extension_number?: number;
         member_count?: number;
         description?: string;
-        delay?: number;
+        delay?: 0 | 5 | 10 | 15;
         cost_center?: string;
         department?: string;
         site?: {
@@ -3520,11 +3888,11 @@ type GroupCallPickupAddGroupCallPickupObjectRequestBody = {
     site_id: string;
     description?: string;
     extension_number?: number;
-    delay?: number;
+    delay?: 0 | 5 | 10 | 15;
     play_incoming_calls_sound?: {
         enable?: boolean;
-        ring_tone?: string;
-        duration?: number;
+        ring_tone?: "ringtone_1" | "ringtone_2" | "ringtone_3";
+        duration?: 0 | 1 | 3 | 5;
     };
     directed_call_pickup?: boolean;
     member_extension_ids?: string[];
@@ -3542,7 +3910,7 @@ type GroupCallPickupGetCallPickupGroupByIDResponse = {
     extension_id?: string;
     extension_number?: number;
     description?: string;
-    delay?: number;
+    delay?: 0 | 5 | 10 | 15;
     member_count?: number;
     cost_center?: string;
     department?: string;
@@ -3552,8 +3920,8 @@ type GroupCallPickupGetCallPickupGroupByIDResponse = {
     };
     play_incoming_calls_sound?: {
         enable?: boolean;
-        ring_tone?: string;
-        duration?: number;
+        ring_tone?: "ringtone_1" | "ringtone_2" | "ringtone_3";
+        duration?: 0 | 1 | 3 | 5;
     };
     directed_call_pickup?: boolean;
 };
@@ -3567,13 +3935,13 @@ type GroupCallPickupUpdateGroupCallPickupInformationRequestBody = {
     display_name?: string;
     extension_number?: number;
     description?: string;
-    delay?: number;
+    delay?: 0 | 5 | 10 | 15;
     cost_center?: string;
     department?: string;
     play_incoming_calls_sound?: {
         enable?: boolean;
-        ring_tone?: string;
-        duration?: number;
+        ring_tone?: "ringtone_1" | "ringtone_2" | "ringtone_3";
+        duration?: 0 | 1 | 3 | 5;
     };
     directed_call_pickup?: boolean;
 };
@@ -3584,14 +3952,14 @@ type GroupCallPickupListCallPickupGroupMembersQueryParams = {
     page_size?: number;
     next_page_token?: string;
     site_id?: string;
-    extension_type?: string;
+    extension_type?: "user" | "commonArea";
 };
 type GroupCallPickupListCallPickupGroupMembersResponse = {
     group_call_pickup_member?: {
         id?: string;
         display_name?: string;
         extension_id?: string;
-        extension_type?: string;
+        extension_type?: "user" | "commonArea";
         extension_number?: number;
     }[];
     next_page_token?: string;
@@ -3608,6 +3976,33 @@ type GroupCallPickupRemoveMembersFromCallPickupGroupPathParams = {
     groupId: string;
     extensionId: string;
 };
+type GroupsGetGroupPolicyDetailsPathParams = {
+    groupId: string;
+    policyType: "allow_emergency_calls";
+};
+type GroupsGetGroupPolicyDetailsResponse = {
+    allow_emergency_calls?: {
+        enable?: boolean;
+        locked?: boolean;
+        locked_by?: "invalid" | "account" | "user_group";
+        modified?: boolean;
+        allow_emergency_calls_from_clients?: boolean;
+        allow_emergency_calls_from_deskphones?: boolean;
+    };
+};
+type GroupsUpdateGroupPolicyPathParams = {
+    groupId: string;
+    policyType: "allow_emergency_calls";
+};
+type GroupsUpdateGroupPolicyRequestBody = {
+    allow_emergency_calls?: {
+        enable?: boolean;
+        locked?: boolean;
+        reset?: boolean;
+        allow_emergency_calls_from_clients?: boolean;
+        allow_emergency_calls_from_deskphones?: boolean;
+    };
+};
 type GroupsGetGroupPhoneSettingsPathParams = {
     groupId: string;
 };
@@ -3618,7 +4013,7 @@ type GroupsGetGroupPhoneSettingsResponse = {
     call_live_transcription?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
         transcription_start_prompt?: {
             enable?: boolean;
@@ -3629,20 +4024,20 @@ type GroupsGetGroupPhoneSettingsResponse = {
     local_survivability_mode?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     select_outbound_caller_id?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
         allow_hide_outbound_caller_id?: boolean;
     };
     personal_audio_library?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
         allow_music_on_hold_customization?: boolean;
         allow_voicemail_and_message_greeting_customization?: boolean;
@@ -3650,7 +4045,7 @@ type GroupsGetGroupPhoneSettingsResponse = {
     voicemail?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
         allow_delete?: boolean;
         allow_download?: boolean;
@@ -3661,7 +4056,7 @@ type GroupsGetGroupPhoneSettingsResponse = {
     voicemail_transcription?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     voicemail_notification_by_email?: {
@@ -3670,19 +4065,19 @@ type GroupsGetGroupPhoneSettingsResponse = {
         forward_voicemail_to_email?: boolean;
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     shared_voicemail_notification_by_email?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     restricted_call_hours?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
         time_zone?: {
             id?: string;
@@ -3695,7 +4090,7 @@ type GroupsGetGroupPhoneSettingsResponse = {
     allowed_call_locations?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
         locations_applied?: boolean;
         allow_internal_calls?: boolean;
@@ -3703,14 +4098,14 @@ type GroupsGetGroupPhoneSettingsResponse = {
     check_voicemails_over_phone?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     auto_call_recording?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
-        recording_calls?: string;
+        locked_by?: "invalid" | "account" | "user_group";
+        recording_calls?: "inbound" | "outbound" | "both";
         recording_transcription?: boolean;
         recording_start_prompt?: boolean;
         recording_start_prompt_audio_id?: string;
@@ -3719,9 +4114,9 @@ type GroupsGetGroupPhoneSettingsResponse = {
         disconnect_on_recording_failure?: boolean;
         play_recording_beep_tone?: {
             enable?: boolean;
-            play_beep_volume?: number;
-            play_beep_time_interval?: number;
-            play_beep_member?: string;
+            play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+            play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+            play_beep_member?: "allMember" | "recordingSide";
         };
         inbound_audio_notification?: {
             recording_start_prompt?: boolean;
@@ -3737,7 +4132,7 @@ type GroupsGetGroupPhoneSettingsResponse = {
     ad_hoc_call_recording?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "site";
         modified?: boolean;
         recording_transcription?: boolean;
         allow_download?: boolean;
@@ -3746,22 +4141,26 @@ type GroupsGetGroupPhoneSettingsResponse = {
         recording_explicit_consent?: boolean;
         play_recording_beep_tone?: {
             enable?: boolean;
-            play_beep_volume?: number;
-            play_beep_time_interval?: number;
-            play_beep_member?: string;
+            play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+            play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+            play_beep_member?: "allMember" | "recordingSide";
         };
     };
     zoom_phone_on_mobile?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
         allow_calling_sms_mms?: boolean;
+        allow_calling_clients?: ("ios" | "android" | "intune" | "blackberry")[];
+        allow_sms_mms_clients?: ("ios" | "android" | "intune" | "blackberry")[];
     };
     zoom_phone_on_pwa?: {
+        allow_calling?: boolean;
+        allow_sms_mms?: boolean;
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     sms_etiquette_tool?: {
@@ -3771,151 +4170,155 @@ type GroupsGetGroupPhoneSettingsResponse = {
             id?: string;
             name?: string;
             description?: string;
-            rule?: number;
+            rule?: 1 | 2;
             content?: string;
-            action?: number;
+            action?: 1 | 2;
             active?: boolean;
         }[];
     };
     outbound_calling?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     outbound_sms?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
+        allow_copy?: boolean;
+        allow_paste?: boolean;
     };
     international_calling?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     sms?: {
         enable?: boolean;
         international_sms?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
+        allow_copy?: boolean;
+        allow_paste?: boolean;
     };
     e2e_encryption?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     call_handling_forwarding?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
-        call_forwarding_type?: number;
+        call_forwarding_type?: 1 | 2 | 3 | 4;
     };
     call_overflow?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
-        call_overflow_type?: number;
+        call_overflow_type?: 1 | 2 | 3 | 4;
     };
     call_transferring?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
-        call_transferring_type?: number;
+        call_transferring_type?: 1 | 2 | 3 | 4;
     };
     elevate_to_meeting?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     call_park?: {
         enable?: boolean;
-        expiration_period?: number;
+        expiration_period?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
         call_not_picked_up_action?: number;
         forward_to?: {
             display_name?: string;
             extension_id?: string;
             extension_number?: number;
-            extension_type?: string;
+            extension_type?: "user" | "zoomRoom" | "commonArea" | "ciscoRoom/polycomRoom" | "autoReceptionist" | "callQueue" | "sharedLineGroup";
             id?: string;
         };
-        sequence?: number;
+        sequence?: 0 | 1;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     hand_off_to_room?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     mobile_switch_to_carrier?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     delegation?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     audio_intercom?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     block_list_for_inbound_calls_and_messaging?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     block_calls_without_caller_id?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     block_external_calls?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
         block_business_hours?: boolean;
         block_closed_hours?: boolean;
         block_holiday_hours?: boolean;
-        block_call_action?: number;
+        block_call_action?: 0 | 9;
     };
     peer_to_peer_media?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
     };
     advanced_encryption?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
         disable_incoming_unencrypted_voicemail?: boolean;
     };
     display_call_feedback_survey?: {
         enable?: boolean;
         locked?: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "user_group";
         modified?: boolean;
-        feedback_type?: number;
+        feedback_type?: 1 | 2;
         feedback_mos?: {
             enable?: boolean;
             min?: string;
@@ -3926,6 +4329,22 @@ type GroupsGetGroupPhoneSettingsResponse = {
             min?: number;
             max?: number;
         };
+    };
+    zoom_phone_on_desktop?: {
+        allow_calling_clients?: ("mac_os" | "windows" | "vdi_client" | "linux")[];
+        allow_sms_mms_clients?: ("mac_os" | "windows" | "vdi_client" | "linux")[];
+        enable?: boolean;
+        locked?: boolean;
+        locked_by?: "invalid" | "account" | "site";
+        modified?: boolean;
+    };
+    allow_emergency_calls?: {
+        enable?: boolean;
+        locked?: boolean;
+        locked_by?: "invalid" | "account" | "user_group";
+        modified?: boolean;
+        allow_emergency_calls_from_clients?: boolean;
+        allow_emergency_calls_from_deskphones?: boolean;
     };
 };
 type IVRGetAutoReceptionistIVRPathParams = {
@@ -3942,7 +4361,7 @@ type IVRGetAutoReceptionistIVRResponse = {
     };
     caller_enters_no_action?: {
         action?: number;
-        audio_prompt_repeat?: number;
+        audio_prompt_repeat?: 1 | 2 | 3;
         forward_to?: {
             display_name?: string;
             extension_id?: string;
@@ -3973,7 +4392,7 @@ type IVRUpdateAutoReceptionistIVRRequestBody = {
     audio_prompt_id?: string;
     caller_enters_no_action?: {
         action?: number;
-        audio_prompt_repeat?: number;
+        audio_prompt_repeat?: 1 | 2 | 3;
         forward_to_extension_id?: string;
     };
     holiday_id?: string;
@@ -3993,17 +4412,17 @@ type InboundBlockedListListExtensionsInboundBlockRulesPathParams = {
 };
 type InboundBlockedListListExtensionsInboundBlockRulesQueryParams = {
     keyword?: string;
-    match_type?: string;
-    type?: string;
+    match_type?: "prefix" | "phoneNumber" | "SMS-shortCodes";
+    type?: "block_for_other_reasons" | "block_as_threat";
     next_page_token?: string;
     page_size?: number;
 };
 type InboundBlockedListListExtensionsInboundBlockRulesResponse = {
     extension_blocked_rules?: {
         id?: string;
-        match_type?: string;
+        match_type?: "prefix" | "phoneNumber" | "SMS-shortCodes";
         phone_number?: string;
-        type?: string;
+        type?: "block_for_other_reasons" | "block_as_threat";
         blocked_number?: string;
         country?: string;
     }[];
@@ -4014,9 +4433,9 @@ type InboundBlockedListAddExtensionsInboundBlockRulePathParams = {
     extensionId: string;
 };
 type InboundBlockedListAddExtensionsInboundBlockRuleRequestBody = {
-    match_type: string;
+    match_type: "prefix" | "phoneNumber" | "SMS-shortCodes";
     blocked_number: string;
-    type: string;
+    type: "block_for_other_reasons" | "block_as_threat";
     country?: string;
 };
 type InboundBlockedListAddExtensionsInboundBlockRuleResponse = {
@@ -4030,7 +4449,7 @@ type InboundBlockedListDeleteExtensionsInboundBlockRuleQueryParams = {
 };
 type InboundBlockedListListAccountsInboundBlockedStatisticsQueryParams = {
     keyword?: string;
-    match_type?: string;
+    match_type?: "prefix" | "phoneNumber" | "SMS-shortCodes";
     type?: string;
     next_page_token?: string;
     page_size?: number;
@@ -4038,9 +4457,9 @@ type InboundBlockedListListAccountsInboundBlockedStatisticsQueryParams = {
 type InboundBlockedListListAccountsInboundBlockedStatisticsResponse = {
     blocked_statistic?: {
         id?: string;
-        match_type?: string;
+        match_type?: "prefix" | "phoneNumber" | "SMS-shortCodes";
         phone_number?: string;
-        type?: string;
+        type?: "block_for_other_reasons" | "block_as_threat";
         block_count?: number;
         threat_count?: number;
         blocked_number?: string;
@@ -4057,19 +4476,19 @@ type InboundBlockedListMarkPhoneNumberAsBlockedForAllExtensionsRequestBody = {
 };
 type InboundBlockedListListAccountsInboundBlockRulesQueryParams = {
     keyword?: string;
-    match_type?: string;
-    type?: string;
-    status?: string;
+    match_type?: "prefix" | "phoneNumber" | "SMS-shortCodes";
+    type?: "block_for_other_reasons" | "block_as_threat";
+    status?: "active" | "inactive";
     next_page_token?: string;
     page_size?: number;
 };
 type InboundBlockedListListAccountsInboundBlockRulesResponse = {
     account_blocked_rules?: {
         id?: string;
-        match_type?: string;
+        match_type?: "prefix" | "phoneNumber" | "SMS-shortCodes";
         phone_number?: string;
-        type?: string;
-        status?: string;
+        type?: "block_for_other_reasons" | "block_as_threat";
+        status?: "active" | "inactive";
         comment?: string;
         blocked_number?: string;
         country?: string;
@@ -4078,11 +4497,11 @@ type InboundBlockedListListAccountsInboundBlockRulesResponse = {
     page_size?: number;
 };
 type InboundBlockedListAddAccountsInboundBlockRuleRequestBody = {
-    match_type: string;
+    match_type: "prefix" | "phoneNumber" | "SMS-shortCodes";
     blocked_number: string;
-    type: string;
+    type: "block_for_other_reasons" | "block_as_threat";
     comment?: string;
-    status: string;
+    status: "active" | "inactive";
     country?: string;
 };
 type InboundBlockedListAddAccountsInboundBlockRuleResponse = {
@@ -4095,11 +4514,11 @@ type InboundBlockedListUpdateAccountsInboundBlockRulePathParams = {
     blockedRuleId: string;
 };
 type InboundBlockedListUpdateAccountsInboundBlockRuleRequestBody = {
-    match_type: string;
+    match_type: "prefix" | "phoneNumber" | "SMS-shortCodes";
     blocked_number: string;
-    type: string;
+    type: "block_for_other_reasons" | "block_as_threat";
     comment?: string;
-    status?: string;
+    status?: "active" | "inactive";
     country?: string;
 };
 type LineKeysGetLineKeyPositionAndSettingsInformationPathParams = {
@@ -4119,7 +4538,7 @@ type LineKeysGetLineKeyPositionAndSettingsInformationResponse = {
         };
         line_key_id?: string;
         outbound_caller_id?: string;
-        type?: string;
+        type?: "line" | "blf" | "speed_dial" | "zoom_meeting" | "call_park" | "group_call_pickup";
     }[];
 };
 type LineKeysBatchUpdateLineKeyPositionAndSettingsInformationPathParams = {
@@ -4129,7 +4548,7 @@ type LineKeysBatchUpdateLineKeyPositionAndSettingsInformationRequestBody = {
     line_keys?: {
         line_key_id?: string;
         index?: number;
-        type?: string;
+        type?: "line" | "blf" | "speed_dial" | "zoom_meeting" | "call_park" | "group_call_pickup";
         key_assignment?: {
             extension_id?: string;
             speed_dial_number?: string;
@@ -4144,7 +4563,7 @@ type LineKeysDeleteLineKeySettingPathParams = {
     lineKeyId: string;
 };
 type MonitoringGroupsGetListOfMonitoringGroupsOnAccountQueryParams = {
-    type?: number;
+    type?: 1 | 2 | 3 | 4;
     site_id?: string;
     page_size?: number;
     next_page_token?: string;
@@ -4154,25 +4573,25 @@ type MonitoringGroupsGetListOfMonitoringGroupsOnAccountResponse = {
         id?: string;
         monitor_members_count?: number;
         monitored_members_count?: number;
-        monitoring_privileges?: string[];
+        monitoring_privileges?: ("listen" | "whisper" | "barge" | "take_over")[];
         name?: string;
         prompt?: boolean;
         site?: {
             id?: string;
             name?: string;
         };
-        type?: number;
+        type?: 1 | 2 | 3 | 4;
     }[];
     next_page_token?: string;
     page_size?: number;
     total_records?: number;
 };
 type MonitoringGroupsCreateMonitoringGroupRequestBody = {
-    monitoring_privileges?: string[];
+    monitoring_privileges?: ("listen" | "whisper" | "barge" | "take_over")[];
     name?: string;
     prompt?: boolean;
     site_id?: string;
-    type?: number;
+    type?: 1 | 2 | 3 | 4;
 };
 type MonitoringGroupsCreateMonitoringGroupResponse = {
     id?: string;
@@ -4185,14 +4604,14 @@ type MonitoringGroupsGetMonitoringGroupByIDResponse = {
     id?: string;
     monitor_members_count?: number;
     monitored_members_count?: number;
-    monitoring_privileges?: string[];
+    monitoring_privileges?: ("listen" | "whisper" | "barge" | "take_over")[];
     name?: string;
     prompt?: boolean;
     site?: {
         id?: string;
         name?: string;
     };
-    type?: number;
+    type?: 1 | 2 | 3 | 4;
 };
 type MonitoringGroupsDeleteMonitoringGroupPathParams = {
     monitoringGroupId: string;
@@ -4201,7 +4620,7 @@ type MonitoringGroupsUpdateMonitoringGroupPathParams = {
     monitoringGroupId: string;
 };
 type MonitoringGroupsUpdateMonitoringGroupRequestBody = {
-    monitoring_privileges?: string[];
+    monitoring_privileges?: ("listen" | "whisper" | "barge" | "take_over")[];
     name?: string;
     prompt?: boolean;
     site_id?: string;
@@ -4210,7 +4629,7 @@ type MonitoringGroupsGetMembersOfMonitoringGroupPathParams = {
     monitoringGroupId: string;
 };
 type MonitoringGroupsGetMembersOfMonitoringGroupQueryParams = {
-    member_type: string;
+    member_type: "monitor" | "monitored";
     page_size?: number;
     next_page_token?: string;
 };
@@ -4219,7 +4638,7 @@ type MonitoringGroupsGetMembersOfMonitoringGroupResponse = {
         display_name?: string;
         extension_id?: string;
         extension_number?: number;
-        extension_type?: string;
+        extension_type?: "user" | "call_queue" | "shared_line_group" | "common_area_phone";
     }[];
     next_page_token?: string;
     page_size?: number;
@@ -4229,21 +4648,22 @@ type MonitoringGroupsAddMembersToMonitoringGroupPathParams = {
     monitoringGroupId: string;
 };
 type MonitoringGroupsAddMembersToMonitoringGroupQueryParams = {
-    member_type: string;
+    member_type: "monitor" | "monitored";
 };
 type MonitoringGroupsAddMembersToMonitoringGroupRequestBody = string[];
+type MonitoringGroupsAddMembersToMonitoringGroupResponse = never;
 type MonitoringGroupsRemoveAllMonitorsOrMonitoredMembersFromMonitoringGroupPathParams = {
     monitoringGroupId: string;
 };
 type MonitoringGroupsRemoveAllMonitorsOrMonitoredMembersFromMonitoringGroupQueryParams = {
-    member_type: string;
+    member_type: "monitor" | "monitored";
 };
 type MonitoringGroupsRemoveMemberFromMonitoringGroupPathParams = {
     monitoringGroupId: string;
     memberExtensionId: string;
 };
 type MonitoringGroupsRemoveMemberFromMonitoringGroupQueryParams = {
-    member_type?: string;
+    member_type?: "monitor" | "monitored";
 };
 type OutboundCallingGetCommonAreaLevelOutboundCallingCountriesAndRegionsPathParams = {
     commonAreaId: string;
@@ -4257,7 +4677,7 @@ type OutboundCallingGetCommonAreaLevelOutboundCallingCountriesAndRegionsResponse
         name?: string;
         code?: number;
         iso_code?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         enabled_carrier?: string[];
     }[];
     next_page_token?: string;
@@ -4269,7 +4689,7 @@ type OutboundCallingUpdateCommonAreaLevelOutboundCallingCountriesOrRegionsPathPa
 type OutboundCallingUpdateCommonAreaLevelOutboundCallingCountriesOrRegionsRequestBody = {
     country_regions?: {
         iso_code?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         delete_existing_exception_rules?: boolean;
     }[];
 };
@@ -4279,19 +4699,19 @@ type OutboundCallingListCommonAreaLevelOutboundCallingExceptionRulesPathParams =
 type OutboundCallingListCommonAreaLevelOutboundCallingExceptionRulesQueryParams = {
     country?: string;
     keyword?: string;
-    match_type?: string;
-    status?: string;
+    match_type?: "phoneNumber" | "prefix";
+    status?: "active" | "inactive";
     next_page_token?: string;
     page_size?: number;
 };
 type OutboundCallingListCommonAreaLevelOutboundCallingExceptionRulesResponse = {
     exception_rules?: {
         id?: string;
-        match_type?: string;
+        match_type?: "phoneNumber" | "prefix";
         prefix_number?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         comment?: string;
-        status?: string;
+        status?: "active" | "inactive";
     }[];
     next_page_token?: string;
     page_size?: number;
@@ -4301,10 +4721,10 @@ type OutboundCallingAddCommonAreaLevelOutboundCallingExceptionRulePathParams = {
 };
 type OutboundCallingAddCommonAreaLevelOutboundCallingExceptionRuleRequestBody = {
     exception_rule?: {
-        match_type: string;
+        match_type: "phoneNumber" | "prefix";
         prefix_number: string;
         comment?: string;
-        status: string;
+        status: "active" | "inactive";
         country: string;
     };
 };
@@ -4321,10 +4741,10 @@ type OutboundCallingUpdateCommonAreaLevelOutboundCallingExceptionRulePathParams 
 };
 type OutboundCallingUpdateCommonAreaLevelOutboundCallingExceptionRuleRequestBody = {
     exception_rule?: {
-        match_type: string;
+        match_type: "phoneNumber" | "prefix";
         prefix_number: string;
         comment?: string;
-        status: string;
+        status: "active" | "inactive";
         country: string;
     };
 };
@@ -4337,7 +4757,7 @@ type OutboundCallingGetAccountLevelOutboundCallingCountriesAndRegionsResponse = 
         name?: string;
         code?: number;
         iso_code?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         enabled_carrier?: string[];
     }[];
     next_page_token?: string;
@@ -4346,36 +4766,36 @@ type OutboundCallingGetAccountLevelOutboundCallingCountriesAndRegionsResponse = 
 type OutboundCallingUpdateAccountLevelOutboundCallingCountriesOrRegionsRequestBody = {
     country_regions?: {
         iso_code?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         delete_existing_exception_rules?: boolean;
     }[];
 };
 type OutboundCallingListAccountLevelOutboundCallingExceptionRulesQueryParams = {
     country?: string;
     keyword?: string;
-    match_type?: string;
-    status?: string;
+    match_type?: "phoneNumber" | "prefix";
+    status?: "active" | "inactive";
     next_page_token?: string;
     page_size?: number;
 };
 type OutboundCallingListAccountLevelOutboundCallingExceptionRulesResponse = {
     exception_rules?: {
         id?: string;
-        match_type?: string;
+        match_type?: "phoneNumber" | "prefix";
         prefix_number?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         comment?: string;
-        status?: string;
+        status?: "active" | "inactive";
     }[];
     next_page_token?: string;
     page_size?: number;
 };
 type OutboundCallingAddAccountLevelOutboundCallingExceptionRuleRequestBody = {
     exception_rule?: {
-        match_type: string;
+        match_type: "phoneNumber" | "prefix";
         prefix_number: string;
         comment?: string;
-        status: string;
+        status: "active" | "inactive";
         country: string;
     };
 };
@@ -4390,10 +4810,10 @@ type OutboundCallingUpdateAccountLevelOutboundCallingExceptionRulePathParams = {
 };
 type OutboundCallingUpdateAccountLevelOutboundCallingExceptionRuleRequestBody = {
     exception_rule?: {
-        match_type: string;
+        match_type: "phoneNumber" | "prefix";
         prefix_number: string;
         comment?: string;
-        status: string;
+        status: "active" | "inactive";
         country: string;
     };
 };
@@ -4409,7 +4829,7 @@ type OutboundCallingGetSiteLevelOutboundCallingCountriesAndRegionsResponse = {
         name?: string;
         code?: number;
         iso_code?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         enabled_carrier?: string[];
     }[];
     next_page_token?: string;
@@ -4421,7 +4841,7 @@ type OutboundCallingUpdateSiteLevelOutboundCallingCountriesOrRegionsPathParams =
 type OutboundCallingUpdateSiteLevelOutboundCallingCountriesOrRegionsRequestBody = {
     country_regions?: {
         iso_code?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         delete_existing_exception_rules?: boolean;
     }[];
 };
@@ -4431,19 +4851,19 @@ type OutboundCallingListSiteLevelOutboundCallingExceptionRulesPathParams = {
 type OutboundCallingListSiteLevelOutboundCallingExceptionRulesQueryParams = {
     country?: string;
     keyword?: string;
-    match_type?: string;
-    status?: string;
+    match_type?: "phoneNumber" | "prefix";
+    status?: "active" | "inactive";
     next_page_token?: string;
     page_size?: number;
 };
 type OutboundCallingListSiteLevelOutboundCallingExceptionRulesResponse = {
     exception_rules?: {
         id?: string;
-        match_type?: string;
+        match_type?: "phoneNumber" | "prefix";
         prefix_number?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         comment?: string;
-        status?: string;
+        status?: "active" | "inactive";
     }[];
     next_page_token?: string;
     page_size?: number;
@@ -4453,10 +4873,10 @@ type OutboundCallingAddSiteLevelOutboundCallingExceptionRulePathParams = {
 };
 type OutboundCallingAddSiteLevelOutboundCallingExceptionRuleRequestBody = {
     exception_rule?: {
-        match_type: string;
+        match_type: "phoneNumber" | "prefix";
         prefix_number: string;
         comment?: string;
-        status: string;
+        status: "active" | "inactive";
         country: string;
     };
 };
@@ -4473,10 +4893,10 @@ type OutboundCallingUpdateSiteLevelOutboundCallingExceptionRulePathParams = {
 };
 type OutboundCallingUpdateSiteLevelOutboundCallingExceptionRuleRequestBody = {
     exception_rule?: {
-        match_type: string;
+        match_type: "phoneNumber" | "prefix";
         prefix_number: string;
         comment?: string;
-        status: string;
+        status: "active" | "inactive";
         country: string;
     };
 };
@@ -4492,7 +4912,7 @@ type OutboundCallingGetUserLevelOutboundCallingCountriesAndRegionsResponse = {
         name?: string;
         code?: number;
         iso_code?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         enabled_carrier?: string[];
     }[];
     next_page_token?: string;
@@ -4504,7 +4924,7 @@ type OutboundCallingUpdateUserLevelOutboundCallingCountriesOrRegionsPathParams =
 type OutboundCallingUpdateUserLevelOutboundCallingCountriesOrRegionsRequestBody = {
     country_regions?: {
         iso_code?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         delete_existing_exception_rules?: boolean;
     }[];
 };
@@ -4514,19 +4934,19 @@ type OutboundCallingListUserLevelOutboundCallingExceptionRulesPathParams = {
 type OutboundCallingListUserLevelOutboundCallingExceptionRulesQueryParams = {
     country?: string;
     keyword?: string;
-    match_type?: string;
-    status?: string;
+    match_type?: "phoneNumber" | "prefix";
+    status?: "active" | "inactive";
     next_page_token?: string;
     page_size?: number;
 };
 type OutboundCallingListUserLevelOutboundCallingExceptionRulesResponse = {
     exception_rules?: {
         id?: string;
-        match_type?: string;
+        match_type?: "phoneNumber" | "prefix";
         prefix_number?: string;
-        rule?: number;
+        rule?: 1 | 2 | 3 | 4;
         comment?: string;
-        status?: string;
+        status?: "active" | "inactive";
     }[];
     next_page_token?: string;
     page_size?: number;
@@ -4536,10 +4956,10 @@ type OutboundCallingAddUserLevelOutboundCallingExceptionRulePathParams = {
 };
 type OutboundCallingAddUserLevelOutboundCallingExceptionRuleRequestBody = {
     exception_rule?: {
-        match_type: string;
+        match_type: "phoneNumber" | "prefix";
         prefix_number: string;
         comment?: string;
-        status: string;
+        status: "active" | "inactive";
         country: string;
     };
 };
@@ -4556,20 +4976,20 @@ type OutboundCallingUpdateUserLevelOutboundCallingExceptionRulePathParams = {
 };
 type OutboundCallingUpdateUserLevelOutboundCallingExceptionRuleRequestBody = {
     exception_rule?: {
-        match_type: string;
+        match_type: "phoneNumber" | "prefix";
         prefix_number: string;
         comment?: string;
-        status: string;
+        status: "active" | "inactive";
         country: string;
     };
 };
 type PhoneDevicesListDevicesQueryParams = {
-    type: string;
-    assignee_type?: string;
-    device_source?: string;
-    location_status?: string;
+    type: "assigned" | "unassigned";
+    assignee_type?: "user" | "commonArea";
+    device_source?: "haas" | "hotDesking";
+    location_status?: "unknownAddress";
     site_id?: string;
-    device_type?: string;
+    device_type?: "algo" | "audioCodes" | "cisco" | "cyberData" | "grandstream" | "poly" | "yealink" | "other";
     keyword?: string;
     next_page_token?: string;
     page_size?: number;
@@ -4580,13 +5000,13 @@ type PhoneDevicesListDevicesResponse = {
             extension_number?: number;
             id?: string;
             name?: string;
-            extension_type?: string;
+            extension_type?: "user" | "commonArea";
         };
         assignees?: {
             extension_number?: number;
             id?: string;
             name?: string;
-            extension_type?: string;
+            extension_type?: "user" | "commonArea";
             extension_id?: string;
         }[];
         device_type?: string;
@@ -4597,7 +5017,7 @@ type PhoneDevicesListDevicesResponse = {
             id?: string;
             name?: string;
         };
-        status?: string;
+        status?: "online" | "offline";
         provision_template_id?: string;
     }[];
     next_page_token?: string;
@@ -4629,13 +5049,13 @@ type PhoneDevicesGetDeviceDetailsResponse = {
         extension_number?: number;
         id?: string;
         name?: string;
-        extension_type?: string;
+        extension_type?: "user" | "commonArea";
     };
     assignees?: {
         extension_number?: number;
         id?: string;
         name?: string;
-        extension_type?: string;
+        extension_type?: "user" | "commonArea";
         extension_id?: string;
     }[];
     device_type?: string;
@@ -4660,23 +5080,23 @@ type PhoneDevicesGetDeviceDetailsResponse = {
             sip_domain?: string;
             user_name?: string;
         }[];
-        type?: string;
+        type?: "assisted" | "ztp" | "manual";
         url?: string;
     };
     site?: {
         id?: string;
         name?: string;
     };
-    status?: string;
+    status?: "online" | "offline";
     provision_template_id?: string;
     private_ip?: string;
     public_ip?: string;
     policy?: {
         call_control?: {
-            status?: string;
+            status?: "unsupported" | "on" | "off";
         };
         hot_desking?: {
-            status?: string;
+            status?: "unsupported" | "on" | "off";
         };
     };
 };
@@ -4689,7 +5109,6 @@ type PhoneDevicesUpdateDevicePathParams = {
 type PhoneDevicesUpdateDeviceRequestBody = {
     assigned_to?: string;
     display_name?: string;
-    mac_address?: string;
     provision_template_id?: string;
 };
 type PhoneDevicesAssignEntityToDevicePathParams = {
@@ -4698,6 +5117,7 @@ type PhoneDevicesAssignEntityToDevicePathParams = {
 type PhoneDevicesAssignEntityToDeviceRequestBody = {
     assignee_extension_ids: string[];
 };
+type PhoneDevicesAssignEntityToDeviceResponse = never;
 type PhoneDevicesUnassignEntityFromDevicePathParams = {
     deviceId: string;
     extensionId: string;
@@ -4710,6 +5130,35 @@ type PhoneDevicesUpdateProvisionTemplateOfDeviceRequestBody = {
 };
 type PhoneDevicesRebootDeskPhonePathParams = {
     deviceId: string;
+};
+type PhoneDevicesListSmartphonesQueryParams = {
+    site_id?: string;
+    keyword?: string;
+    next_page_token?: string;
+    page_size?: number;
+};
+type PhoneDevicesListSmartphonesResponse = {
+    smartphones: {
+        smartphone_id?: string;
+        device_name?: string;
+        device_type?: string;
+        serial_number?: string;
+        public_ip?: string;
+        activation_status?: "Activated";
+        activation_time?: string;
+        assignee?: {
+            common_area_id?: string;
+            name?: string;
+            extension_number?: number;
+        };
+        site?: {
+            site_id?: string;
+            name?: string;
+        };
+    }[];
+    next_page_token?: string;
+    page_size?: number;
+    total_records?: number;
 };
 type PhoneNumbersAddBYOCPhoneNumbersRequestBody = {
     carrier: string;
@@ -4725,10 +5174,10 @@ type PhoneNumbersAddBYOCPhoneNumbersResponse = {
 };
 type PhoneNumbersListPhoneNumbersQueryParams = {
     next_page_token?: string;
-    type?: string;
-    extension_type?: string;
+    type?: "assigned" | "unassigned" | "byoc" | "all";
+    extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "emergencyNumberPool" | "companyLocation" | "meetingService";
     page_size?: number;
-    number_type?: string;
+    number_type?: "toll" | "tollfree";
     pending_numbers?: boolean;
     site_id?: string;
 };
@@ -4740,7 +5189,7 @@ type PhoneNumbersListPhoneNumbersResponse = {
             extension_number?: number;
             id?: string;
             name?: string;
-            type?: string;
+            type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "emergencyNumberPool" | "companyLocation" | "meetingService";
         };
         capability?: string[];
         carrier?: {
@@ -4756,12 +5205,12 @@ type PhoneNumbersListPhoneNumbersResponse = {
             state_code?: string;
             zip?: string;
         };
-        emergency_address_status?: number;
+        emergency_address_status?: 1 | 2;
         emergency_address_update_time?: string;
         id?: string;
         location?: string;
         number?: string;
-        number_type?: string;
+        number_type?: "toll" | "tollfree";
         sip_group?: {
             display_name?: string;
             id?: string;
@@ -4770,8 +5219,8 @@ type PhoneNumbersListPhoneNumbersResponse = {
             id?: string;
             name?: string;
         };
-        source?: string;
-        status?: string;
+        source?: "internal" | "external";
+        status?: "pending" | "available";
     }[];
     total_records?: number;
 };
@@ -4804,7 +5253,7 @@ type PhoneNumbersGetPhoneNumberResponse = {
             id?: string;
             name?: string;
         };
-        type?: string;
+        type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "emergencyNumberPool" | "companyLocation" | "meetingService";
     };
     capability?: string[];
     carrier?: {
@@ -4820,12 +5269,12 @@ type PhoneNumbersGetPhoneNumberResponse = {
         state_code?: string;
         zip?: string;
     };
-    emergency_address_status?: number;
+    emergency_address_status?: 1 | 2;
     emergency_address_update_time?: string;
     id?: string;
     location?: string;
     number?: string;
-    number_type?: string;
+    number_type?: "toll" | "tollfree";
     sip_group?: {
         display_name?: string;
         id?: string;
@@ -4834,8 +5283,8 @@ type PhoneNumbersGetPhoneNumberResponse = {
         id?: string;
         name?: string;
     };
-    source?: string;
-    status?: string;
+    source?: "internal" | "external";
+    status?: "pending" | "available";
 };
 type PhoneNumbersUpdatePhoneNumberPathParams = {
     phoneNumberId: string;
@@ -4874,6 +5323,8 @@ type PhonePlansListCallingPlansResponse = {
         type?: number;
         billing_account_id?: string;
         billing_account_name?: string;
+        billing_subscription_id?: string;
+        billing_subscription_name?: string;
     }[];
 };
 type PhonePlansListPlanInformationResponse = {
@@ -4883,6 +5334,8 @@ type PhonePlansListPlanInformationResponse = {
         name?: string;
         subscribed?: number;
         type?: number;
+        billing_subscription_id?: string;
+        billing_subscription_name?: string;
     }[];
     phone_numbers?: {
         assigned?: number;
@@ -4962,6 +5415,62 @@ type PhoneRolesDeleteMembersInRolePathParams = {
 type PhoneRolesDeleteMembersInRoleQueryParams = {
     user_ids: string[];
 };
+type PhoneRolesListPhoneRoleTargetsPathParams = {
+    roleId: string;
+};
+type PhoneRolesListPhoneRoleTargetsQueryParams = {
+    is_default?: boolean;
+    user_id?: string;
+    selected?: boolean;
+    target_type?: "site" | "callQueue" | "autoReceptionist" | "user" | "group" | "sharedLineGroup" | "commonArea";
+    site_id?: string;
+    keyword?: string;
+    page_size?: string;
+    next_page_token?: string;
+};
+type PhoneRolesListPhoneRoleTargetsResponse = {
+    next_page_token?: string;
+    page_size?: number;
+    total_records?: number;
+    targets?: {
+        target_id?: string;
+        target_type?: "site" | "callQueue" | "autoReceptionist" | "user" | "group" | "sharedLineGroup" | "commonArea";
+        target_name?: string;
+        extension_number?: number;
+        site_id?: string;
+        site_name?: string;
+    }[];
+};
+type PhoneRolesAddPhoneRoleTargetsPathParams = {
+    roleId: string;
+};
+type PhoneRolesAddPhoneRoleTargetsRequestBody = {
+    is_default?: boolean;
+    user_id?: string;
+    targets: {
+        target_type?: "site" | "callQueue" | "autoReceptionist" | "user" | "group" | "sharedLineGroup" | "commonArea";
+        target_ids: string[];
+    }[];
+};
+type PhoneRolesAddPhoneRoleTargetsResponse = {
+    is_default?: boolean;
+    user_id?: string;
+    targets?: {
+        target_type?: "site" | "callQueue" | "autoReceptionist" | "user" | "group" | "sharedLineGroup" | "commonArea";
+        target_ids?: string[];
+    }[];
+};
+type PhoneRolesDeletePhoneRoleTargetsPathParams = {
+    roleId: string;
+};
+type PhoneRolesDeletePhoneRoleTargetsRequestBody = {
+    is_default?: boolean;
+    user_id?: string;
+    targets: {
+        target_type?: "site" | "callQueue" | "autoReceptionist" | "user" | "group" | "sharedLineGroup" | "commonArea";
+        target_ids: string[];
+    }[];
+};
 type PrivateDirectoryListPrivateDirectoryMembersQueryParams = {
     next_page_token?: string;
     page_size?: number;
@@ -4974,11 +5483,11 @@ type PrivateDirectoryListPrivateDirectoryMembersResponse = {
     total_records?: number;
     private_directory_members?: {
         extension_id: string;
-        extension_type: string;
+        extension_type: "user" | "zoom_room" | "common_area" | "auto_receptionist" | "call_queue" | "shared_line_group";
         extension_number: number;
         extension_display_name: string;
         extension_email?: string;
-        searchable_on_web_portal: string;
+        searchable_on_web_portal: "everybody" | "admins_only" | "nobody";
         site_id?: string;
         site_name?: string;
     }[];
@@ -4987,7 +5496,7 @@ type PrivateDirectoryAddMembersToPrivateDirectoryRequestBody = {
     site_id?: string;
     members: {
         extension_id: string;
-        searchable_on_web_portal: string;
+        searchable_on_web_portal: "everybody" | "admins_only" | "nobody";
     }[];
 };
 type PrivateDirectoryRemoveMemberFromPrivateDirectoryPathParams = {
@@ -5001,7 +5510,7 @@ type PrivateDirectoryUpdatePrivateDirectoryMemberPathParams = {
 };
 type PrivateDirectoryUpdatePrivateDirectoryMemberRequestBody = {
     site_id?: string;
-    searchable_on_web_portal: string;
+    searchable_on_web_portal: "everybody" | "admins_only" | "nobody";
 };
 type ProviderExchangeListCarrierPeeringPhoneNumbersQueryParams = {
     page_size?: number;
@@ -5133,12 +5642,13 @@ type RecordingsGetRecordingByCallIDPathParams = {
 type RecordingsGetRecordingByCallIDResponse = {
     call_id?: string;
     call_log_id?: string;
+    call_history_id?: string;
     callee_name?: string;
     callee_number?: string;
-    callee_number_type?: number;
+    callee_number_type?: 1 | 2 | 3;
     caller_name?: string;
     caller_number?: string;
-    caller_number_type?: number;
+    caller_number_type?: 1 | 2;
     outgoing_by?: {
         name?: string;
         extension_number?: string;
@@ -5158,16 +5668,16 @@ type RecordingsGetRecordingByCallIDResponse = {
         extension_number?: number;
         id?: string;
         name?: string;
-        type?: string;
-        extension_status?: string;
+        type?: "user" | "callQueue" | "commonArea";
+        extension_status?: "inactive" | "deleted";
         extension_deleted_time?: string;
     };
     deleted_time?: string;
     days_left_auto_permantely_delete?: number;
-    soft_deleted_type?: string;
-    recording_type?: string;
+    soft_deleted_type?: "Manual" | "Data Retention";
+    recording_type?: "OnDemand" | "Automatic";
     file_url?: string;
-    disclaimer_status?: number;
+    disclaimer_status?: 0 | 1 | 2;
 };
 type RecordingsDownloadPhoneRecordingPathParams = {
     fileId: string;
@@ -5195,10 +5705,10 @@ type RecordingsGetCallRecordingsResponse = {
         call_log_id?: string;
         callee_name?: string;
         callee_number?: string;
-        callee_number_type?: number;
+        callee_number_type?: 1 | 2 | 3;
         caller_name?: string;
         caller_number?: string;
-        caller_number_type?: number;
+        caller_number_type?: 1 | 2;
         outgoing_by?: {
             name?: string;
             extension_number?: string;
@@ -5208,8 +5718,8 @@ type RecordingsGetCallRecordingsResponse = {
             extension_number?: string;
         };
         date_time?: string;
-        disclaimer_status?: number;
-        direction?: string;
+        disclaimer_status?: 0 | 1 | 2;
+        direction?: "inbound" | "outbound";
         download_url?: string;
         duration?: number;
         end_time?: string;
@@ -5219,8 +5729,8 @@ type RecordingsGetCallRecordingsResponse = {
             extension_number?: number;
             id?: string;
             name?: string;
-            type?: string;
-            extension_status?: string;
+            type?: "user" | "callQueue" | "commonArea";
+            extension_status?: "inactive" | "deleted";
             extension_deleted_time?: string;
         };
         recording_type?: string;
@@ -5246,7 +5756,7 @@ type RecordingsUpdateRecordingStatusPathParams = {
     recordingId: string;
 };
 type RecordingsUpdateRecordingStatusRequestBody = {
-    action?: string;
+    action?: "recover";
 };
 type RecordingsGetUsersRecordingsPathParams = {
     userId: string;
@@ -5268,10 +5778,10 @@ type RecordingsGetUsersRecordingsResponse = {
         call_history_id?: string;
         callee_name?: string;
         callee_number?: string;
-        callee_number_type?: number;
+        callee_number_type?: 1 | 2 | 3;
         caller_name?: string;
         caller_number?: string;
-        caller_number_type?: number;
+        caller_number_type?: 1 | 2;
         outgoing_by?: {
             name?: string;
             extension_number?: string;
@@ -5311,15 +5821,15 @@ type ReportsGetCallChargesUsageReportResponse = {
         caller_billing_number?: string;
         callee_number?: string;
         callee_billing_number?: string;
-        call_type?: string;
-        service_type?: string;
+        call_type?: "voip" | "local" | "tollfree" | "international" | "callCenter";
+        service_type?: "meeting" | "call";
         calling_party_name?: string;
         cost_center?: string;
         employee_id?: string;
         department?: string;
         end_time?: string;
         duration?: number;
-        charge_mode?: string;
+        charge_mode?: "per_min" | "per_call" | "per_call_per_min" | "per_min_after_t_duration" | "per_call_per_min_after_t_duration";
         rate?: string;
         currency?: string;
         total_charge?: string;
@@ -5394,7 +5904,7 @@ type RoutingRulesListDirectoryBackupRoutingRulesResponse = {
             id?: string;
             name?: string;
         };
-        type?: string;
+        type?: "other_sites" | "pstn" | "sip_group";
     };
     routing_rule_id?: string;
     site_id?: string;
@@ -5406,7 +5916,7 @@ type RoutingRulesAddDirectoryBackupRoutingRuleRequestBody = {
     sip_group_id?: string;
     site_id?: string;
     translation?: string;
-    type?: string;
+    type?: "other_sites" | "pstn" | "sip_group";
 };
 type RoutingRulesAddDirectoryBackupRoutingRuleResponse = {
     name?: string;
@@ -5424,7 +5934,7 @@ type RoutingRulesGetDirectoryBackupRoutingRuleResponse = {
             id?: string;
             name?: string;
         };
-        type?: string;
+        type?: "other_sites" | "pstn" | "sip_group";
     };
     routing_rule_id?: string;
     site_id?: string;
@@ -5442,7 +5952,28 @@ type RoutingRulesUpdateDirectoryBackupRoutingRuleRequestBody = {
     order?: number;
     sip_group_id?: string;
     translation?: string;
-    type?: string;
+    type?: "other_sites" | "pstn" | "sip_group";
+};
+type SMSPostSMSMessageRequestBody = {
+    attachments?: {
+        base64_encoding?: string;
+        type?: string;
+    }[];
+    message?: string;
+    sender?: {
+        id?: string;
+        user_id?: string;
+        phone_number: string;
+    };
+    session_id?: string;
+    to_members: {
+        phone_number?: string;
+    }[];
+};
+type SMSPostSMSMessageResponse = {
+    date_time?: string;
+    message_id?: string;
+    session_id?: string;
 };
 type SMSGetAccountsSMSSessionsQueryParams = {
     page_size?: number;
@@ -5451,7 +5982,7 @@ type SMSGetAccountsSMSSessionsQueryParams = {
     to?: string;
     session_type?: string;
     phone_number?: string;
-    filter_type?: string;
+    filter_type?: "sent_message_time" | "received_message_time" | "last_message_time" | "sent_received_message_time";
 };
 type SMSGetAccountsSMSSessionsResponse = {
     next_page_token?: string;
@@ -5462,11 +5993,11 @@ type SMSGetAccountsSMSSessionsResponse = {
             display_name?: string;
             owner?: {
                 id?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
             };
             phone_number?: string;
             is_session_owner?: boolean;
-            extension_status?: string;
+            extension_status?: "inactive" | "deleted";
             extension_deleted_time?: string;
         }[];
         session_id?: string;
@@ -5492,18 +6023,18 @@ type SMSGetSMSSessionDetailsResponse = {
             id?: string;
             name?: string;
             size?: number;
-            type?: string;
+            type?: "OTHER" | "PNG" | "GIF" | "JPG" | "AUDIO" | "VIDEO";
         }[];
         date_time?: string;
         direction?: string;
         message?: string;
         message_id?: string;
-        message_type?: number;
+        message_type?: 1 | 2 | 3 | 4 | 5 | 6;
         sender?: {
             display_name?: string;
             owner?: {
                 id?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
             };
             phone_number: string;
         };
@@ -5511,7 +6042,7 @@ type SMSGetSMSSessionDetailsResponse = {
             display_name?: string;
             owner?: {
                 id?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
             };
             phone_number: string;
         }[];
@@ -5527,18 +6058,18 @@ type SMSGetSMSByMessageIDResponse = {
         id?: string;
         name?: string;
         size?: number;
-        type?: string;
+        type?: "OTHER" | "PNG" | "GIF" | "JPG" | "AUDIO" | "VIDEO";
     }[];
     date_time?: string;
     direction?: string;
     message?: string;
     message_id?: string;
-    message_type?: number;
+    message_type?: 1 | 2 | 3 | 4 | 5 | 6;
     sender?: {
         display_name?: string;
         owner?: {
             id?: string;
-            type?: string;
+            type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
         };
         phone_number: string;
     };
@@ -5546,7 +6077,7 @@ type SMSGetSMSByMessageIDResponse = {
         display_name?: string;
         owner?: {
             id?: string;
-            type?: string;
+            type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
         };
         phone_number: string;
     }[];
@@ -5555,7 +6086,7 @@ type SMSSyncSMSBySessionIDPathParams = {
     sessionId: string;
 };
 type SMSSyncSMSBySessionIDQueryParams = {
-    sync_type?: string;
+    sync_type?: "FSync" | "ISync" | "BSync";
     count?: number;
     sync_token?: string;
 };
@@ -5566,18 +6097,18 @@ type SMSSyncSMSBySessionIDResponse = {
             id?: string;
             name?: string;
             size?: number;
-            type?: string;
+            type?: "OTHER" | "PNG" | "GIF" | "JPG" | "AUDIO" | "VIDEO";
         }[];
         date_time?: string;
         direction?: string;
         message?: string;
         message_id?: string;
-        message_type?: number;
+        message_type?: 1 | 2 | 3 | 4 | 5 | 6;
         sender?: {
             display_name?: string;
             owner?: {
                 id?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
             };
             phone_number: string;
         };
@@ -5585,7 +6116,7 @@ type SMSSyncSMSBySessionIDResponse = {
             display_name?: string;
             owner?: {
                 id?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
             };
             phone_number: string;
         }[];
@@ -5602,7 +6133,7 @@ type SMSGetUsersSMSSessionsQueryParams = {
     from?: string;
     to?: string;
     phone_number?: string;
-    filter_type?: string;
+    filter_type?: "sent_message_time" | "received_message_time" | "last_message_time" | "sent_received_message_time";
 };
 type SMSGetUsersSMSSessionsResponse = {
     next_page_token?: string;
@@ -5613,7 +6144,7 @@ type SMSGetUsersSMSSessionsResponse = {
             display_name?: string;
             owner?: {
                 id?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
             };
             phone_number?: string;
             is_session_owner?: boolean;
@@ -5626,7 +6157,7 @@ type SMSListUsersSMSSessionsInDescendingOrderPathParams = {
     userId: string;
 };
 type SMSListUsersSMSSessionsInDescendingOrderQueryParams = {
-    sync_type: string;
+    sync_type: "FSync" | "BSync" | "ISync";
     sync_token?: string;
     count?: number;
     session_type?: string;
@@ -5637,18 +6168,18 @@ type SMSListUsersSMSSessionsInDescendingOrderResponse = {
         latest_message?: {
             attachments?: {
                 id?: string;
-                type?: string;
+                type?: "OTHER" | "PNG" | "GIF" | "JPG/JPEG" | "AUDIO" | "VIDEO";
             }[];
             date_time?: string;
             direction?: string;
             message?: string;
             message_id?: string;
-            message_type?: number;
+            message_type?: 1 | 2 | 3 | 4 | 5 | 6;
             sender?: {
                 display_name?: string;
                 owner?: {
                     id?: string;
-                    type?: string;
+                    type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
                 };
                 phone_number: string;
             };
@@ -5656,7 +6187,7 @@ type SMSListUsersSMSSessionsInDescendingOrderResponse = {
                 display_name?: string;
                 owner?: {
                     id?: string;
-                    type?: string;
+                    type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
                 };
                 phone_number: string;
             }[];
@@ -5665,7 +6196,7 @@ type SMSListUsersSMSSessionsInDescendingOrderResponse = {
             display_name?: string;
             owner?: {
                 id?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
             };
             phone_number?: string;
             is_session_owner?: boolean;
@@ -5686,7 +6217,7 @@ type SMSCampaignListSMSCampaignsResponse = {
     sms_campaigns?: {
         id?: string;
         display_name?: string;
-        status?: string;
+        status?: "draft" | "active" | "expired" | "pending" | "declined" | "--";
         brand?: {
             id?: string;
             name?: string;
@@ -5700,8 +6231,8 @@ type SMSCampaignGetSMSCampaignPathParams = {
 type SMSCampaignGetSMSCampaignResponse = {
     id?: string;
     display_name?: string;
-    status?: string;
-    service_type?: string;
+    status?: "draft" | "active" | "expired" | "pending" | "declined" | "--";
+    service_type?: "zoomPhone" | "contactCenter";
     brand?: {
         id?: string;
         name?: string;
@@ -5712,9 +6243,9 @@ type SMSCampaignGetSMSCampaignResponse = {
     }[];
     auto_renew?: boolean;
     create_time?: string;
-    use_case?: string;
+    use_case?: "lowVolumeMixed";
     categories_fit?: boolean;
-    content_type?: string[];
+    content_type?: ("urlLink" | "phoneNumber" | "ageGated" | "lending")[];
     sample_message_1?: string;
     sample_message_2?: string;
     sample_message_3?: string;
@@ -5725,10 +6256,14 @@ type SMSCampaignAssignPhoneNumberToSMSCampaignPathParams = {
     smsCampaignId: string;
 };
 type SMSCampaignAssignPhoneNumberToSMSCampaignRequestBody = {
-    phone_numbers?: {
+    phone_numbers: {
         id?: string;
         number?: string;
     }[];
+    loa_authorizing_person: string;
+    contact_number: string;
+    title: string;
+    contact_emails?: string;
 };
 type SMSCampaignAssignPhoneNumberToSMSCampaignResponse = {
     phone_numbers?: {
@@ -5747,7 +6282,7 @@ type SMSCampaignListOptStatusesOfPhoneNumbersAssignedToSMSCampaignResponse = {
     phone_number_campaign_opt_statuses: {
         consumer_phone_number: string;
         zoom_phone_user_number: string;
-        opt_status: string;
+        opt_status: "pending" | "opt_out" | "opt_in";
     }[];
 };
 type SMSCampaignUpdateOptStatusesOfPhoneNumbersAssignedToSMSCampaignPathParams = {
@@ -5756,11 +6291,25 @@ type SMSCampaignUpdateOptStatusesOfPhoneNumbersAssignedToSMSCampaignPathParams =
 type SMSCampaignUpdateOptStatusesOfPhoneNumbersAssignedToSMSCampaignRequestBody = {
     consumer_phone_number: string;
     zoom_phone_user_numbers: string[];
-    opt_status: string;
+    opt_status: "opt_in" | "opt_out";
 };
 type SMSCampaignUnassignPhoneNumberPathParams = {
     smsCampaignId: string;
     phoneNumberId: string;
+};
+type SMSCampaignListUsersOptStatusesOfPhoneNumbersPathParams = {
+    userId: string;
+};
+type SMSCampaignListUsersOptStatusesOfPhoneNumbersQueryParams = {
+    consumer_phone_numbers: string[];
+    zoom_phone_user_numbers: string[];
+};
+type SMSCampaignListUsersOptStatusesOfPhoneNumbersResponse = {
+    phone_number_campaign_opt_statuses: {
+        consumer_phone_number: string;
+        zoom_phone_user_number: string;
+        opt_status: "pending" | "opt_out" | "opt_in";
+    }[];
 };
 type SettingTemplatesListSettingTemplatesQueryParams = {
     page_size?: number;
@@ -5774,7 +6323,7 @@ type SettingTemplatesListSettingTemplatesResponse = {
         description?: string;
         id?: string;
         name?: string;
-        type?: string;
+        type?: "user" | "group" | "autReceptionist" | "commonArea" | "zr" | "interop";
     }[];
     total_records?: number;
 };
@@ -5828,28 +6377,28 @@ type SettingTemplatesGetSettingTemplateDetailsResponse = {
         };
         call_forwarding?: {
             enable?: boolean;
-            call_forwarding_type?: number;
+            call_forwarding_type?: 1 | 2 | 3 | 4;
         };
         call_overflow?: {
             enable?: boolean;
-            call_overflow_type?: number;
+            call_overflow_type?: 1 | 2 | 3 | 4;
         };
     };
     profile?: {
         area_code?: string;
         country?: string;
     };
-    type?: string;
+    type?: "user" | "group" | "autoReceptionist" | "commonArea" | "zr" | "interop";
     user_settings?: {
         audio_prompt_language?: string;
         block_calls_without_caller_id?: boolean;
         call_handling?: {
             business_hours?: {
-                business_hour_action?: number;
+                business_hour_action?: 0 | 1 | 9 | 11 | 26 | 50;
                 connect_to_operator?: {
                     enable?: boolean;
                     id?: string;
-                    type?: string;
+                    type?: "user" | "zoomRoom" | "commonArea" | "autoReceptionist" | "callQueue" | "sharedLineGroup";
                     external_number?: {
                         number?: string;
                         description?: string;
@@ -5858,11 +6407,11 @@ type SettingTemplatesGetSettingTemplateDetailsResponse = {
                     require_press_1_before_connecting?: boolean;
                     allow_caller_check_voicemail?: boolean;
                 };
-                busy_action?: number;
+                busy_action?: 0 | 1 | 11 | 12 | 13 | 26 | 50;
                 busy_connect_operator?: {
                     enable?: boolean;
                     id?: string;
-                    type?: string;
+                    type?: "user" | "zoomRoom" | "commonAreaPhone" | "autoReceptionist" | "callQueue" | "sharedLineGroup";
                     external_number?: {
                         number?: string;
                         description?: string;
@@ -5874,19 +6423,19 @@ type SettingTemplatesGetSettingTemplateDetailsResponse = {
                 custom_hours?: {
                     from?: string;
                     to?: string;
-                    type?: number;
-                    weekday?: number;
+                    type?: 1 | 2;
+                    weekday?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
                 }[];
                 ring_type?: string;
-                ringing_duration?: string;
-                type?: number;
+                ringing_duration?: "10" | "15" | "20" | "25" | "30" | "35" | "40" | "45" | "50" | "55" | "60";
+                type?: 1 | 2;
             };
             close_hours?: {
-                close_hour_action?: number;
+                close_hour_action?: 0 | 1 | 9 | 11 | 26 | 50;
                 connect_to_operator?: {
                     enable?: boolean;
                     id?: string;
-                    type?: string;
+                    type?: "user" | "zoomRoom" | "commonAreaPhone" | "autoReceptionist" | "callQueue" | "sharedLineGroup";
                     external_number?: {
                         number?: string;
                         description?: string;
@@ -5895,11 +6444,11 @@ type SettingTemplatesGetSettingTemplateDetailsResponse = {
                     require_press_1_before_connecting?: boolean;
                     allow_caller_check_voicemail?: boolean;
                 };
-                busy_action?: number;
+                busy_action?: 0 | 1 | 11 | 12 | 13 | 26 | 50;
                 busy_connect_operator?: {
                     enable?: boolean;
                     id?: string;
-                    type?: string;
+                    type?: "user" | "zoomRoom" | "commonArea" | "autoReceptionist" | "callQueue" | "sharedLineGroup";
                     external_number?: {
                         number?: string;
                         description?: string;
@@ -5908,13 +6457,13 @@ type SettingTemplatesGetSettingTemplateDetailsResponse = {
                     require_press_1_before_connecting?: boolean;
                     allow_caller_check_voicemail?: boolean;
                 };
-                max_wait_time?: string;
+                max_wait_time?: "10" | "15" | "20" | "25" | "30" | "35" | "40" | "45" | "50" | "55" | "60";
             };
         };
         desk_phone?: {
             pin_code?: string;
         };
-        hold_music?: string;
+        hold_music?: "default" | "disable";
     };
 };
 type SettingTemplatesUpdateSettingTemplatePathParams = {
@@ -5931,7 +6480,7 @@ type SettingTemplatesUpdateSettingTemplateRequestBody = {
         };
         auto_call_recording?: {
             enable?: boolean;
-            recording_calls?: string;
+            recording_calls?: "inbound" | "outbound" | "both";
             recording_start_prompt?: boolean;
             recording_transcription?: boolean;
             inbound_audio_notification?: {
@@ -5951,11 +6500,11 @@ type SettingTemplatesUpdateSettingTemplateRequestBody = {
         };
         call_forwarding?: {
             enable?: boolean;
-            call_forwarding_type?: number;
+            call_forwarding_type?: 1 | 2 | 3 | 4;
         };
         call_overflow?: {
             enable?: boolean;
-            call_overflow_type?: number;
+            call_overflow_type?: 1 | 2 | 3 | 4;
         };
     };
     profile?: {
@@ -5967,7 +6516,7 @@ type SettingTemplatesUpdateSettingTemplateRequestBody = {
         block_calls_without_caller_id?: boolean;
         call_handling?: {
             business_hours?: {
-                business_hour_action?: number;
+                business_hour_action?: 0 | 1 | 9 | 11 | 26 | 50;
                 connect_to_operator?: {
                     enable?: boolean;
                     id?: string;
@@ -5979,7 +6528,7 @@ type SettingTemplatesUpdateSettingTemplateRequestBody = {
                     require_press_1_before_connecting?: boolean;
                     allow_caller_check_voicemail?: boolean;
                 };
-                busy_action?: number;
+                busy_action?: 0 | 1 | 11 | 12 | 13 | 26 | 50;
                 busy_connect_operator?: {
                     enable?: boolean;
                     id?: string;
@@ -5994,15 +6543,15 @@ type SettingTemplatesUpdateSettingTemplateRequestBody = {
                 custom_hours?: {
                     from?: string;
                     to?: string;
-                    type?: number;
-                    weekday?: number;
+                    type?: 1 | 2;
+                    weekday?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
                 }[];
                 ring_type?: string;
-                ringing_duration?: string;
-                type?: number;
+                ringing_duration?: "10" | "15" | "20" | "25" | "30" | "35" | "40" | "45" | "50" | "55" | "60";
+                type?: 1 | 2;
             };
             close_hours?: {
-                close_hour_action?: number;
+                close_hour_action?: 0 | 1 | 9 | 11 | 26 | 50;
                 connect_to_operator?: {
                     enable?: boolean;
                     id?: string;
@@ -6014,7 +6563,7 @@ type SettingTemplatesUpdateSettingTemplateRequestBody = {
                     require_press_1_before_connecting?: boolean;
                     allow_caller_check_voicemail?: boolean;
                 };
-                busy_action?: number;
+                busy_action?: 0 | 1 | 11 | 12 | 13 | 26 | 50;
                 busy_connect_operator?: {
                     enable?: boolean;
                     id?: string;
@@ -6026,13 +6575,36 @@ type SettingTemplatesUpdateSettingTemplateRequestBody = {
                     require_press_1_before_connecting?: boolean;
                     allow_caller_check_voicemail?: boolean;
                 };
-                max_wait_time?: string;
+                max_wait_time?: "10" | "15" | "20" | "25" | "30" | "35" | "40" | "45" | "50" | "55" | "60";
             };
         };
         desk_phone?: {
             pin_code?: string;
         };
-        hold_music?: string;
+        hold_music?: "default" | "disable";
+    };
+};
+type SettingsGetAccountPolicyDetailsPathParams = {
+    policyType: "allow_emergency_calls";
+};
+type SettingsGetAccountPolicyDetailsResponse = {
+    allow_emergency_calls?: {
+        enable?: boolean;
+        locked?: boolean;
+        locked_by?: "invalid" | "account";
+        allow_emergency_calls_from_clients?: boolean;
+        allow_emergency_calls_from_deskphones?: boolean;
+    };
+};
+type SettingsUpdateAccountPolicyPathParams = {
+    policyType: "allow_emergency_calls";
+};
+type SettingsUpdateAccountPolicyRequestBody = {
+    allow_emergency_calls?: {
+        enable?: boolean;
+        locked?: boolean;
+        allow_emergency_calls_from_clients?: boolean;
+        allow_emergency_calls_from_deskphones?: boolean;
     };
 };
 type SettingsListPortedNumbersQueryParams = {
@@ -6049,7 +6621,7 @@ type SettingsListPortedNumbersResponse = {
             source_number?: string;
             target_number?: string;
         }[];
-        status?: string;
+        status?: "Not_Submitted" | "Waiting" | "Processing" | "Successfully" | "Rejected" | "Canceled" | "FOC";
         submission_date_time?: string;
     }[];
     total_records?: number;
@@ -6084,7 +6656,7 @@ type SettingsGetPortedNumberDetailsResponse = {
         source_number?: string;
         target_number?: string;
     }[];
-    status?: string;
+    status?: "Not_Submitted" | "Waiting" | "Processing" | "Successfully" | "Rejected" | "Canceled" | "FOC";
     submission_date_time?: string;
 };
 type SettingsGetPhoneAccountSettingsResponse = {
@@ -6173,15 +6745,15 @@ type SharedLineAppearanceListSharedLineAppearancesResponse = {
         executive?: {
             name?: string;
             extension_number?: number;
-            extension_type?: string;
+            extension_type?: "user" | "commonArea";
         };
         assistants?: {
             id?: string;
             name?: string;
             extension_number?: number;
-            extension_type?: string;
+            extension_type?: "user" | "commonArea";
         }[];
-        privileges?: string[];
+        privileges?: ("place_calls" | "answer_calls" | "pickup_hold_calls")[];
     }[];
     total_records?: number;
 };
@@ -6200,13 +6772,13 @@ type SharedLineGroupListSharedLineGroupsResponse = {
         phone_numbers?: {
             id?: string;
             number?: string;
-            status?: string;
+            status?: "pending" | "available";
         }[];
         site?: {
             id?: string;
             name?: string;
         };
-        status?: string;
+        status?: "active" | "inactive";
     }[];
     total_records?: number;
 };
@@ -6249,7 +6821,7 @@ type SharedLineGroupGetSharedLineGroupResponse = {
         id?: string;
         name?: string;
     };
-    status?: string;
+    status?: "active" | "inactive";
     timezone?: string;
     policy?: {
         voicemail_access_members?: (({
@@ -6260,13 +6832,13 @@ type SharedLineGroupGetSharedLineGroupResponse = {
         } & {
             shared_id?: string;
         }) & {
-            access_user_type?: string;
+            access_user_type?: "user" | "commonArea";
         })[];
     };
     cost_center?: string;
     department?: string;
-    audio_prompt_language?: string;
-    recording_storage_location?: string;
+    audio_prompt_language?: "en-US" | "en-GB" | "es-US" | "fr-CA" | "da-DK" | "de-DE" | "es-ES" | "fr-FR" | "it-IT" | "nl-NL" | "pt-PT" | "ja" | "ko-KR" | "pt-BR" | "zh-CN";
+    recording_storage_location?: "US" | "AU" | "CA" | "DE" | "IN" | "JP" | "SG" | "BR" | "CN" | "MX";
     own_storage_name?: string;
     allow_privacy?: boolean;
 };
@@ -6277,7 +6849,7 @@ type SharedLineGroupGetSharedLineGroupPolicyResponse = {
     check_voicemails_over_phone?: {
         enable: boolean;
         locked: boolean;
-        locked_by?: string;
+        locked_by?: "invalid" | "account" | "site";
         modified?: boolean;
     };
 };
@@ -6300,12 +6872,12 @@ type SharedLineGroupUpdateSharedLineGroupRequestBody = {
     display_name?: string;
     extension_number?: number;
     primary_number?: string;
-    status?: string;
+    status?: "active" | "inactive";
     timezone?: string;
     cost_center?: string;
     department?: string;
-    audio_prompt_language?: string;
-    recording_storage_location?: string;
+    audio_prompt_language?: "en-US" | "en-GB" | "es-US" | "fr-CA" | "da-DK" | "de-DE" | "es-ES" | "fr-FR" | "it-IT" | "nl-NL" | "pt-PT" | "ja" | "ko-KR" | "pt-BR" | "zh-CN";
+    recording_storage_location?: "US" | "AU" | "CA" | "DE" | "IN" | "JP" | "SG" | "BR" | "CN" | "MX";
     allow_privacy?: boolean;
 };
 type SharedLineGroupAddMembersToSharedLineGroupPathParams = {
@@ -6364,7 +6936,7 @@ type SharedLineGroupAddPolicySettingToSharedLineGroupResponse = {
     } & {
         shared_id?: string;
     }) & {
-        access_user_type?: string;
+        access_user_type?: "user" | "commonArea";
     })[];
 };
 type SharedLineGroupDeleteSLGPolicySettingPathParams = {
@@ -6435,6 +7007,10 @@ type SitesCreatePhoneSiteRequestBody = {
         enable?: boolean;
         allow_extension_only_users_call_users_outside_site?: boolean;
     };
+    india_state_code?: string;
+    india_city?: string;
+    india_sdca_npa?: string;
+    india_entity_name?: string;
 };
 type SitesCreatePhoneSiteResponse = {
     id?: string;
@@ -6464,14 +7040,14 @@ type SitesGetPhoneSiteDetailsResponse = {
         select_outbound_caller_id?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
             allow_hide_outbound_caller_id?: boolean;
         };
         personal_audio_library?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
             allow_music_on_hold_customization?: boolean;
             allow_voicemail_and_message_greeting_customization?: boolean;
@@ -6482,13 +7058,13 @@ type SitesGetPhoneSiteDetailsResponse = {
             allow_videomail?: boolean;
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         voicemail_transcription?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         voicemail_notification_by_email?: {
@@ -6497,26 +7073,28 @@ type SitesGetPhoneSiteDetailsResponse = {
             forward_voicemail_to_email?: boolean;
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         shared_voicemail_notification_by_email?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         international_calling?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         zoom_phone_on_mobile?: {
+            allow_calling_clients?: ("ios" | "android" | "intune" | "blackberry")[];
+            allow_sms_mms_clients?: ("ios" | "android" | "intune" | "blackberry")[];
             allow_calling_sms_mms?: boolean;
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         sms?: {
@@ -6524,31 +7102,33 @@ type SitesGetPhoneSiteDetailsResponse = {
             international_sms?: boolean;
             international_sms_countries?: string[];
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
+            allow_copy?: boolean;
+            allow_paste?: boolean;
         };
         elevate_to_meeting?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         hand_off_to_room?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         mobile_switch_to_carrier?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         delegation?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         ad_hoc_call_recording?: {
@@ -6557,12 +7137,12 @@ type SitesGetPhoneSiteDetailsResponse = {
             recording_transcription?: boolean;
             play_recording_beep_tone?: {
                 enable?: boolean;
-                play_beep_volume?: number;
-                play_beep_time_interval?: number;
-                play_beep_member?: string;
+                play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                play_beep_member?: "allMember" | "recordingSide";
             };
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         auto_call_recording?: {
@@ -6570,17 +7150,17 @@ type SitesGetPhoneSiteDetailsResponse = {
             disconnect_on_recording_failure?: boolean;
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
-            recording_calls?: string;
+            recording_calls?: "inbound" | "outbound" | "both";
             recording_explicit_consent?: boolean;
             recording_start_prompt?: boolean;
             recording_transcription?: boolean;
             play_recording_beep_tone?: {
                 enable?: boolean;
-                play_beep_volume?: number;
-                play_beep_time_interval?: number;
-                play_beep_member?: string;
+                play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                play_beep_member?: "allMember" | "recordingSide";
             };
             inbound_audio_notification?: {
                 recording_start_prompt?: boolean;
@@ -6593,27 +7173,27 @@ type SitesGetPhoneSiteDetailsResponse = {
         };
         call_handling_forwarding_to_other_users?: {
             enable?: boolean;
-            call_forwarding_type?: number;
+            call_forwarding_type?: 1 | 2 | 3 | 4;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         check_voicemails_over_phone?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         call_queue_pickup_code?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         call_queue_opt_out_reason?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
             call_queue_opt_out_reasons_list?: {
                 code?: string;
@@ -6626,70 +7206,70 @@ type SitesGetPhoneSiteDetailsResponse = {
             enable?: boolean;
             reset?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             items?: {
-                type?: string;
+                type?: "callLog" | "onDemandRecording" | "automaticRecording" | "voicemail" | "videomail" | "sms";
                 duration?: number;
-                time_unit?: string;
+                time_unit?: "year" | "month" | "day";
             }[];
-            delete_type?: number;
+            delete_type?: 1 | 2;
         };
         call_park?: {
             call_not_picked_up_action?: number;
             enable?: boolean;
-            expiration_period?: number;
+            expiration_period?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
             forward_to?: {
                 display_name?: string;
                 extension_id?: string;
                 extension_number?: number;
-                extension_type?: string;
+                extension_type?: "user" | "zoomRoom" | "commonArea" | "ciscoRoom/polycomRoom" | "autoReceptionist" | "callQueue" | "sharedLineGroup";
                 id?: string;
             };
-            sequence?: number;
+            sequence?: 0 | 1;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         call_overflow?: {
-            call_overflow_type?: number;
+            call_overflow_type?: 1 | 2 | 3 | 4;
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         call_transferring?: {
-            call_transferring_type?: number;
+            call_transferring_type?: 1 | 2 | 3 | 4;
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         audio_intercom?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         block_calls_without_caller_id?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
         };
         block_external_calls?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "site";
             modified?: boolean;
             block_business_hours?: boolean;
             block_closed_hours?: boolean;
             block_holiday_hours?: boolean;
-            block_call_action?: number;
-            block_call_change_type?: number;
+            block_call_action?: 0 | 9;
+            block_call_change_type?: 0 | 1;
             e2e_encryption?: {
                 enable?: boolean;
                 locked?: boolean;
-                locked_by?: string;
+                locked_by?: "invalid" | "account" | "site";
                 modified?: boolean;
             };
         };
@@ -6697,12 +7277,215 @@ type SitesGetPhoneSiteDetailsResponse = {
             enable?: boolean;
             allow_extension_only_users_call_users_outside_site?: boolean;
         };
+        external_calling_on_zoom_room_common_area?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        zoom_phone_on_pwa?: {
+            allow_calling?: boolean;
+            allow_sms_mms?: boolean;
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        sms_auto_reply?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        allow_end_user_edit_call_handling?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        allow_caller_reach_operator?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        forward_call_outside_of_site?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        allow_mobile_home_phone_callout?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        obfuscate_sensitive_data_during_call?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        prevent_users_upload_audio_files?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        voicemail_tasks?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        voicemail_intent_based_prioritization?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        team_sms_thread_summary?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
+        display_call_feedback_survey?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+            feedback_type?: 1 | 2;
+            feedback_mos?: {
+                enable?: boolean;
+                min?: number;
+                max?: number;
+            };
+            feedback_duration?: {
+                enable?: boolean;
+                min?: number;
+                max?: number;
+            };
+        };
+        call_live_transcription?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+            transcription_start_prompt?: {
+                enable?: boolean;
+                audio_id?: string;
+                audio_name?: string;
+            };
+        };
+        call_screening?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+            exclude_user_company_contacts?: boolean;
+        };
+        sms_template?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+            sms_template_list?: {
+                sms_template_id?: string;
+                name?: string;
+                description?: string;
+                content?: string;
+                active?: boolean;
+            }[];
+        };
+        advanced_encryption?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+            disable_incoming_unencrypted_voicemail?: boolean;
+        };
+        customize_line_name?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+            user_line_name?: "phoneNumber" | "extensionNumber" | "displayName" | "displayName;extensionNumber" | "firstName;extensionNumber" | "firstName;lastName;extensionNumber";
+            common_area_line_name?: "phoneNumber" | "extensionNumber" | "displayName" | "displayName;extensionNumber";
+        };
+        auto_opt_out_in_call_queue?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+            prompt_before_opt_out_call_queue?: boolean;
+        };
+        incoming_call_notification?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+            block_type?: "block_activity" | "continue_with_alert";
+        };
+        call_summary?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+            auto_call_summary?: boolean;
+            call_summary_start_prompt?: {
+                enable?: boolean;
+                audio_id?: string;
+                audio_name?: string;
+            };
+        };
+        schedule_firmware_update?: {
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account";
+            modified?: boolean;
+            repeat_type?: "weekly" | "monthly";
+            repeat_setting?: {
+                weekly_setting?: {
+                    weekday?: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+                };
+            } | ({
+                week_and_day?: {
+                    week_of_month?: number;
+                    weekday?: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+                };
+            } | {
+                specific_date?: {
+                    day_of_month?: number;
+                };
+            });
+            time_period_start?: number;
+            time_period_end?: number;
+            time_zone?: string;
+            end_setting?: {
+                never_end?: boolean;
+                end_date?: string;
+            };
+        };
+        zoom_phone_on_desktop?: {
+            allow_calling_clients?: ("mac_os" | "windows" | "vdi_client" | "linux")[];
+            allow_sms_mms_clients?: ("mac_os" | "windows" | "vdi_client" | "linux")[];
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
+        };
     };
     sip_zone?: {
         id?: string;
         name?: string;
     };
     caller_id_name?: string;
+    india_state_code?: string;
+    india_city?: string;
+    india_sdca_npa?: string;
+    india_entity_name?: string;
 };
 type SitesDeletePhoneSitePathParams = {
     siteId: string;
@@ -6785,6 +7568,8 @@ type SitesUpdatePhoneSiteDetailsRequestBody = {
             enable?: boolean;
             reset?: boolean;
             locked?: boolean;
+            allow_calling_clients?: ("ios" | "android" | "intune" | "blackberry")[];
+            allow_sms_mms_clients?: ("ios" | "android" | "intune" | "blackberry")[];
         };
         sms?: {
             enable?: boolean;
@@ -6792,6 +7577,8 @@ type SitesUpdatePhoneSiteDetailsRequestBody = {
             locked?: boolean;
             international_sms?: boolean;
             international_sms_countries?: string[];
+            allow_copy?: boolean;
+            allow_paste?: boolean;
         };
         elevate_to_meeting?: {
             enable?: boolean;
@@ -6821,9 +7608,9 @@ type SitesUpdatePhoneSiteDetailsRequestBody = {
             recording_transcription?: boolean;
             play_recording_beep_tone?: {
                 enable?: boolean;
-                play_beep_volume?: number;
-                play_beep_time_interval?: number;
-                play_beep_member?: string;
+                play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                play_beep_member?: "allMember" | "recordingSide";
             };
         };
         auto_call_recording?: {
@@ -6832,15 +7619,15 @@ type SitesUpdatePhoneSiteDetailsRequestBody = {
             enable?: boolean;
             reset?: boolean;
             locked?: boolean;
-            recording_calls?: string;
+            recording_calls?: "inbound" | "outbound" | "both";
             recording_explicit_consent?: boolean;
             recording_start_prompt?: boolean;
             recording_transcription?: boolean;
             play_recording_beep_tone?: {
                 enable?: boolean;
-                play_beep_volume?: number;
-                play_beep_time_interval?: number;
-                play_beep_member?: string;
+                play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                play_beep_member?: "allMember" | "recordingSide";
             };
             inbound_audio_notification?: {
                 recording_start_prompt?: boolean;
@@ -6853,7 +7640,7 @@ type SitesUpdatePhoneSiteDetailsRequestBody = {
         };
         call_handling_forwarding_to_other_users?: {
             enable?: boolean;
-            call_forwarding_type?: number;
+            call_forwarding_type?: 1 | 2 | 3 | 4;
             reset?: boolean;
             locked?: boolean;
         };
@@ -6883,29 +7670,29 @@ type SitesUpdatePhoneSiteDetailsRequestBody = {
             reset?: boolean;
             locked?: boolean;
             items?: {
-                type?: string;
+                type?: "callLog" | "onDemandRecording" | "automaticRecording" | "voicemail" | "videomail" | "sms";
                 duration?: number;
-                time_unit?: string;
+                time_unit?: "year" | "month" | "day";
             }[];
-            delete_type?: number;
+            delete_type?: 1 | 2;
         };
         call_park?: {
             call_not_picked_up_action?: number;
             enable?: boolean;
             reset?: boolean;
             locked?: boolean;
-            expiration_period?: number;
+            expiration_period?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
             forward_to_extension_id?: string;
-            sequence?: number;
+            sequence?: 0 | 1;
         };
         call_overflow?: {
-            call_overflow_type?: number;
+            call_overflow_type?: 1 | 2 | 3 | 4;
             enable?: boolean;
             reset?: boolean;
             locked?: boolean;
         };
         call_transferring?: {
-            call_transferring_type?: number;
+            call_transferring_type?: 1 | 2 | 3 | 4;
             enable?: boolean;
             reset?: boolean;
             locked?: boolean;
@@ -6927,18 +7714,190 @@ type SitesUpdatePhoneSiteDetailsRequestBody = {
             block_business_hours?: boolean;
             block_closed_hours?: boolean;
             block_holiday_hours?: boolean;
-            block_call_action?: number;
-            block_call_change_type?: number;
+            block_call_action?: 0 | 9;
+            block_call_change_type?: 0 | 1;
             e2e_encryption?: {
                 enable?: boolean;
                 locked?: boolean;
-                locked_by?: string;
+                locked_by?: "invalid" | "account" | "site";
                 modified?: boolean;
             };
         };
         force_off_net?: {
             enable?: boolean;
             allow_extension_only_users_call_users_outside_site?: boolean;
+        };
+        external_calling_on_zoom_room_common_area?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+        };
+        zoom_phone_on_pwa?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+            allow_calling?: boolean;
+            allow_sms_mms?: boolean;
+        };
+        sms_auto_reply?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+        };
+        allow_end_user_edit_call_handling?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+        };
+        allow_caller_reach_operator?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+        };
+        forward_call_outside_of_site?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+        };
+        allow_mobile_home_phone_callout?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+        };
+        obfuscate_sensitive_data_during_call?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+        };
+        prevent_users_upload_audio_files?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+        };
+        voicemail_tasks?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+        };
+        voicemail_intent_based_prioritization?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+        };
+        team_sms_thread_summary?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+        };
+        display_call_feedback_survey?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+            feedback_type?: 1 | 2;
+            feedback_mos?: {
+                enable?: boolean;
+                min?: number;
+                max?: number;
+            };
+            feedback_duration?: {
+                enable?: boolean;
+                min?: number;
+                max?: number;
+            };
+        };
+        call_live_transcription?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+            transcription_start_prompt?: {
+                enable?: boolean;
+                audio_id?: string;
+            };
+        };
+        call_screening?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+            exclude_user_company_contacts?: boolean;
+        };
+        sms_template?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+            sms_template_list?: {
+                sms_template_id: string;
+                active?: boolean;
+            }[];
+        };
+        advanced_encryption?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+            disable_incoming_unencrypted_voicemail?: boolean;
+        };
+        customize_line_name?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+            user_line_name?: "phoneNumber" | "extensionNumber" | "displayName" | "displayName;extensionNumber" | "firstName;extensionNumber" | "firstName;lastName;extensionNumber";
+            common_area_line_name?: "phoneNumber" | "extensionNumber" | "displayName" | "displayName;extensionNumber";
+        };
+        auto_opt_out_in_call_queue?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+            prompt_before_opt_out_call_queue?: boolean;
+        };
+        incoming_call_notification?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+            block_type?: "block_activity" | "continue_with_alert";
+        };
+        call_summary?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+            auto_call_summary?: boolean;
+            call_summary_start_prompt?: {
+                enable?: boolean;
+                audio_id?: string;
+            };
+        };
+        schedule_firmware_update?: {
+            enable?: boolean;
+            reset?: boolean;
+            repeat_type?: "weekly" | "monthly";
+            repeat_setting?: {
+                weekly_setting?: {
+                    weekday?: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+                };
+            } | {
+                monthly_setting?: {
+                    week_and_day?: {
+                        week_of_month?: number;
+                        weekday?: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+                    };
+                } | {
+                    specific_date?: {
+                        day_of_month?: number;
+                    };
+                };
+            };
+            time_period_start?: number;
+            time_period_end?: number;
+            time_zone?: string;
+            end_setting?: {
+                never_end?: boolean;
+                end_date?: string;
+            };
+        };
+        zoom_phone_on_desktop?: {
+            enable?: boolean;
+            reset?: boolean;
+            locked?: boolean;
+            allow_calling_clients?: ("mac_os" | "windows" | "vdi_client" | "linux")[];
+            allow_sms_mms_clients?: ("mac_os" | "windows" | "vdi_client" | "linux")[];
         };
     };
 };
@@ -6948,7 +7907,7 @@ type SitesListCustomizedOutboundCallerIDPhoneNumbersPathParams = {
 type SitesListCustomizedOutboundCallerIDPhoneNumbersQueryParams = {
     selected?: boolean;
     site_id?: string;
-    extension_type?: string;
+    extension_type?: "autoReceptionist" | "callQueue" | "sharedLineGroup";
     keyword?: string;
     page_size?: number;
     next_page_token?: string;
@@ -6980,6 +7939,7 @@ type SitesAddCustomizedOutboundCallerIDPhoneNumbersPathParams = {
 type SitesAddCustomizedOutboundCallerIDPhoneNumbersRequestBody = {
     phone_number_ids?: string[];
 };
+type SitesAddCustomizedOutboundCallerIDPhoneNumbersResponse = never;
 type SitesRemoveCustomizedOutboundCallerIDPhoneNumbersPathParams = {
     siteId: string;
 };
@@ -6988,7 +7948,7 @@ type SitesRemoveCustomizedOutboundCallerIDPhoneNumbersQueryParams = {
 };
 type SitesGetPhoneSiteSettingPathParams = {
     siteId: string;
-    settingType: string;
+    settingType: "local_based_routing" | "business_hours" | "closed_hours" | "holiday_hours" | "security" | "outbound_caller_id" | "audio_prompt" | "desk_phone" | "dial_by_name" | "billing_account";
 };
 type SitesGetPhoneSiteSettingResponse = {
     location_based_routing?: {
@@ -6997,12 +7957,12 @@ type SitesGetPhoneSiteSettingResponse = {
         enable_media_off_load_pstn_calls?: boolean;
     };
     business_hours?: {
-        custom_hour_type?: number;
+        custom_hour_type?: 1 | 2;
         custom_hours?: {
             from?: string;
             to?: string;
-            type?: number;
-            weekday?: number;
+            type?: 0 | 1 | 2;
+            weekday?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
         }[];
         overflow?: {
             allow_caller_to_reach_operator?: boolean;
@@ -7010,7 +7970,7 @@ type SitesGetPhoneSiteSettingResponse = {
                 extension_id?: string;
                 extension_number?: number;
                 display_name?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "sharedLineGroup";
             };
             allow_caller_to_check_voicemail?: boolean;
         };
@@ -7022,7 +7982,7 @@ type SitesGetPhoneSiteSettingResponse = {
                 extension_id?: string;
                 extension_number?: number;
                 display_name?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "sharedLineGroup";
             };
             allow_caller_to_check_voicemail?: boolean;
         };
@@ -7040,7 +8000,7 @@ type SitesGetPhoneSiteSettingResponse = {
                 extension_id?: string;
                 extension_number?: number;
                 display_name?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "sharedLineGroup";
             };
             allow_caller_to_check_voicemail?: boolean;
         };
@@ -7151,14 +8111,18 @@ type SitesGetPhoneSiteSettingResponse = {
     };
     desk_phone?: {
         hot_desking_session_timeout?: {
-            number: number;
-            unit?: string;
+            number: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 30;
+            unit?: "minutes" | "hours";
+        };
+        general_setting?: {
+            setting_type?: "account_setting" | "custom_setting";
+            web_interface?: boolean;
         };
     };
     dial_by_name?: {
         status?: boolean;
         inherit?: boolean;
-        rule?: string;
+        rule?: "first_name" | "last_name";
     };
     billing_account?: {
         id?: string;
@@ -7167,7 +8131,7 @@ type SitesGetPhoneSiteSettingResponse = {
 };
 type SitesAddSiteSettingPathParams = {
     siteId: string;
-    settingType: string;
+    settingType: "holiday_hours" | "security";
 };
 type SitesAddSiteSettingRequestBody = {
     device_type?: string;
@@ -7187,7 +8151,7 @@ type SitesAddSiteSettingResponse = {
 };
 type SitesDeleteSiteSettingPathParams = {
     siteId: string;
-    settingType: string;
+    settingType: "holiday_hours" | "security";
 };
 type SitesDeleteSiteSettingQueryParams = {
     device_type?: string;
@@ -7195,7 +8159,7 @@ type SitesDeleteSiteSettingQueryParams = {
 };
 type SitesUpdateSiteSettingPathParams = {
     siteId: string;
-    settingType: string;
+    settingType: "local_based_routing" | "business_hours" | "closed_hours" | "holiday_hours" | "outbound_caller_id" | "audio_prompt" | "desk_phone" | "dial_by_name" | "billing_account";
 };
 type SitesUpdateSiteSettingRequestBody = {
     location_based_routing?: {
@@ -7204,12 +8168,12 @@ type SitesUpdateSiteSettingRequestBody = {
         enable_media_off_load_pstn_calls?: boolean;
     };
     business_hours?: {
-        custom_hour_type?: number;
+        custom_hour_type?: 1 | 2;
         custom_hours?: {
             from?: string;
             to?: string;
-            type?: number;
-            weekday?: number;
+            type?: 0 | 1 | 2;
+            weekday?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
         }[];
         overflow?: {
             allow_caller_to_reach_operator?: boolean;
@@ -7326,14 +8290,18 @@ type SitesUpdateSiteSettingRequestBody = {
     };
     desk_phone?: {
         hot_desking_session_timeout?: {
-            number: number;
-            unit?: string;
+            number: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 30;
+            unit?: "minutes" | "hours";
         };
+    };
+    general_setting?: {
+        setting_type?: "account_setting" | "custom_setting";
+        web_interface?: boolean;
     };
     dial_by_name?: {
         status?: boolean;
         inherit?: boolean;
-        rule?: string;
+        rule?: "first_name" | "last_name";
     };
     billing_account?: {
         id?: string;
@@ -7344,7 +8312,7 @@ type UsersListPhoneUsersQueryParams = {
     next_page_token?: string;
     site_id?: string;
     calling_type?: number;
-    status?: string;
+    status?: "activate" | "deactivate" | "pending";
     department?: string;
     cost_center?: string;
     keyword?: string;
@@ -7359,6 +8327,8 @@ type UsersListPhoneUsersResponse = {
             type?: number;
             billing_account_id?: string;
             billing_account_name?: string;
+            billing_subscription_id?: string;
+            billing_subscription_name?: string;
         }[];
         email?: string;
         extension_id?: string;
@@ -7380,7 +8350,7 @@ type UsersListPhoneUsersResponse = {
     }[];
 };
 type UsersUpdateMultipleUsersPropertiesInBatchRequestBody = {
-    batch_type?: string;
+    batch_type?: "move_site" | "assign_pending_user";
     user_ids?: string[];
     site_id?: string;
 };
@@ -7418,6 +8388,8 @@ type UsersGetUsersProfileResponse = {
         type?: number;
         billing_account_id?: string;
         billing_account_name?: string;
+        billing_subscription_id?: string;
+        billing_subscription_name?: string;
     }[];
     cost_center?: string;
     department?: string;
@@ -7446,12 +8418,12 @@ type UsersGetUsersProfileResponse = {
             recording_transcription?: boolean;
             play_recording_beep_tone?: {
                 enable?: boolean;
-                play_beep_volume?: number;
-                play_beep_time_interval?: number;
-                play_beep_member?: string;
+                play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                play_beep_member?: "allMember" | "recordingSide";
             };
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
         };
         ad_hoc_call_recording_access_members?: ({
             access_user_id?: string;
@@ -7465,16 +8437,16 @@ type UsersGetUsersProfileResponse = {
             disconnect_on_recording_failure?: boolean;
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
-            recording_calls?: string;
+            locked_by?: "account" | "user_group" | "site";
+            recording_calls?: "inbound" | "outbound" | "both";
             recording_explicit_consent?: boolean;
             recording_start_prompt?: boolean;
             recording_transcription?: boolean;
             play_recording_beep_tone?: {
                 enable?: boolean;
-                play_beep_volume?: number;
-                play_beep_time_interval?: number;
-                play_beep_member?: string;
+                play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                play_beep_member?: "allMember" | "recordingSide";
             };
             inbound_audio_notification?: {
                 recording_start_prompt?: boolean;
@@ -7493,31 +8465,31 @@ type UsersGetUsersProfileResponse = {
             shared_id?: string;
         })[];
         call_overflow?: {
-            call_overflow_type?: number;
+            call_overflow_type?: 1 | 2 | 3 | 4;
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
             modified?: boolean;
         };
         call_park?: {
             call_not_picked_up_action?: number;
             enable?: boolean;
-            expiration_period?: number;
+            expiration_period?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
             forward_to?: {
                 display_name?: string;
                 extension_id?: string;
                 extension_number?: number;
-                extension_type?: string;
+                extension_type?: "user" | "zoomRoom" | "commonArea" | "ciscoRoom/polycomRoom" | "autoReceptionist" | "callQueue" | "sharedLineGroup";
                 id?: string;
             };
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
         };
         call_transferring?: {
-            call_transferring_type?: number;
+            call_transferring_type?: 1 | 2 | 3 | 4;
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
         };
         delegation?: boolean;
         elevate_to_meeting?: boolean;
@@ -7529,34 +8501,36 @@ type UsersGetUsersProfileResponse = {
         forwarding_to_external_numbers?: boolean;
         call_handling_forwarding_to_other_users?: {
             enable?: boolean;
-            call_forwarding_type?: number;
+            call_forwarding_type?: 1 | 2 | 3 | 4;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
             modified?: boolean;
         };
         hand_off_to_room?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
         };
         international_calling?: boolean;
         mobile_switch_to_carrier?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
         };
         select_outbound_caller_id?: {
             enable?: boolean;
             allow_hide_outbound_caller_id?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
         };
         sms?: {
             enable?: boolean;
             international_sms?: boolean;
             international_sms_countries?: string[];
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
+            allow_copy?: boolean;
+            allow_paste?: boolean;
         };
         voicemail?: {
             allow_delete?: boolean;
@@ -7574,15 +8548,17 @@ type UsersGetUsersProfileResponse = {
             shared_id?: string;
         })[];
         zoom_phone_on_mobile?: {
+            allow_calling_clients?: ("ios" | "android" | "intune" | "blackberry")[];
+            allow_sms_mms_clients?: ("ios" | "android" | "intune" | "blackberry")[];
             allow_calling_sms_mms?: boolean;
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
         };
         personal_audio_library?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
             modified?: boolean;
             allow_music_on_hold_customization?: boolean;
             allow_voicemail_and_message_greeting_customization?: boolean;
@@ -7590,7 +8566,7 @@ type UsersGetUsersProfileResponse = {
         voicemail_transcription?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
             modified?: boolean;
         };
         voicemail_notification_by_email?: {
@@ -7598,37 +8574,37 @@ type UsersGetUsersProfileResponse = {
             include_voicemail_transcription?: boolean;
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
             modified?: boolean;
         };
         shared_voicemail_notification_by_email?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
             modified?: boolean;
         };
         check_voicemails_over_phone?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
             modified?: boolean;
         };
         audio_intercom?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
             modified?: boolean;
         };
         peer_to_peer_media?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
             modified?: boolean;
         };
         e2e_encryption?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
             modified?: boolean;
         };
         outbound_calling?: {
@@ -7649,19 +8625,27 @@ type UsersGetUsersProfileResponse = {
         voicemail_intent_based_prioritization?: {
             enable?: boolean;
             locked?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
             modified?: boolean;
         };
         voicemail_tasks?: {
             enable?: boolean;
             locked?: boolean;
             modified?: boolean;
-            locked_by?: string;
+            locked_by?: "account" | "user_group" | "site";
+        };
+        zoom_phone_on_desktop?: {
+            allow_calling_clients?: ("mac_os" | "windows" | "vdi_client" | "linux")[];
+            allow_sms_mms_clients?: ("mac_os" | "windows" | "vdi_client" | "linux")[];
+            enable?: boolean;
+            locked?: boolean;
+            locked_by?: "invalid" | "account" | "site";
+            modified?: boolean;
         };
     };
     site_admin?: boolean;
     site_id?: string;
-    status?: string;
+    status?: "activate" | "deactivate";
 };
 type UsersUpdateUsersProfilePathParams = {
     userId: string;
@@ -7677,24 +8661,24 @@ type UsersUpdateUsersProfileRequestBody = {
             reset?: boolean;
             play_recording_beep_tone?: {
                 enable?: boolean;
-                play_beep_volume?: number;
-                play_beep_time_interval?: number;
-                play_beep_member?: string;
+                play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                play_beep_member?: "allMember" | "recordingSide";
             };
         };
         auto_call_recording?: {
             allow_stop_resume_recording?: boolean;
             disconnect_on_recording_failure?: boolean;
             enable?: boolean;
-            recording_calls?: string;
+            recording_calls?: "inbound" | "outbound" | "both";
             recording_explicit_consent?: boolean;
             recording_start_prompt?: boolean;
             recording_transcription?: boolean;
             play_recording_beep_tone?: {
                 enable?: boolean;
-                play_beep_volume?: number;
-                play_beep_time_interval?: number;
-                play_beep_member?: string;
+                play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                play_beep_member?: "allMember" | "recordingSide";
             };
             reset?: boolean;
             inbound_audio_notification?: {
@@ -7707,18 +8691,18 @@ type UsersUpdateUsersProfileRequestBody = {
             };
         };
         call_overflow?: {
-            call_overflow_type?: number;
+            call_overflow_type?: 1 | 2 | 3 | 4;
             enable?: boolean;
             reset?: boolean;
         };
         call_park?: {
             call_not_picked_up_action?: number;
             enable?: boolean;
-            expiration_period?: number;
+            expiration_period?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
             forward_to_extension_id?: string;
         };
         call_transferring?: {
-            call_transferring_type?: number;
+            call_transferring_type?: 1 | 2 | 3 | 4;
             enable?: boolean;
             reset?: boolean;
         };
@@ -7732,7 +8716,7 @@ type UsersUpdateUsersProfileRequestBody = {
         forwarding_to_external_numbers?: boolean;
         call_handling_forwarding_to_other_users?: {
             enable?: boolean;
-            call_forwarding_type?: number;
+            call_forwarding_type?: 1 | 2 | 3 | 4;
             reset?: boolean;
         };
         hand_off_to_room?: {
@@ -7750,6 +8734,8 @@ type UsersUpdateUsersProfileRequestBody = {
             enable?: boolean;
             international_sms?: boolean;
             international_sms_countries?: string[];
+            allow_copy?: boolean;
+            allow_paste?: boolean;
         };
         voicemail?: {
             allow_delete?: boolean;
@@ -7767,6 +8753,8 @@ type UsersUpdateUsersProfileRequestBody = {
         zoom_phone_on_mobile?: {
             allow_calling_sms_mms?: boolean;
             enable?: boolean;
+            allow_calling_clients?: ("ios" | "android" | "intune" | "blackberry")[];
+            allow_sms_mms_clients?: ("ios" | "android" | "intune" | "blackberry")[];
         };
         personal_audio_library?: {
             allow_music_on_hold_customization?: boolean;
@@ -7800,6 +8788,12 @@ type UsersUpdateUsersProfileRequestBody = {
             enable?: boolean;
             reset?: boolean;
         };
+        zoom_phone_on_desktop?: {
+            enable?: boolean;
+            reset?: boolean;
+            allow_calling_clients?: ("mac_os" | "windows" | "vdi_client" | "linux")[];
+            allow_sms_mms_clients?: ("mac_os" | "windows" | "vdi_client" | "linux")[];
+        };
     };
     site_id?: string;
     template_id?: string;
@@ -7810,6 +8804,8 @@ type UsersUpdateUsersCallingPlanPathParams = {
 type UsersUpdateUsersCallingPlanRequestBody = {
     source_type: number;
     target_type: number;
+    source_billing_subscription_id?: string;
+    target_billing_subscription_id?: string;
 };
 type UsersAssignCallingPlanToUserPathParams = {
     userId: string;
@@ -7818,6 +8814,7 @@ type UsersAssignCallingPlanToUserRequestBody = {
     calling_plans?: {
         type?: number;
         billing_account_id?: string;
+        billing_subscription_id?: string;
     }[];
 };
 type UsersUnassignUsersCallingPlanPathParams = {
@@ -7833,7 +8830,7 @@ type UsersListUsersPhoneNumbersForCustomizedOutboundCallerIDPathParams = {
 type UsersListUsersPhoneNumbersForCustomizedOutboundCallerIDQueryParams = {
     selected?: boolean;
     site_id?: string;
-    extension_type?: string;
+    extension_type?: "autoReceptionist" | "callQueue" | "sharedLineGroup";
     keyword?: string;
     page_size?: number;
     next_page_token?: string;
@@ -7871,6 +8868,32 @@ type UsersRemoveUsersCustomizedOutboundCallerIDPhoneNumbersPathParams = {
 type UsersRemoveUsersCustomizedOutboundCallerIDPhoneNumbersQueryParams = {
     customize_ids?: string[];
 };
+type UsersGetUserPolicyDetailsPathParams = {
+    userId: string;
+    policyType: "allow_emergency_calls";
+};
+type UsersGetUserPolicyDetailsResponse = {
+    allow_emergency_calls?: {
+        enable?: boolean;
+        locked?: boolean;
+        locked_by?: "invalid" | "account" | "user_group" | "site";
+        modified?: boolean;
+        allow_emergency_calls_from_clients?: boolean;
+        allow_emergency_calls_from_deskphones?: boolean;
+    };
+};
+type UsersUpdateUserPolicyPathParams = {
+    userId: string;
+    policyType: "allow_emergency_calls";
+};
+type UsersUpdateUserPolicyRequestBody = {
+    allow_emergency_calls?: {
+        enable?: boolean;
+        reset?: boolean;
+        allow_emergency_calls_from_clients?: boolean;
+        allow_emergency_calls_from_deskphones?: boolean;
+    };
+};
 type UsersGetUsersProfileSettingsPathParams = {
     userId: string;
 };
@@ -7902,13 +8925,13 @@ type UsersGetUsersProfileSettingsResponse = {
             id?: string;
             policy?: {
                 call_control?: {
-                    status?: string;
+                    status?: "unsupported" | "on" | "off";
                 };
                 hot_desking?: {
-                    status?: string;
+                    status?: "unsupported" | "on" | "off";
                 };
             };
-            status?: string;
+            status?: "online" | "offline";
             mac_address?: string;
             private_ip?: string;
             public_ip?: string;
@@ -7929,7 +8952,7 @@ type UsersGetUsersProfileSettingsResponse = {
         name?: string;
         number?: string;
     }[];
-    status?: string;
+    status?: "Active" | "Inactive";
     voice_mail?: {
         access_user_id?: string;
         delete?: boolean;
@@ -7942,9 +8965,9 @@ type UsersGetUsersProfileSettingsResponse = {
             extension_number?: string;
             extension_type?: string;
             display_name?: string;
-            status?: string;
+            status?: "active" | "pending";
             device_id?: string;
-            device_status?: string;
+            device_status?: "online" | "offline" | "no device";
         }[];
         device?: {
             id?: string;
@@ -8071,10 +9094,10 @@ type UsersUpdateUsersSharedAccessSettingRequestBody = {
             id?: string;
             policy?: {
                 call_control?: {
-                    status?: string;
+                    status?: "on" | "off";
                 };
                 hot_desking?: {
-                    status?: string;
+                    status?: "on" | "off";
                 };
             };
         }[];
@@ -8124,18 +9147,18 @@ type VoicemailsGetUserVoicemailDetailsFromCallLogResponse = {
     call_history_id?: string;
     callee_name?: string;
     callee_number?: string;
-    callee_number_type?: number;
+    callee_number_type?: 1 | 2 | 3;
     caller_name?: string;
     caller_number?: string;
-    caller_number_type?: number;
+    caller_number_type?: 1 | 2;
     date_time?: string;
     download_url?: string;
     duration?: number;
     id?: string;
-    status?: string;
+    status?: "read" | "unread";
     transcription?: {
         content?: string;
-        status?: number;
+        status?: 0 | 1 | 2 | 4 | 5 | 9 | 11 | 12 | 13 | 14 | 409 | 415 | 422 | 500 | 601 | 602 | 603 | 999;
         engine?: string;
     };
 };
@@ -8144,7 +9167,7 @@ type VoicemailsGetUsersVoicemailsPathParams = {
 };
 type VoicemailsGetUsersVoicemailsQueryParams = {
     page_size?: number;
-    status?: string;
+    status?: "all" | "read" | "unread";
     next_page_token?: string;
     from?: string;
     to?: string;
@@ -8163,23 +9186,23 @@ type VoicemailsGetUsersVoicemailsResponse = {
         call_history_id?: string;
         callee_name?: string;
         callee_number?: string;
-        callee_number_type?: number;
+        callee_number_type?: 1 | 2 | 3;
         caller_name?: string;
         caller_number?: string;
-        caller_number_type?: number;
+        caller_number_type?: 1 | 2;
         date_time?: string;
         download_url?: string;
         duration?: number;
         id?: string;
-        status?: string;
+        status?: "read" | "unread";
     }[];
 };
 type VoicemailsGetAccountVoicemailsQueryParams = {
     page_size?: number;
-    status?: string;
+    status?: "all" | "read" | "unread";
     site_id?: string;
-    owner_type?: string;
-    voicemail_type?: string;
+    owner_type?: "user" | "callQueue" | "sharedLineGroup" | "autoReceptionist" | "commonArea";
+    voicemail_type?: "normal" | "spam" | "maybeSpam";
     next_page_token?: string;
     from?: string;
     to?: string;
@@ -8197,26 +9220,26 @@ type VoicemailsGetAccountVoicemailsResponse = {
         call_log_id?: string;
         callee_name?: string;
         callee_number?: string;
-        callee_number_type?: number;
+        callee_number_type?: 1 | 2 | 3;
         caller_name?: string;
         caller_number?: string;
-        caller_number_type?: number;
+        caller_number_type?: 1 | 2;
         date_time?: string;
         download_url?: string;
         duration?: number;
         id?: string;
-        status?: string;
+        status?: "read" | "unread";
         owner?: {
             extension_number?: number;
             id?: string;
             name?: string;
-            type?: string;
-            extension_status?: string;
+            type?: "user" | "callQueue" | "sharedLineGroup" | "autoReceptionist" | "commonArea";
+            extension_status?: "inactive" | "deleted";
             extension_deleted_time?: string;
         };
         deleted_time?: string;
         days_left_auto_permantely_delete?: number;
-        soft_deleted_type?: string;
+        soft_deleted_type?: "Manual" | "Data Retention";
     }[];
 };
 type VoicemailsDownloadPhoneVoicemailPathParams = {
@@ -8228,41 +9251,45 @@ type VoicemailsGetVoicemailDetailsPathParams = {
 type VoicemailsGetVoicemailDetailsResponse = {
     call_id?: string;
     call_log_id?: string;
+    call_history_id?: string;
     callee_name?: string;
     callee_number?: string;
-    callee_number_type?: number;
+    callee_number_type?: 1 | 2 | 3;
     caller_name?: string;
     caller_number?: string;
-    caller_number_type?: number;
+    caller_number_type?: 1 | 2;
     date_time?: string;
     download_url?: string;
     duration?: number;
     id?: string;
-    status?: string;
+    status?: "read" | "unread";
     transcription?: {
         content?: string;
-        status?: number;
+        status?: 0 | 1 | 2 | 4 | 5 | 9 | 11 | 12 | 13 | 14 | 409 | 415 | 422 | 500 | 601 | 602 | 603 | 999;
         engine?: string;
     };
     deleted_time?: string;
     days_left_auto_permantely_delete?: number;
-    soft_deleted_type?: string;
-    intent_detect_status?: string;
+    soft_deleted_type?: "Manual" | "Data Retention";
+    intent_detect_status?: "not_started" | "processing" | "success" | "ai_detection_failed" | "unknown_reason_failed";
     intent_results?: {
         intent_id?: string;
         confidence_score?: number;
     }[];
     voice_mail_task?: {
-        status?: string;
+        status?: "processing" | "success" | "no_task" | "failure";
         content?: string;
-        feedback?: string;
+        feedback?: "none" | "thumbs_up" | "thumbs_down";
     };
+};
+type VoicemailsDeleteVoicemailPathParams = {
+    voicemailId: string;
 };
 type VoicemailsUpdateVoicemailReadStatusPathParams = {
     voicemailId: string;
 };
 type VoicemailsUpdateVoicemailReadStatusQueryParams = {
-    read_status: string;
+    read_status: "Read" | "Unread";
 };
 type ZoomRoomsListZoomRoomsUnderZoomPhoneLicenseQueryParams = {
     page_size?: number;
@@ -8280,6 +9307,8 @@ type ZoomRoomsListZoomRoomsUnderZoomPhoneLicenseResponse = {
             type?: number;
             billing_account_id?: string;
             billing_account_name?: string;
+            billing_subscription_id?: string;
+            billing_subscription_name?: string;
         }[];
         extension_id?: string;
         extension_number?: number;
@@ -8301,6 +9330,7 @@ type ZoomRoomsAddZoomRoomToZoomPhoneRequestBody = {
     site_id?: string;
     calling_plans?: {
         type?: number;
+        billing_subscription_id?: string;
     }[];
 };
 type ZoomRoomsListZoomRoomsWithoutZoomPhoneAssignmentQueryParams = {
@@ -8325,6 +9355,8 @@ type ZoomRoomsGetZoomRoomUnderZoomPhoneLicenseResponse = {
         type?: number;
         billing_account_id?: string;
         billing_account_name?: string;
+        billing_subscription_id?: string;
+        billing_subscription_name?: string;
     }[];
     emergency_address?: {
         address_line1?: string;
@@ -8346,11 +9378,11 @@ type ZoomRoomsGetZoomRoomUnderZoomPhoneLicenseResponse = {
     policy?: {
         international_calling?: {
             enable?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "user_group" | "site" | "extension";
         };
         select_outbound_caller_id?: {
             enable?: boolean;
-            locked_by?: string;
+            locked_by?: "invalid" | "account" | "user_group" | "site" | "extension";
         };
     };
     site?: {
@@ -8385,6 +9417,7 @@ type ZoomRoomsAssignCallingPlansToZoomRoomRequestBody = {
     calling_plans?: {
         type?: number;
         billing_account_id?: string;
+        billing_subscription_id?: string;
     }[];
 };
 type ZoomRoomsRemoveCallingPlanFromZoomRoomPathParams = {
@@ -8403,6 +9436,7 @@ type ZoomRoomsAssignPhoneNumbersToZoomRoomRequestBody = {
         number?: string;
     }[];
 };
+type ZoomRoomsAssignPhoneNumbersToZoomRoomResponse = object;
 type ZoomRoomsRemovePhoneNumberFromZoomRoomPathParams = {
     roomId: string;
     phoneNumberId: string;
@@ -8417,7 +9451,7 @@ declare class PhoneEndpoints extends WebEndpoints {
         }) => Promise<BaseResponse<AccountsListAccountsCustomizedOutboundCallerIDPhoneNumbersResponse>>;
         addPhoneNumbersForAccountsCustomizedOutboundCallerID: (_: object & {
             body?: AccountsAddPhoneNumbersForAccountsCustomizedOutboundCallerIDRequestBody;
-        }) => Promise<BaseResponse<unknown>>;
+        }) => Promise<BaseResponse<never>>;
         deletePhoneNumbersForAccountsCustomizedOutboundCallerID: (_: object & {
             query?: AccountsDeletePhoneNumbersForAccountsCustomizedOutboundCallerIDQueryParams;
         }) => Promise<BaseResponse<unknown>>;
@@ -8560,7 +9594,7 @@ declare class PhoneEndpoints extends WebEndpoints {
                     description?: string;
                     phone_number?: string;
                 };
-                sub_setting_type?: string;
+                sub_setting_type?: "call_forwarding";
             };
         } | {
             body?: {
@@ -8569,7 +9603,7 @@ declare class PhoneEndpoints extends WebEndpoints {
                     from?: string;
                     to?: string;
                 };
-                sub_setting_type?: string;
+                sub_setting_type?: "holiday";
             };
         }) & object)) => Promise<BaseResponse<CallHandlingAddCallHandlingSettingResponse>>;
         deleteCallHandlingSetting: (_: {
@@ -8593,7 +9627,7 @@ declare class PhoneEndpoints extends WebEndpoints {
                     }[];
                     require_press_1_before_connecting?: boolean;
                 };
-                sub_setting_type?: string;
+                sub_setting_type?: "call_forwarding";
             };
         } | {
             body?: {
@@ -8603,7 +9637,7 @@ declare class PhoneEndpoints extends WebEndpoints {
                     name?: string;
                     to?: string;
                 };
-                sub_setting_type?: string;
+                sub_setting_type?: "holiday";
             };
         } | {
             body?: {
@@ -8612,12 +9646,12 @@ declare class PhoneEndpoints extends WebEndpoints {
                     custom_hours_settings?: {
                         from?: string;
                         to?: string;
-                        type?: number;
-                        weekday?: number;
+                        type?: 0 | 1 | 2;
+                        weekday?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
                     }[];
-                    type?: number;
+                    type?: 1 | 2;
                 };
-                sub_setting_type?: string;
+                sub_setting_type?: "custom_hours";
             };
         } | {
             body?: {
@@ -8627,12 +9661,12 @@ declare class PhoneEndpoints extends WebEndpoints {
                     audio_while_connecting_id?: string;
                     call_distribution?: {
                         handle_multiple_calls?: boolean;
-                        ring_duration?: number;
-                        ring_mode?: string;
+                        ring_duration?: 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
+                        ring_mode?: "simultaneous" | "sequential" | "rotating" | "longest_idle";
                         skip_offline_device_phone_number?: boolean;
                     };
-                    call_not_answer_action?: number;
-                    busy_on_another_call_action?: number;
+                    call_not_answer_action?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 14 | 15 | 18 | 19;
+                    busy_on_another_call_action?: 1 | 2 | 4 | 6 | 7 | 8 | 9 | 10 | 12 | 21 | 22;
                     busy_require_press_1_before_connecting?: boolean;
                     un_answered_require_press_1_before_connecting?: boolean;
                     overflow_play_callee_voicemail_greeting?: boolean;
@@ -8647,20 +9681,20 @@ declare class PhoneEndpoints extends WebEndpoints {
                     busy_forward_to_extension_id?: string;
                     greeting_prompt_id?: string;
                     max_call_in_queue?: number;
-                    max_wait_time?: number;
+                    max_wait_time?: 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60 | 120 | 180 | 240 | 300 | 600 | 900 | 1200 | 1500 | 1800;
                     music_on_hold_id?: string;
                     operator_extension_id?: string;
                     receive_call?: boolean;
-                    ring_mode?: string;
+                    ring_mode?: "simultaneous" | "sequential";
                     voicemail_greeting_id?: string;
                     voicemail_leaving_instruction_id?: string;
                     message_greeting_id?: string;
                     forward_to_zcc_phone_number?: string;
                     forward_to_partner_contact_center_id?: string;
                     forward_to_teams_id?: string;
-                    wrap_up_time?: number;
+                    wrap_up_time?: 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60 | 120 | 180 | 240 | 300;
                 };
-                sub_setting_type?: string;
+                sub_setting_type?: "call_handling";
             };
         }) & object)) => Promise<BaseResponse<unknown>>;
     };
@@ -8676,6 +9710,9 @@ declare class PhoneEndpoints extends WebEndpoints {
         } & {
             body: CallLogsAddClientCodeToCallHistoryRequestBody;
         } & object) => Promise<BaseResponse<unknown>>;
+        getCallHistoryDetail: (_: {
+            path: CallLogsGetCallHistoryDetailPathParams;
+        } & object) => Promise<BaseResponse<CallLogsGetCallHistoryDetailResponse>>;
         getAccountsCallLogs: (_: object & {
             query?: CallLogsGetAccountsCallLogsQueryParams;
         }) => Promise<BaseResponse<CallLogsGetAccountsCallLogsResponse>>;
@@ -8687,6 +9724,9 @@ declare class PhoneEndpoints extends WebEndpoints {
         } & {
             body: CallLogsAddClientCodeToCallLogRequestBody;
         } & object) => Promise<BaseResponse<unknown>>;
+        getUserAICallSummaryDetail: (_: {
+            path: CallLogsGetUserAICallSummaryDetailPathParams;
+        } & object) => Promise<BaseResponse<CallLogsGetUserAICallSummaryDetailResponse>>;
         getUsersCallHistory: (_: {
             path: CallLogsGetUsersCallHistoryPathParams;
         } & object & {
@@ -8715,6 +9755,9 @@ declare class PhoneEndpoints extends WebEndpoints {
         } & object) => Promise<BaseResponse<unknown>>;
     };
     readonly callQueues: {
+        listCallQueueAnalytics: (_: object & {
+            query?: CallQueuesListCallQueueAnalyticsQueryParams;
+        }) => Promise<BaseResponse<CallQueuesListCallQueueAnalyticsResponse>>;
         listCallQueues: (_: object & {
             query?: CallQueuesListCallQueuesQueryParams;
         }) => Promise<BaseResponse<CallQueuesListCallQueuesResponse>>;
@@ -8757,11 +9800,11 @@ declare class PhoneEndpoints extends WebEndpoints {
         unassignPhoneNumber: (_: {
             path: CallQueuesUnassignPhoneNumberPathParams;
         } & object) => Promise<BaseResponse<unknown>>;
-        addPolicySettingToCallQueue: (_: {
-            path: CallQueuesAddPolicySettingToCallQueuePathParams;
+        addPolicySubsettingToCallQueue: (_: {
+            path: CallQueuesAddPolicySubsettingToCallQueuePathParams;
         } & {
-            body?: CallQueuesAddPolicySettingToCallQueueRequestBody;
-        } & object) => Promise<BaseResponse<CallQueuesAddPolicySettingToCallQueueResponse>>;
+            body?: CallQueuesAddPolicySubsettingToCallQueueRequestBody;
+        } & object) => Promise<BaseResponse<CallQueuesAddPolicySubsettingToCallQueueResponse>>;
         deleteCQPolicySetting: (_: {
             path: CallQueuesDeleteCQPolicySettingPathParams;
         } & object & {
@@ -8799,6 +9842,9 @@ declare class PhoneEndpoints extends WebEndpoints {
         addCommonArea: (_: object & {
             body: CommonAreasAddCommonAreaRequestBody;
         }) => Promise<BaseResponse<CommonAreasAddCommonAreaResponse>>;
+        generateActivationCodesForCommonAreas: (_: object & {
+            body: CommonAreasGenerateActivationCodesForCommonAreasRequestBody;
+        }) => Promise<BaseResponse<CommonAreasGenerateActivationCodesForCommonAreasResponse>>;
         listActivationCodes: (_: object & {
             query?: CommonAreasListActivationCodesQueryParams;
         }) => Promise<BaseResponse<CommonAreasListActivationCodesResponse>>;
@@ -8844,20 +9890,20 @@ declare class PhoneEndpoints extends WebEndpoints {
         getCommonAreaSettings: (_: {
             path: CommonAreasGetCommonAreaSettingsPathParams;
         } & object) => Promise<BaseResponse<CommonAreasGetCommonAreaSettingsResponse>>;
-        addCommonAreaSettings: (_: {
-            path: CommonAreasAddCommonAreaSettingsPathParams;
+        addCommonAreaSetting: (_: {
+            path: CommonAreasAddCommonAreaSettingPathParams;
         } & {
-            body?: CommonAreasAddCommonAreaSettingsRequestBody;
-        } & object) => Promise<BaseResponse<CommonAreasAddCommonAreaSettingsResponse>>;
+            body?: CommonAreasAddCommonAreaSettingRequestBody;
+        } & object) => Promise<BaseResponse<CommonAreasAddCommonAreaSettingResponse>>;
         deleteCommonAreaSetting: (_: {
             path: CommonAreasDeleteCommonAreaSettingPathParams;
         } & object & {
             query: CommonAreasDeleteCommonAreaSettingQueryParams;
         }) => Promise<BaseResponse<unknown>>;
-        updateCommonAreaSettings: (_: {
-            path: CommonAreasUpdateCommonAreaSettingsPathParams;
+        updateCommonAreaSetting: (_: {
+            path: CommonAreasUpdateCommonAreaSettingPathParams;
         } & {
-            body?: CommonAreasUpdateCommonAreaSettingsRequestBody;
+            body?: CommonAreasUpdateCommonAreaSettingRequestBody;
         } & object) => Promise<BaseResponse<unknown>>;
     };
     readonly dashboard: {
@@ -8870,6 +9916,24 @@ declare class PhoneEndpoints extends WebEndpoints {
         getCallDetailsFromCallLog: (_: {
             path: DashboardGetCallDetailsFromCallLogPathParams;
         } & object) => Promise<BaseResponse<DashboardGetCallDetailsFromCallLogResponse>>;
+        listDefaultEmergencyAddressUsers: (_: object & {
+            query: DashboardListDefaultEmergencyAddressUsersQueryParams;
+        }) => Promise<BaseResponse<DashboardListDefaultEmergencyAddressUsersResponse>>;
+        listDetectablePersonalLocationUsers: (_: object & {
+            query: DashboardListDetectablePersonalLocationUsersQueryParams;
+        }) => Promise<BaseResponse<DashboardListDetectablePersonalLocationUsersResponse>>;
+        listUsersPermissionForLocationSharing: (_: object & {
+            query?: DashboardListUsersPermissionForLocationSharingQueryParams;
+        }) => Promise<BaseResponse<DashboardListUsersPermissionForLocationSharingResponse>>;
+        listNomadicEmergencyServicesUsers: (_: object & {
+            query: DashboardListNomadicEmergencyServicesUsersQueryParams;
+        }) => Promise<BaseResponse<DashboardListNomadicEmergencyServicesUsersResponse>>;
+        listRealTimeLocationForIPPhones: (_: object & {
+            query: DashboardListRealTimeLocationForIPPhonesQueryParams;
+        }) => Promise<BaseResponse<DashboardListRealTimeLocationForIPPhonesResponse>>;
+        listRealTimeLocationForUsers: (_: object & {
+            query: DashboardListRealTimeLocationForUsersQueryParams;
+        }) => Promise<BaseResponse<DashboardListRealTimeLocationForUsersResponse>>;
         listTrackedLocations: (_: object & {
             query?: DashboardListTrackedLocationsQueryParams;
         }) => Promise<BaseResponse<DashboardListTrackedLocationsResponse>>;
@@ -9030,6 +10094,14 @@ declare class PhoneEndpoints extends WebEndpoints {
         } & object) => Promise<BaseResponse<unknown>>;
     };
     readonly groups: {
+        getGroupPolicyDetails: (_: {
+            path: GroupsGetGroupPolicyDetailsPathParams;
+        } & object) => Promise<BaseResponse<GroupsGetGroupPolicyDetailsResponse>>;
+        updateGroupPolicy: (_: {
+            path: GroupsUpdateGroupPolicyPathParams;
+        } & {
+            body?: GroupsUpdateGroupPolicyRequestBody;
+        } & object) => Promise<BaseResponse<unknown>>;
         getGroupPhoneSettings: (_: {
             path: GroupsGetGroupPhoneSettingsPathParams;
         } & object & {
@@ -9130,7 +10202,7 @@ declare class PhoneEndpoints extends WebEndpoints {
             body: MonitoringGroupsAddMembersToMonitoringGroupRequestBody;
         } & {
             query: MonitoringGroupsAddMembersToMonitoringGroupQueryParams;
-        }) => Promise<BaseResponse<unknown>>;
+        }) => Promise<BaseResponse<never>>;
         removeAllMonitorsOrMonitoredMembersFromMonitoringGroup: (_: {
             path: MonitoringGroupsRemoveAllMonitorsOrMonitoredMembersFromMonitoringGroupPathParams;
         } & object & {
@@ -9273,7 +10345,7 @@ declare class PhoneEndpoints extends WebEndpoints {
             path: PhoneDevicesAssignEntityToDevicePathParams;
         } & {
             body: PhoneDevicesAssignEntityToDeviceRequestBody;
-        } & object) => Promise<BaseResponse<unknown>>;
+        } & object) => Promise<BaseResponse<never>>;
         unassignEntityFromDevice: (_: {
             path: PhoneDevicesUnassignEntityFromDevicePathParams;
         } & object) => Promise<BaseResponse<unknown>>;
@@ -9285,6 +10357,9 @@ declare class PhoneEndpoints extends WebEndpoints {
         rebootDeskPhone: (_: {
             path: PhoneDevicesRebootDeskPhonePathParams;
         } & object) => Promise<BaseResponse<unknown>>;
+        listSmartphones: (_: object & {
+            query?: PhoneDevicesListSmartphonesQueryParams;
+        }) => Promise<BaseResponse<PhoneDevicesListSmartphonesResponse>>;
     };
     readonly phoneNumbers: {
         addBYOCPhoneNumbers: (_: object & {
@@ -9353,6 +10428,21 @@ declare class PhoneEndpoints extends WebEndpoints {
         } & object & {
             query: PhoneRolesDeleteMembersInRoleQueryParams;
         }) => Promise<BaseResponse<unknown>>;
+        listPhoneRoleTargets: (_: {
+            path: PhoneRolesListPhoneRoleTargetsPathParams;
+        } & object & {
+            query?: PhoneRolesListPhoneRoleTargetsQueryParams;
+        }) => Promise<BaseResponse<PhoneRolesListPhoneRoleTargetsResponse>>;
+        addPhoneRoleTargets: (_: {
+            path: PhoneRolesAddPhoneRoleTargetsPathParams;
+        } & {
+            body: PhoneRolesAddPhoneRoleTargetsRequestBody;
+        } & object) => Promise<BaseResponse<PhoneRolesAddPhoneRoleTargetsResponse>>;
+        deletePhoneRoleTargets: (_: {
+            path: PhoneRolesDeletePhoneRoleTargetsPathParams;
+        } & {
+            body: PhoneRolesDeletePhoneRoleTargetsRequestBody;
+        } & object) => Promise<BaseResponse<unknown>>;
     };
     readonly privateDirectory: {
         listPrivateDirectoryMembers: (_: object & {
@@ -9471,6 +10561,9 @@ declare class PhoneEndpoints extends WebEndpoints {
         } & object) => Promise<BaseResponse<unknown>>;
     };
     readonly sMS: {
+        postSMSMessage: (_: object & {
+            body: SMSPostSMSMessageRequestBody;
+        }) => Promise<BaseResponse<SMSPostSMSMessageResponse>>;
         getAccountsSMSSessions: (_: object & {
             query?: SMSGetAccountsSMSSessionsQueryParams;
         }) => Promise<BaseResponse<SMSGetAccountsSMSSessionsResponse>>;
@@ -9508,7 +10601,7 @@ declare class PhoneEndpoints extends WebEndpoints {
         assignPhoneNumberToSMSCampaign: (_: {
             path: SMSCampaignAssignPhoneNumberToSMSCampaignPathParams;
         } & {
-            body?: SMSCampaignAssignPhoneNumberToSMSCampaignRequestBody;
+            body: SMSCampaignAssignPhoneNumberToSMSCampaignRequestBody;
         } & object) => Promise<BaseResponse<SMSCampaignAssignPhoneNumberToSMSCampaignResponse>>;
         listOptStatusesOfPhoneNumbersAssignedToSMSCampaign: (_: {
             path: SMSCampaignListOptStatusesOfPhoneNumbersAssignedToSMSCampaignPathParams;
@@ -9523,6 +10616,11 @@ declare class PhoneEndpoints extends WebEndpoints {
         unassignPhoneNumber: (_: {
             path: SMSCampaignUnassignPhoneNumberPathParams;
         } & object) => Promise<BaseResponse<unknown>>;
+        listUsersOptStatusesOfPhoneNumbers: (_: {
+            path: SMSCampaignListUsersOptStatusesOfPhoneNumbersPathParams;
+        } & object & {
+            query: SMSCampaignListUsersOptStatusesOfPhoneNumbersQueryParams;
+        }) => Promise<BaseResponse<SMSCampaignListUsersOptStatusesOfPhoneNumbersResponse>>;
     };
     readonly settingTemplates: {
         listSettingTemplates: (_: object & {
@@ -9543,6 +10641,14 @@ declare class PhoneEndpoints extends WebEndpoints {
         } & object) => Promise<BaseResponse<unknown>>;
     };
     readonly settings: {
+        getAccountPolicyDetails: (_: {
+            path: SettingsGetAccountPolicyDetailsPathParams;
+        } & object) => Promise<BaseResponse<SettingsGetAccountPolicyDetailsResponse>>;
+        updateAccountPolicy: (_: {
+            path: SettingsUpdateAccountPolicyPathParams;
+        } & {
+            body?: SettingsUpdateAccountPolicyRequestBody;
+        } & object) => Promise<BaseResponse<unknown>>;
         listPortedNumbers: (_: object & {
             query?: SettingsListPortedNumbersQueryParams;
         }) => Promise<BaseResponse<SettingsListPortedNumbersResponse>>;
@@ -9658,7 +10764,7 @@ declare class PhoneEndpoints extends WebEndpoints {
             path: SitesAddCustomizedOutboundCallerIDPhoneNumbersPathParams;
         } & {
             body?: SitesAddCustomizedOutboundCallerIDPhoneNumbersRequestBody;
-        } & object) => Promise<BaseResponse<unknown>>;
+        } & object) => Promise<BaseResponse<never>>;
         removeCustomizedOutboundCallerIDPhoneNumbers: (_: {
             path: SitesRemoveCustomizedOutboundCallerIDPhoneNumbersPathParams;
         } & object & {
@@ -9731,6 +10837,14 @@ declare class PhoneEndpoints extends WebEndpoints {
         } & object & {
             query?: UsersRemoveUsersCustomizedOutboundCallerIDPhoneNumbersQueryParams;
         }) => Promise<BaseResponse<unknown>>;
+        getUserPolicyDetails: (_: {
+            path: UsersGetUserPolicyDetailsPathParams;
+        } & object) => Promise<BaseResponse<UsersGetUserPolicyDetailsResponse>>;
+        updateUserPolicy: (_: {
+            path: UsersUpdateUserPolicyPathParams;
+        } & {
+            body?: UsersUpdateUserPolicyRequestBody;
+        } & object) => Promise<BaseResponse<unknown>>;
         getUsersProfileSettings: (_: {
             path: UsersGetUsersProfileSettingsPathParams;
         } & object) => Promise<BaseResponse<UsersGetUsersProfileSettingsResponse>>;
@@ -9773,6 +10887,9 @@ declare class PhoneEndpoints extends WebEndpoints {
         getVoicemailDetails: (_: {
             path: VoicemailsGetVoicemailDetailsPathParams;
         } & object) => Promise<BaseResponse<VoicemailsGetVoicemailDetailsResponse>>;
+        deleteVoicemail: (_: {
+            path: VoicemailsDeleteVoicemailPathParams;
+        } & object) => Promise<BaseResponse<unknown>>;
         updateVoicemailReadStatus: (_: {
             path: VoicemailsUpdateVoicemailReadStatusPathParams;
         } & object & {
@@ -9814,7 +10931,7 @@ declare class PhoneEndpoints extends WebEndpoints {
             path: ZoomRoomsAssignPhoneNumbersToZoomRoomPathParams;
         } & {
             body?: ZoomRoomsAssignPhoneNumbersToZoomRoomRequestBody;
-        } & object) => Promise<BaseResponse<unknown>>;
+        } & object) => Promise<BaseResponse<object>>;
         removePhoneNumberFromZoomRoom: (_: {
             path: ZoomRoomsRemovePhoneNumberFromZoomRoomPathParams;
         } & object) => Promise<BaseResponse<unknown>>;
@@ -9822,7 +10939,7 @@ declare class PhoneEndpoints extends WebEndpoints {
 }
 
 type PhoneRecordingDeletedEvent = Event<"phone.recording_deleted"> & {
-    event: string;
+    event: "phone.recording_deleted";
     event_ts: number;
     payload: {
         account_id: string;
@@ -9835,7 +10952,7 @@ type PhoneRecordingDeletedEvent = Event<"phone.recording_deleted"> & {
     };
 };
 type PhoneCallerCallLogCompletedEvent = Event<"phone.caller_call_log_completed"> & {
-    event: string;
+    event: "phone.caller_call_log_completed";
     event_ts: number;
     payload: {
         account_id: string;
@@ -9844,16 +10961,16 @@ type PhoneCallerCallLogCompletedEvent = Event<"phone.caller_call_log_completed">
             call_logs: {
                 id: string;
                 caller_number: string;
-                caller_number_type: number;
-                caller_number_source?: string;
+                caller_number_type: 1 | 2;
+                caller_number_source?: "internal" | "external" | "byop";
                 caller_name?: string;
                 caller_location?: string;
                 caller_did_number?: string;
                 caller_country_code?: string;
                 caller_country_iso_code?: string;
                 callee_number: string;
-                callee_number_type: number;
-                callee_number_source?: string;
+                callee_number_type: 1 | 2 | 3;
+                callee_number_source?: "internal" | "external" | "byop";
                 callee_name?: string;
                 callee_location?: string;
                 callee_did_number?: string;
@@ -9872,12 +10989,12 @@ type PhoneCallerCallLogCompletedEvent = Event<"phone.caller_call_log_completed">
                 has_voicemail: boolean;
                 call_id: string;
                 client_code?: string;
-                call_type: string;
+                call_type: "voip" | "pstn" | "tollfree" | "international" | "contactCenter";
                 call_end_time?: string;
-                direction?: string;
+                direction?: "inbound" | "outbound";
                 forwarded_to?: {
                     extension_number?: string;
-                    extension_type?: string;
+                    extension_type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup" | "pstn";
                     location?: string;
                     name?: string;
                     number_type?: number;
@@ -9885,7 +11002,7 @@ type PhoneCallerCallLogCompletedEvent = Event<"phone.caller_call_log_completed">
                 };
                 forwarded_by?: {
                     extension_number?: string;
-                    extension_type?: string;
+                    extension_type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
                     location?: string;
                     name?: string;
                     number_type?: number;
@@ -9899,7 +11016,7 @@ type PhoneCallerCallLogCompletedEvent = Event<"phone.caller_call_log_completed">
     };
 };
 type PhoneRecordingCompletedForAccessMemberEvent = Event<"phone.recording_completed_for_access_member"> & {
-    event: string;
+    event: "phone.recording_completed_for_access_member";
     event_ts: number;
     payload: {
         account_id: string;
@@ -9907,11 +11024,11 @@ type PhoneRecordingCompletedForAccessMemberEvent = Event<"phone.recording_comple
             recordings: {
                 id: string;
                 caller_number: string;
-                caller_number_type: number;
+                caller_number_type: 1 | 2;
                 caller_name?: string;
                 caller_did_number?: string;
                 callee_number: string;
-                callee_number_type: number;
+                callee_number_type: 1 | 2;
                 callee_name: string;
                 callee_did_number?: string;
                 duration: number;
@@ -9920,6 +11037,7 @@ type PhoneRecordingCompletedForAccessMemberEvent = Event<"phone.recording_comple
                 user_id?: string;
                 call_id?: string;
                 call_log_id?: string;
+                call_history_id?: string;
                 end_time?: string;
                 recording_type?: string;
                 site?: {
@@ -9932,7 +11050,7 @@ type PhoneRecordingCompletedForAccessMemberEvent = Event<"phone.recording_comple
                     extension_number?: number;
                     has_access_permission?: boolean;
                 };
-                direction: string;
+                direction: "inbound" | "outbound";
                 outgoing_by?: {
                     name?: string;
                     extension_number?: string;
@@ -9954,12 +11072,12 @@ type PhoneRecordingResumedEvent = Event<"phone.recording_resumed"> & {
             user_id: string;
             caller_number: string;
             callee_number: string;
-            direction: string;
+            direction: "inbound" | "outbound";
             date_time: string;
-            recording_type: string;
+            recording_type: "OnDemand" | "Automatic";
             call_id: string;
             owner: {
-                type: string;
+                type: "user" | "callQueue" | "commonArea";
                 id: string;
                 name: string;
                 extension_number: number;
@@ -9969,7 +11087,7 @@ type PhoneRecordingResumedEvent = Event<"phone.recording_resumed"> & {
     event_ts: number;
 };
 type PhoneRecordingTranscriptCompletedEvent = Event<"phone.recording_transcript_completed"> & {
-    event: string;
+    event: "phone.recording_transcript_completed";
     event_ts: number;
     payload: {
         account_id: string;
@@ -9977,10 +11095,10 @@ type PhoneRecordingTranscriptCompletedEvent = Event<"phone.recording_transcript_
             recordings: {
                 id: string;
                 caller_number: string;
-                caller_number_type: number;
+                caller_number_type: 1 | 2;
                 caller_name?: string;
                 callee_number: string;
-                callee_number_type: number;
+                callee_number_type: 1 | 2;
                 callee_name: string;
                 duration?: number;
                 transcript_download_url: string;
@@ -9999,7 +11117,7 @@ type PhoneRecordingTranscriptCompletedEvent = Event<"phone.recording_transcript_
                     name: string;
                     extension_number?: number;
                 };
-                direction: string;
+                direction: "inbound" | "outbound";
                 outgoing_by?: {
                     name?: string;
                     extension_number?: string;
@@ -10013,7 +11131,7 @@ type PhoneRecordingTranscriptCompletedEvent = Event<"phone.recording_transcript_
     };
 };
 type PhoneCallLogPermanentlyDeletedEvent = Event<"phone.call_log_permanently_deleted"> & {
-    event: string;
+    event: "phone.call_log_permanently_deleted";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10027,7 +11145,7 @@ type PhoneCallLogPermanentlyDeletedEvent = Event<"phone.call_log_permanently_del
     };
 };
 type PhoneTransferCallToVoicemailInitiatedEvent = Event<"phone.transfer_call_to_voicemail_initiated"> & {
-    event: string;
+    event: "phone.transfer_call_to_voicemail_initiated";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10039,7 +11157,7 @@ type PhoneTransferCallToVoicemailInitiatedEvent = Event<"phone.transfer_call_to_
                 extension_number?: number;
                 id?: string;
                 name?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist" | "commonAreaPhone" | "sharedLineGroup";
             };
             date_time: string;
         };
@@ -10054,22 +11172,22 @@ type PhoneCalleeMissedEvent = Event<"phone.callee_missed"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             ringing_start_time: string;
             call_end_time: string;
@@ -10092,7 +11210,7 @@ type PhoneCallerRingingEvent = Event<"phone.caller_ringing"> & {
             call_id: string;
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 name?: string;
                 phone_number: string;
@@ -10101,22 +11219,22 @@ type PhoneCallerRingingEvent = Event<"phone.caller_ringing"> & {
                 device_type?: string;
                 device_name?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 name?: string;
                 phone_number?: string;
                 extension_number?: number;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             ringing_start_time: string;
         };
     };
 };
 type PhoneVoicemailReceivedEvent = Event<"phone.voicemail_received"> & {
-    event: string;
+    event: "phone.voicemail_received";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10127,23 +11245,24 @@ type PhoneVoicemailReceivedEvent = Event<"phone.voicemail_received"> & {
             duration: number;
             caller_user_id?: string;
             caller_number: string;
-            caller_number_type: number;
+            caller_number_type: 1 | 2;
             caller_name: string;
             caller_did_number?: string;
             callee_user_id?: string;
             callee_number: string;
-            callee_number_type: number;
+            callee_number_type: 1 | 2;
             callee_name: string;
             callee_did_number?: string;
-            callee_extension_type: string;
+            callee_extension_type: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
             callee_id: string;
             call_log_id?: string;
+            call_history_id?: string;
             call_id?: string;
         };
     };
 };
 type PhoneSmsSentEvent = Event<"phone.sms_sent"> & {
-    event: string;
+    event: "phone.sms_sent";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10152,17 +11271,17 @@ type PhoneSmsSentEvent = Event<"phone.sms_sent"> & {
             sender: {
                 phone_number: string;
                 id?: string;
-                type?: string;
+                type?: "user";
                 display_name?: string;
             };
             to_members: {
                 id?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist";
                 display_name?: string;
                 phone_number: string;
             }[];
             owner: {
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist";
                 id?: string;
                 sms_sender_user_id?: string;
             };
@@ -10178,11 +11297,16 @@ type PhoneSmsSentEvent = Event<"phone.sms_sent"> & {
             message_id: string;
             message_type: number;
             date_time: string;
+            phone_number_campaign_opt_statuses?: {
+                consumer_phone_number: string;
+                zoom_phone_user_number: string;
+                opt_status: "pending" | "opt_out" | "opt_in";
+            }[];
         };
     };
 };
 type PhoneVoicemailDeletedEvent = Event<"phone.voicemail_deleted"> & {
-    event: string;
+    event: "phone.voicemail_deleted";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10194,7 +11318,7 @@ type PhoneVoicemailDeletedEvent = Event<"phone.voicemail_deleted"> & {
     };
 };
 type PhoneVoicemailTranscriptCompletedEvent = Event<"phone.voicemail_transcript_completed"> & {
-    event: string;
+    event: "phone.voicemail_transcript_completed";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10202,25 +11326,26 @@ type PhoneVoicemailTranscriptCompletedEvent = Event<"phone.voicemail_transcript_
             id: string;
             date_time: string;
             caller_number: string;
-            caller_number_type: number;
+            caller_number_type: 1 | 2;
             caller_name: string;
             callee_user_id?: string;
             callee_number: string;
-            callee_number_type: number;
+            callee_number_type: 1 | 2;
             callee_name: string;
-            callee_extension_type?: string;
+            callee_extension_type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
             callee_id?: string;
             call_log_id?: string;
+            call_history_id?: string;
             call_id?: string;
             transcription: {
-                status: number;
+                status: 0 | 1 | 2 | 4 | 5 | 9 | 11 | 12 | 13 | 14 | 409 | 415 | 422 | 500 | 601 | 602 | 603 | 999;
                 content: string;
             };
         };
     };
 };
 type PhoneRecordingPermanentlyDeletedEvent = Event<"phone.recording_permanently_deleted"> & {
-    event: string;
+    event: "phone.recording_permanently_deleted";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10252,7 +11377,7 @@ type PhonePeeringNumberEmergencyAddressUpdatedEvent = Event<"phone.peering_numbe
     };
 };
 type PhoneSmsCampaignNumberOptOutEvent = Event<"phone.sms_campaign_number_opt_out"> & {
-    event: string;
+    event: "phone.sms_campaign_number_opt_out";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10274,22 +11399,22 @@ type PhoneCallerEndedEvent = Event<"phone.caller_ended"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             ringing_start_time: string;
             answer_start_time?: string;
@@ -10307,7 +11432,7 @@ type PhoneCalleeEndedEvent = Event<"phone.callee_ended"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 name?: string;
                 phone_number: string;
@@ -10315,16 +11440,16 @@ type PhoneCalleeEndedEvent = Event<"phone.callee_ended"> & {
                 timezone?: string;
                 device_name?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number?: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             ringing_start_time: string;
             answer_start_time?: string;
@@ -10344,7 +11469,7 @@ type PhoneCalleeEndedEvent = Event<"phone.callee_ended"> & {
     };
 };
 type PhoneCalleeCallHistoryCompletedEvent = Event<"phone.callee_call_history_completed"> & {
-    event: string;
+    event: "phone.callee_call_history_completed";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10352,19 +11477,22 @@ type PhoneCalleeCallHistoryCompletedEvent = Event<"phone.callee_call_history_com
             user_id: string;
             call_logs: {
                 id: string;
+                call_path_id: string;
                 call_id: string;
                 group_id?: string;
-                connect_type?: string;
-                call_type?: string;
-                direction?: string;
+                connect_type?: "internal" | "external";
+                call_type?: "general" | "emergency";
+                direction?: "inbound" | "outbound";
+                hide_caller_id?: boolean;
+                end_to_end?: boolean;
                 caller_ext_id?: string;
                 caller_name?: string;
                 caller_email?: string;
                 caller_employee_id?: string;
                 caller_did_number?: string;
                 caller_ext_number?: string;
-                caller_ext_type?: string;
-                caller_number_type?: string;
+                caller_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+                caller_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number";
                 caller_device_private_ip?: string;
                 caller_device_public_ip?: string;
                 caller_device_type?: string;
@@ -10379,8 +11507,8 @@ type PhoneCalleeCallHistoryCompletedEvent = Event<"phone.callee_call_history_com
                 callee_ext_number?: string;
                 callee_email?: string;
                 callee_employee_id?: string;
-                callee_ext_type?: string;
-                callee_number_type?: string;
+                callee_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+                callee_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number";
                 callee_device_private_ip?: string;
                 callee_device_public_ip?: string;
                 callee_device_type?: string;
@@ -10392,15 +11520,15 @@ type PhoneCalleeCallHistoryCompletedEvent = Event<"phone.callee_call_history_com
                 start_time: string;
                 answer_time?: string;
                 end_time?: string;
-                event?: string;
-                result: string;
-                result_reason?: string;
+                event?: "incoming" | "transfer_from_zoom_contact_center" | "shared_line_incoming" | "outgoing" | "call_me_on" | "outgoing_to_zoom_contact_center" | "warm_transfer" | "forward" | "ring_to_member" | "overflow" | "direct_transfer" | "barge" | "monitor" | "whisper" | "listen" | "takeover" | "conference_barge" | "park" | "timeout" | "park_pick_up" | "merge" | "shared";
+                result: "answered" | "accepted" | "picked_up" | "connected" | "succeeded" | "voicemail" | "hang_up" | "canceled" | "call_failed" | "unconnected" | "rejected" | "busy" | "ring_timeout" | "overflowed" | "no_answer" | "invalid_key" | "invalid_operation" | "abandoned" | "system_blocked" | "service_unavailable";
+                result_reason?: "answered_by_other" | "pickup_by_other" | "call_out_by_other";
                 operator_ext_number?: string;
                 operator_ext_id?: string;
-                operator_ext_type?: string;
+                operator_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
                 operator_name?: string;
                 recording_id?: string;
-                recording_type?: string;
+                recording_type?: "ad-hoc" | "automatic";
                 voicemail_id?: string;
                 talk_time?: number;
                 hold_time?: number;
@@ -10410,7 +11538,7 @@ type PhoneCalleeCallHistoryCompletedEvent = Event<"phone.callee_call_history_com
     };
 };
 type PhoneVoicemailPermanentlyDeletedEvent = Event<"phone.voicemail_permanently_deleted"> & {
-    event: string;
+    event: "phone.voicemail_permanently_deleted";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10422,7 +11550,7 @@ type PhoneVoicemailPermanentlyDeletedEvent = Event<"phone.voicemail_permanently_
     };
 };
 type PhoneSmsCampaignNumberOptInEvent = Event<"phone.sms_campaign_number_opt_in"> & {
-    event: string;
+    event: "phone.sms_campaign_number_opt_in";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10444,29 +11572,42 @@ type PhoneCalleeMuteEvent = Event<"phone.callee_mute"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter";
                 user_id?: string;
                 phone_number: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             date_time: string;
         };
     };
 };
+type PhoneSmsEtiquetteWarnEvent = Event<"phone.sms_etiquette_warn"> & {
+    event: "phone.sms_etiquette_warn";
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            email: string;
+            message: string;
+            policy_name: string;
+            date_time: string;
+        };
+    };
+};
 type PhoneCallHistoryDeletedEvent = Event<"phone.call_history_deleted"> & {
-    event: string;
+    event: "phone.call_history_deleted";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10479,8 +11620,21 @@ type PhoneCallHistoryDeletedEvent = Event<"phone.call_history_deleted"> & {
         };
     };
 };
+type PhoneSmsEtiquetteBlockEvent = Event<"phone.sms_etiquette_block"> & {
+    event: "phone.sms_etiquette_block";
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            email: string;
+            message: string;
+            policy_name: string;
+            date_time: string;
+        };
+    };
+};
 type PhoneCallLogDeletedEvent = Event<"phone.call_log_deleted"> & {
-    event: string;
+    event: "phone.call_log_deleted";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10502,22 +11656,22 @@ type PhoneCallerHoldEvent = Event<"phone.caller_hold"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number?: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             date_time: string;
         };
@@ -10532,7 +11686,7 @@ type PhoneCallerConnectedEvent = Event<"phone.caller_connected"> & {
             call_id: string;
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 name?: string;
                 phone_number: string;
@@ -10540,15 +11694,15 @@ type PhoneCallerConnectedEvent = Event<"phone.caller_connected"> & {
                 timezone?: string;
                 device_type?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 name?: string;
                 phone_number?: string;
                 extension_number?: number;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             ringing_start_time: string;
             connected_start_time: string;
@@ -10556,7 +11710,7 @@ type PhoneCallerConnectedEvent = Event<"phone.caller_connected"> & {
     };
 };
 type PhoneRecordingCompletedEvent = Event<"phone.recording_completed"> & {
-    event: string;
+    event: "phone.recording_completed";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10564,11 +11718,11 @@ type PhoneRecordingCompletedEvent = Event<"phone.recording_completed"> & {
             recordings: {
                 id: string;
                 caller_number: string;
-                caller_number_type: number;
+                caller_number_type: 1 | 2;
                 caller_name?: string;
                 caller_did_number?: string;
                 callee_number: string;
-                callee_number_type: number;
+                callee_number_type: 1 | 2;
                 callee_name: string;
                 callee_did_number?: string;
                 duration: number;
@@ -10577,6 +11731,7 @@ type PhoneRecordingCompletedEvent = Event<"phone.recording_completed"> & {
                 user_id?: string;
                 call_id?: string;
                 call_log_id?: string;
+                call_history_id?: string;
                 end_time?: string;
                 recording_type?: string;
                 site?: {
@@ -10589,7 +11744,7 @@ type PhoneRecordingCompletedEvent = Event<"phone.recording_completed"> & {
                     extension_number?: number;
                     has_access_permission?: boolean;
                 };
-                direction: string;
+                direction: "inbound" | "outbound";
                 outgoing_by?: {
                     name?: string;
                     extension_number?: string;
@@ -10611,14 +11766,14 @@ type PhoneRecordingStartedEvent = Event<"phone.recording_started"> & {
             user_id: string;
             caller_number: string;
             callee_number: string;
-            direction: string;
+            direction: "inbound" | "outbound";
             date_time: string;
-            recording_type: string;
+            recording_type: "OnDemand" | "Automatic";
             call_id: string;
             channel_id: string;
             sip_id: string;
             owner: {
-                type: string;
+                type: "user" | "callQueue" | "commonArea";
                 id: string;
                 name: string;
                 extension_number?: number;
@@ -10628,7 +11783,7 @@ type PhoneRecordingStartedEvent = Event<"phone.recording_started"> & {
     event_ts: number;
 };
 type PhoneSmsSentFailedEvent = Event<"phone.sms_sent_failed"> & {
-    event: string;
+    event: "phone.sms_sent_failed";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10637,7 +11792,7 @@ type PhoneSmsSentFailedEvent = Event<"phone.sms_sent_failed"> & {
             sender: {
                 phone_number: string;
                 id?: string;
-                type?: string;
+                type?: "user";
                 display_name?: string;
             };
             to_members: {
@@ -10647,7 +11802,7 @@ type PhoneSmsSentFailedEvent = Event<"phone.sms_sent_failed"> & {
                 is_message_owner?: boolean;
             }[];
             owner: {
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist";
                 id?: string;
                 sms_sender_user_id?: string;
             };
@@ -10663,11 +11818,16 @@ type PhoneSmsSentFailedEvent = Event<"phone.sms_sent_failed"> & {
             message_id: string;
             message_type: number;
             date_time: string;
+            phone_number_campaign_opt_statuses?: {
+                consumer_phone_number: string;
+                zoom_phone_user_number: string;
+                opt_status: "pending" | "opt_out" | "opt_in";
+            }[];
         };
     };
 };
 type PhoneCalleeCallLogCompletedEvent = Event<"phone.callee_call_log_completed"> & {
-    event: string;
+    event: "phone.callee_call_log_completed";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10677,8 +11837,8 @@ type PhoneCalleeCallLogCompletedEvent = Event<"phone.callee_call_log_completed">
                 id: string;
                 caller_user_id?: string;
                 caller_number: string;
-                caller_number_type: number;
-                caller_number_source?: string;
+                caller_number_type: 1 | 2;
+                caller_number_source?: "internal" | "external" | "byop";
                 caller_name?: string;
                 caller_location?: string;
                 caller_did_number?: string;
@@ -10686,8 +11846,8 @@ type PhoneCalleeCallLogCompletedEvent = Event<"phone.callee_call_log_completed">
                 caller_country_iso_code?: string;
                 callee_user_id?: string;
                 callee_number: string;
-                callee_number_type: number;
-                callee_number_source?: string;
+                callee_number_type: 1 | 2;
+                callee_number_source?: "internal" | "external" | "byop";
                 callee_name?: string;
                 callee_location?: string;
                 callee_did_number?: string;
@@ -10706,14 +11866,14 @@ type PhoneCalleeCallLogCompletedEvent = Event<"phone.callee_call_log_completed">
                 has_voicemail: boolean;
                 call_id: string;
                 client_code?: string;
-                call_type?: string;
+                call_type?: "voip" | "pstn" | "tollfree" | "international" | "contactCenter";
                 call_end_time?: string;
-                direction?: string;
+                direction?: "inbound" | "outbound";
                 answer_start_time?: string;
                 waiting_time?: number;
                 forwarded_to?: {
                     extension_number?: string;
-                    extension_type?: string;
+                    extension_type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
                     location?: string;
                     name?: string;
                     number_type?: number;
@@ -10721,7 +11881,7 @@ type PhoneCalleeCallLogCompletedEvent = Event<"phone.callee_call_log_completed">
                 };
                 forwarded_by?: {
                     extension_number?: string;
-                    extension_type?: string;
+                    extension_type?: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
                     location?: string;
                     name?: string;
                     number_type?: number;
@@ -10743,7 +11903,7 @@ type PhoneCalleeRingingEvent = Event<"phone.callee_ringing"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 name?: string;
                 phone_number: string;
@@ -10752,15 +11912,15 @@ type PhoneCalleeRingingEvent = Event<"phone.callee_ringing"> & {
                 device_type?: string;
                 device_name?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 name?: string;
                 phone_number?: string;
                 extension_number?: number;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             ringing_start_time: string;
             forwarded_by?: {
@@ -10786,22 +11946,22 @@ type PhoneCallerUnholdEvent = Event<"phone.caller_unhold"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number?: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             date_time: string;
         };
@@ -10816,22 +11976,22 @@ type PhoneCalleeHoldEvent = Event<"phone.callee_hold"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             date_time: string;
         };
@@ -10846,7 +12006,7 @@ type PhoneCalleeAnsweredEvent = Event<"phone.callee_answered"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 name?: string;
                 phone_number: string;
@@ -10855,15 +12015,15 @@ type PhoneCalleeAnsweredEvent = Event<"phone.callee_answered"> & {
                 device_type?: string;
                 device_name?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 name?: string;
                 phone_number?: string;
                 extension_number?: number;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             ringing_start_time: string;
             answer_start_time: string;
@@ -10890,22 +12050,22 @@ type PhoneCallerUnmuteEvent = Event<"phone.caller_unmute"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             date_time: string;
         };
@@ -10936,14 +12096,14 @@ type PhoneBlindTransferInitiatedEvent = Event<"phone.blind_transfer_initiated"> 
                 extension_number?: number;
                 id?: string;
                 name?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist" | "commonAreaPhone" | "sharedLineGroup";
             };
             date_time: string;
         };
     };
 };
 type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> & {
-    event: string;
+    event: "phone.account_settings_updated";
     event_ts: number;
     payload: {
         account_id: string;
@@ -10953,7 +12113,7 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 call_live_transcription?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     transcription_start_prompt?: {
                         enable?: boolean;
                         audio_id?: string;
@@ -10963,30 +12123,30 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 local_survivability_mode?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 external_calling_on_zoom_room_common_area?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 select_outbound_caller_id?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     allow_hide_outbound_caller_id?: boolean;
                 };
                 personal_audio_library?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     allow_music_on_hold_customization?: boolean;
                     allow_voicemail_and_message_greeting_customization?: boolean;
                 };
                 voicemail?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     allow_videomail?: boolean;
                     allow_download?: boolean;
                     allow_delete?: boolean;
@@ -10996,12 +12156,12 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 voicemail_transcription?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 voicemail_notification_by_email?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     include_voicemail_file?: boolean;
                     include_voicemail_transcription?: boolean;
                     forward_voicemail_to_email?: boolean;
@@ -11009,12 +12169,12 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 shared_voicemail_notification_by_email?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 restricted_call_hours?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     time_zone?: {
                         id?: string;
                         name?: string;
@@ -11026,20 +12186,20 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 allowed_call_locations?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     locations_applied?: boolean;
                     allow_internal_calls?: boolean;
                 };
                 check_voicemails_over_phone?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 auto_call_recording?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    recording_calls?: string;
+                    locked_by?: "invalid" | "account";
+                    recording_calls?: "inbound" | "outbound" | "both";
                     recording_transcription?: boolean;
                     recording_start_prompt?: boolean;
                     recording_start_prompt_audio_id?: string;
@@ -11048,15 +12208,15 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                     disconnect_on_recording_failure?: boolean;
                     play_recording_beep_tone?: {
                         enable?: boolean;
-                        play_beep_member?: string;
-                        play_beep_volume?: number;
-                        play_beep_time_interval?: number;
+                        play_beep_member?: "allMembers" | "recordingUser";
+                        play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                        play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
                     };
                 };
                 ad_hoc_call_recording?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     recording_transcription?: boolean;
                     allow_download?: boolean;
                     allow_delete?: boolean;
@@ -11064,138 +12224,138 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                     recording_explicit_consent?: boolean;
                     play_recording_beep_tone?: {
                         enable?: boolean;
-                        play_beep_member?: string;
-                        play_beep_volume?: number;
-                        play_beep_time_interval?: number;
+                        play_beep_member?: "allMembers" | "recordingUser";
+                        play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                        play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
                     };
                 };
                 international_calling?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 outbound_calling?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 outbound_sms?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 sms?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     international_sms?: boolean;
                 };
                 sms_etiquette_tool?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     sms_etiquette_policy?: {
                         id?: string;
                         name?: string;
                         description?: string;
-                        rule?: number;
+                        rule?: 1 | 2;
                         content?: string;
-                        action?: number;
+                        action?: 1 | 2;
                         active?: boolean;
                     }[];
                 };
                 zoom_phone_on_mobile?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     allow_calling_sms_mms?: boolean;
                 };
                 zoom_phone_on_pwa?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 e2e_encryption?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 call_handling_forwarding_to_other_users?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    call_forwarding_type?: number;
+                    locked_by?: "invalid" | "account";
+                    call_forwarding_type?: 1 | 2 | 3 | 4;
                 };
                 call_overflow?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    call_overflow_type?: number;
+                    locked_by?: "invalid" | "account";
+                    call_overflow_type?: 1 | 2 | 3 | 4;
                 };
                 call_transferring?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    call_transferring_type?: number;
+                    locked_by?: "invalid" | "account";
+                    call_transferring_type?: 1 | 2 | 3 | 4;
                 };
                 elevate_to_meeting?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 call_park?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    expiration_period?: number;
+                    locked_by?: "invalid" | "account";
+                    expiration_period?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
                     call_not_picked_up_action?: number;
                     forward_to?: {
                         display_name?: string;
                         extension_id?: string;
                         extension_number?: number;
-                        extension_type?: string;
+                        extension_type?: "user" | "zoomRoom" | "commonArea" | "ciscoRoom/polycomRoom" | "autoReceptionist" | "callQueue" | "sharedLineGroup";
                         id?: string;
                     };
-                    sequence?: number;
+                    sequence?: 0 | 1;
                 };
                 hand_off_to_room?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 mobile_switch_to_carrier?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 delegation?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 audio_intercom?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 block_calls_without_caller_id?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 block_external_calls?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     block_business_hours?: boolean;
                     block_closed_hours?: boolean;
                     block_holiday_hours?: boolean;
-                    block_call_action?: number;
+                    block_call_action?: 0 | 9;
                 };
                 call_queue_opt_out_reason?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     call_queue_opt_out_reasons_list?: {
                         code?: string;
                         system?: boolean;
@@ -11205,42 +12365,42 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 auto_delete_data_after_retention_duration?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     items?: {
-                        type?: string;
+                        type?: "callLog" | "onDemandRecording" | "automaticRecording" | "voicemail" | "videomail" | "sms";
                         duration?: number;
-                        time_unit?: string;
+                        time_unit?: "year" | "month" | "day";
                     }[];
-                    delete_type?: number;
+                    delete_type?: 1 | 2;
                 };
                 auto_call_from_third_party_apps?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 override_default_port?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     min_port?: number;
                     max_port?: number;
                 };
                 peer_to_peer_media?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 advanced_encryption?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     disable_incoming_unencrypted_voicemail?: boolean;
                 };
                 display_call_feedback_survey?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    feedback_type?: number;
+                    locked_by?: "invalid" | "account";
+                    feedback_type?: 1 | 2;
                     feedback_mos?: {
                         enable?: boolean;
                         min?: string;
@@ -11260,7 +12420,7 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 call_live_transcription?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     transcription_start_prompt?: {
                         enable?: boolean;
                         audio_id?: string;
@@ -11270,30 +12430,30 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 local_survivability_mode?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 external_calling_on_zoom_room_common_area?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 select_outbound_caller_id?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     allow_hide_outbound_caller_id?: boolean;
                 };
                 personal_audio_library?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     allow_music_on_hold_customization?: boolean;
                     allow_voicemail_and_message_greeting_customization?: boolean;
                 };
                 voicemail?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     allow_videomail?: boolean;
                     allow_download?: boolean;
                     allow_delete?: boolean;
@@ -11303,12 +12463,12 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 voicemail_transcription?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 voicemail_notification_by_email?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     include_voicemail_file?: boolean;
                     include_voicemail_transcription?: boolean;
                     forward_voicemail_to_email?: boolean;
@@ -11316,12 +12476,12 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 shared_voicemail_notification_by_email?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 restricted_call_hours?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     time_zone?: {
                         id?: string;
                         name?: string;
@@ -11333,20 +12493,20 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 allowed_call_locations?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     locations_applied?: boolean;
                     allow_internal_calls?: boolean;
                 };
                 check_voicemails_over_phone?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 auto_call_recording?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    recording_calls?: string;
+                    locked_by?: "invalid" | "account";
+                    recording_calls?: "inbound" | "outbound" | "both";
                     recording_transcription?: boolean;
                     recording_start_prompt?: boolean;
                     recording_start_prompt_audio_id?: string;
@@ -11355,15 +12515,15 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                     disconnect_on_recording_failure?: boolean;
                     play_recording_beep_tone?: {
                         enable?: boolean;
-                        play_beep_member?: string;
-                        play_beep_volume?: number;
-                        play_beep_time_interval?: number;
+                        play_beep_member?: "allMembers" | "recordingUser";
+                        play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                        play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
                     };
                 };
                 ad_hoc_call_recording?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     recording_transcription?: boolean;
                     allow_download?: boolean;
                     allow_delete?: boolean;
@@ -11371,138 +12531,138 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                     recording_explicit_consent?: boolean;
                     play_recording_beep_tone?: {
                         enable?: boolean;
-                        play_beep_member?: string;
-                        play_beep_volume?: number;
-                        play_beep_time_interval?: number;
+                        play_beep_member?: "allMembers" | "recordingUser";
+                        play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                        play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
                     };
                 };
                 international_calling?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 outbound_calling?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 outbound_sms?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 sms?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     international_sms?: boolean;
                 };
                 sms_etiquette_tool?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     sms_etiquette_policy?: {
                         id?: string;
                         name?: string;
                         description?: string;
-                        rule?: number;
+                        rule?: 1 | 2;
                         content?: string;
-                        action?: number;
+                        action?: 1 | 2;
                         active?: boolean;
                     }[];
                 };
                 zoom_phone_on_mobile?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     allow_calling_sms_mms?: boolean;
                 };
                 zoom_phone_on_pwa?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 e2e_encryption?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 call_handling_forwarding_to_other_users?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    call_forwarding_type?: number;
+                    locked_by?: "invalid" | "account";
+                    call_forwarding_type?: 1 | 2 | 3 | 4;
                 };
                 call_overflow?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    call_overflow_type?: number;
+                    locked_by?: "invalid" | "account";
+                    call_overflow_type?: 1 | 2 | 3 | 4;
                 };
                 call_transferring?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    call_transferring_type?: number;
+                    locked_by?: "invalid" | "account";
+                    call_transferring_type?: 1 | 2 | 3 | 4;
                 };
                 elevate_to_meeting?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 call_park?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    expiration_period?: number;
+                    locked_by?: "invalid" | "account";
+                    expiration_period?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
                     call_not_picked_up_action?: number;
                     forward_to?: {
                         display_name?: string;
                         extension_id?: string;
                         extension_number?: number;
-                        extension_type?: string;
+                        extension_type?: "user" | "zoomRoom" | "commonArea" | "ciscoRoom/polycomRoom" | "autoReceptionist" | "callQueue" | "sharedLineGroup";
                         id?: string;
                     };
-                    sequence?: number;
+                    sequence?: 0 | 1;
                 };
                 hand_off_to_room?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 mobile_switch_to_carrier?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 delegation?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 audio_intercom?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 block_calls_without_caller_id?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 block_external_calls?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     block_business_hours?: boolean;
                     block_closed_hours?: boolean;
                     block_holiday_hours?: boolean;
-                    block_call_action?: number;
+                    block_call_action?: 0 | 9;
                 };
                 call_queue_opt_out_reason?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     call_queue_opt_out_reasons_list?: {
                         code?: string;
                         system?: boolean;
@@ -11512,42 +12672,42 @@ type PhoneAccountSettingsUpdatedEvent = Event<"phone.account_settings_updated"> 
                 auto_delete_data_after_retention_duration?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     items?: {
-                        type?: string;
+                        type?: "callLog" | "onDemandRecording" | "automaticRecording" | "voicemail" | "videomail" | "sms";
                         duration?: number;
-                        time_unit?: string;
+                        time_unit?: "year" | "month" | "day";
                     }[];
-                    delete_type?: number;
+                    delete_type?: 1 | 2;
                 };
                 auto_call_from_third_party_apps?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 override_default_port?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     min_port?: number;
                     max_port?: number;
                 };
                 peer_to_peer_media?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                 };
                 advanced_encryption?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account";
                     disable_incoming_unencrypted_voicemail?: boolean;
                 };
                 display_call_feedback_survey?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    feedback_type?: number;
+                    locked_by?: "invalid" | "account";
+                    feedback_type?: 1 | 2;
                     feedback_mos?: {
                         enable?: boolean;
                         min?: string;
@@ -11572,22 +12732,22 @@ type PhoneCalleeMeetingInvitingEvent = Event<"phone.callee_meeting_inviting"> & 
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             meeting_id?: string;
             date_time: string;
@@ -11603,22 +12763,22 @@ type PhoneCalleeParkedEvent = Event<"phone.callee_parked"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             park_code?: string;
             park_failure_reason?: string;
@@ -11639,7 +12799,7 @@ type PhoneEmergencyAlertEvent = Event<"phone.emergency_alert"> & {
                 extension_number?: string;
                 timezone?: string;
                 display_name?: string;
-                extension_type: string;
+                extension_type: "user" | "interop" | "commonAreaPhone";
                 site_id?: string;
                 site_name?: string;
             };
@@ -11651,8 +12811,8 @@ type PhoneEmergencyAlertEvent = Event<"phone.emergency_alert"> & {
                 ip?: string[];
                 bssid?: string[];
             };
-            router: string;
-            deliver_to: string;
+            router: "ZOOM" | "BYOC Carrier" | "Mobile Carrier";
+            deliver_to: "PSAP" | "SAFETY_TEAM" | "NONE" | "BOTH" | "MOBILE_911_CALL" | "SIP_GROUP" | "BOTH_SAFETY_TEAM_AND_SIP" | "OVERFLOW_TO_SIP_GROUP" | "TO_PSAP_FOR_MISSED_BY_SAFETY_TEAM";
             ringing_start_time: string;
             emergency_address?: {
                 country?: string;
@@ -11665,6 +12825,23 @@ type PhoneEmergencyAlertEvent = Event<"phone.emergency_alert"> & {
         };
     };
 };
+type PhoneAiCallSummaryChangedEvent = Event<"phone.ai_call_summary_changed"> & {
+    event: string;
+    event_ts: number;
+    payload: {
+        account_id: string;
+        object: {
+            edited?: boolean;
+            deleted?: boolean;
+            ai_call_summary_id: string;
+            user_id: string;
+            call_id: string;
+            call_log_ids?: string[];
+            created_time?: string;
+            modified_time?: string;
+        };
+    };
+};
 type PhoneCalleeRejectedEvent = Event<"phone.callee_rejected"> & {
     event: string;
     event_ts: number;
@@ -11674,22 +12851,22 @@ type PhoneCalleeRejectedEvent = Event<"phone.callee_rejected"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             ringing_start_time: string;
             call_end_time: string;
@@ -11698,7 +12875,7 @@ type PhoneCalleeRejectedEvent = Event<"phone.callee_rejected"> & {
     };
 };
 type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
-    event: string;
+    event: "phone.group_settings_updated";
     event_ts: number;
     payload: {
         account_id: string;
@@ -11708,7 +12885,7 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 call_live_transcription?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     transcription_start_prompt?: {
                         enable?: boolean;
@@ -11719,20 +12896,20 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 local_survivability_mode?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 select_outbound_caller_id?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     allow_hide_outbound_caller_id?: boolean;
                 };
                 personal_audio_library?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     allow_music_on_hold_customization?: boolean;
                     allow_voicemail_and_message_greeting_customization?: boolean;
@@ -11740,7 +12917,7 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 voicemail?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     allow_delete?: boolean;
                     allow_download?: boolean;
@@ -11751,7 +12928,7 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 voicemail_transcription?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 voicemail_notification_by_email?: {
@@ -11760,19 +12937,19 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                     forward_voicemail_to_email?: boolean;
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 shared_voicemail_notification_by_email?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 restricted_call_hours?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     time_zone?: {
                         id?: string;
@@ -11785,7 +12962,7 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 allowed_call_locations?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     locations_applied?: boolean;
                     allow_internal_calls?: boolean;
@@ -11793,14 +12970,14 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 check_voicemails_over_phone?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 auto_call_recording?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    recording_calls?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
+                    recording_calls?: "inbound" | "outbound" | "both";
                     recording_transcription?: boolean;
                     recording_start_prompt?: boolean;
                     recording_start_prompt_audio_id?: string;
@@ -11809,15 +12986,15 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                     disconnect_on_recording_failure?: boolean;
                     play_recording_beep_tone?: {
                         enable?: boolean;
-                        play_beep_volume?: number;
-                        play_beep_time_interval?: number;
-                        play_beep_member?: string;
+                        play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                        play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                        play_beep_member?: "allMember" | "recordingSide";
                     };
                 };
                 ad_hoc_call_recording?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "site";
                     modified?: boolean;
                     recording_transcription?: boolean;
                     allow_download?: boolean;
@@ -11826,22 +13003,22 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                     recording_explicit_consent?: boolean;
                     play_recording_beep_tone?: {
                         enable?: boolean;
-                        play_beep_volume?: number;
-                        play_beep_time_interval?: number;
-                        play_beep_member?: string;
+                        play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                        play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                        play_beep_member?: "allMember" | "recordingSide";
                     };
                 };
                 zoom_phone_on_mobile?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     allow_calling_sms_mms?: boolean;
                 };
                 zoom_phone_on_pwa?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 sms_etiquette_tool?: {
@@ -11851,145 +13028,145 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                         id?: string;
                         name?: string;
                         description?: string;
-                        rule?: number;
+                        rule?: 1 | 2;
                         content?: string;
-                        action?: number;
+                        action?: 1 | 2;
                         active?: boolean;
                     }[];
                 };
                 outbound_calling?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 outbound_sms?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 international_calling?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 sms?: {
                     enable?: boolean;
                     international_sms?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 e2e_encryption?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 call_handling_forwarding_to_other_users?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
-                    call_forwarding_type?: number;
+                    call_forwarding_type?: 1 | 2 | 3 | 4;
                 };
                 call_overflow?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
-                    call_overflow_type?: number;
+                    call_overflow_type?: 1 | 2 | 3 | 4;
                 };
                 call_transferring?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
-                    call_transferring_type?: number;
+                    call_transferring_type?: 1 | 2 | 3 | 4;
                 };
                 elevate_to_meeting?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 call_park?: {
                     enable?: boolean;
-                    expiration_period?: number;
+                    expiration_period?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
                     call_not_picked_up_action?: number;
                     forward_to?: {
                         display_name?: string;
                         extension_id?: string;
                         extension_number?: number;
-                        extension_type?: string;
+                        extension_type?: "user" | "zoomRoom" | "commonArea" | "ciscoRoom/polycomRoom" | "autoReceptionist" | "callQueue" | "sharedLineGroup";
                         id?: string;
                     };
-                    sequence?: number;
+                    sequence?: 0 | 1;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 hand_off_to_room?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 mobile_switch_to_carrier?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 delegation?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 audio_intercom?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 block_calls_without_caller_id?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 block_external_calls?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     block_business_hours?: boolean;
                     block_closed_hours?: boolean;
                     block_holiday_hours?: boolean;
-                    block_call_action?: number;
+                    block_call_action?: 0 | 9;
                 };
                 peer_to_peer_media?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 advanced_encryption?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     disable_incoming_unencrypted_voicemail?: boolean;
                 };
                 display_call_feedback_survey?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
-                    feedback_type?: number;
+                    feedback_type?: 1 | 2;
                     feedback_mos?: {
                         enable?: boolean;
                         min?: string;
@@ -12009,7 +13186,7 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 call_live_transcription?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     transcription_start_prompt?: {
                         enable?: boolean;
@@ -12020,20 +13197,20 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 local_survivability_mode?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 select_outbound_caller_id?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     allow_hide_outbound_caller_id?: boolean;
                 };
                 personal_audio_library?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     allow_music_on_hold_customization?: boolean;
                     allow_voicemail_and_message_greeting_customization?: boolean;
@@ -12041,7 +13218,7 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 voicemail?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     allow_delete?: boolean;
                     allow_download?: boolean;
@@ -12052,7 +13229,7 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 voicemail_transcription?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 voicemail_notification_by_email?: {
@@ -12061,19 +13238,19 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                     forward_voicemail_to_email?: boolean;
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 shared_voicemail_notification_by_email?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 restricted_call_hours?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     time_zone?: {
                         id?: string;
@@ -12086,7 +13263,7 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 allowed_call_locations?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     locations_applied?: boolean;
                     allow_internal_calls?: boolean;
@@ -12094,14 +13271,14 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                 check_voicemails_over_phone?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 auto_call_recording?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
-                    recording_calls?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
+                    recording_calls?: "inbound" | "outbound" | "both";
                     recording_transcription?: boolean;
                     recording_start_prompt?: boolean;
                     recording_start_prompt_audio_id?: string;
@@ -12110,15 +13287,15 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                     disconnect_on_recording_failure?: boolean;
                     play_recording_beep_tone?: {
                         enable?: boolean;
-                        play_beep_volume?: number;
-                        play_beep_time_interval?: number;
-                        play_beep_member?: string;
+                        play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                        play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                        play_beep_member?: "allMember" | "recordingSide";
                     };
                 };
                 ad_hoc_call_recording?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "site";
                     modified?: boolean;
                     recording_transcription?: boolean;
                     allow_download?: boolean;
@@ -12127,22 +13304,22 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                     recording_explicit_consent?: boolean;
                     play_recording_beep_tone?: {
                         enable?: boolean;
-                        play_beep_volume?: number;
-                        play_beep_time_interval?: number;
-                        play_beep_member?: string;
+                        play_beep_volume?: 0 | 20 | 40 | 60 | 80 | 100;
+                        play_beep_time_interval?: 5 | 10 | 15 | 20 | 25 | 30 | 60 | 120;
+                        play_beep_member?: "allMember" | "recordingSide";
                     };
                 };
                 zoom_phone_on_mobile?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     allow_calling_sms_mms?: boolean;
                 };
                 zoom_phone_on_pwa?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 sms_etiquette_tool?: {
@@ -12152,145 +13329,145 @@ type PhoneGroupSettingsUpdatedEvent = Event<"phone.group_settings_updated"> & {
                         id?: string;
                         name?: string;
                         description?: string;
-                        rule?: number;
+                        rule?: 1 | 2;
                         content?: string;
-                        action?: number;
+                        action?: 1 | 2;
                         active?: boolean;
                     }[];
                 };
                 outbound_calling?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 outbound_sms?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 international_calling?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 sms?: {
                     enable?: boolean;
                     international_sms?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 e2e_encryption?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 call_handling_forwarding_to_other_users?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
-                    call_forwarding_type?: number;
+                    call_forwarding_type?: 1 | 2 | 3 | 4;
                 };
                 call_overflow?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
-                    call_overflow_type?: number;
+                    call_overflow_type?: 1 | 2 | 3 | 4;
                 };
                 call_transferring?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
-                    call_transferring_type?: number;
+                    call_transferring_type?: 1 | 2 | 3 | 4;
                 };
                 elevate_to_meeting?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 call_park?: {
                     enable?: boolean;
-                    expiration_period?: number;
+                    expiration_period?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 15 | 20 | 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
                     call_not_picked_up_action?: number;
                     forward_to?: {
                         display_name?: string;
                         extension_id?: string;
                         extension_number?: number;
-                        extension_type?: string;
+                        extension_type?: "user" | "zoomRoom" | "commonArea" | "ciscoRoom/polycomRoom" | "autoReceptionist" | "callQueue" | "sharedLineGroup";
                         id?: string;
                     };
-                    sequence?: number;
+                    sequence?: 0 | 1;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 hand_off_to_room?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 mobile_switch_to_carrier?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 delegation?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 audio_intercom?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 block_calls_without_caller_id?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 block_external_calls?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     block_business_hours?: boolean;
                     block_closed_hours?: boolean;
                     block_holiday_hours?: boolean;
-                    block_call_action?: number;
+                    block_call_action?: 0 | 9;
                 };
                 peer_to_peer_media?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                 };
                 advanced_encryption?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
                     disable_incoming_unencrypted_voicemail?: boolean;
                 };
                 display_call_feedback_survey?: {
                     enable?: boolean;
                     locked?: boolean;
-                    locked_by?: string;
+                    locked_by?: "invalid" | "account" | "user_group";
                     modified?: boolean;
-                    feedback_type?: number;
+                    feedback_type?: 1 | 2;
                     feedback_mos?: {
                         enable?: boolean;
                         min?: string;
@@ -12315,22 +13492,22 @@ type PhoneCalleeUnmuteEvent = Event<"phone.callee_unmute"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             date_time: string;
         };
@@ -12345,14 +13522,14 @@ type PhoneRecordingStoppedEvent = Event<"phone.recording_stopped"> & {
             user_id: string;
             caller_number: string;
             callee_number: string;
-            direction: string;
+            direction: "inbound" | "outbound";
             date_time: string;
-            recording_type: string;
+            recording_type: "OnDemand" | "Automatic";
             call_id: string;
             channel_id: string;
             sip_id: string;
             owner: {
-                type: string;
+                type: "user" | "callQueue" | "commonArea";
                 id: string;
                 name: string;
                 extension_number?: number;
@@ -12370,22 +13547,22 @@ type PhoneCallerMeetingInvitingEvent = Event<"phone.caller_meeting_inviting"> & 
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             meeting_id?: string;
             date_time: string;
@@ -12393,7 +13570,7 @@ type PhoneCallerMeetingInvitingEvent = Event<"phone.caller_meeting_inviting"> & 
     };
 };
 type PhoneVoicemailReceivedForAccessMemberEvent = Event<"phone.voicemail_received_for_access_member"> & {
-    event: string;
+    event: "phone.voicemail_received_for_access_member";
     event_ts: number;
     payload: {
         account_id: string;
@@ -12403,20 +13580,21 @@ type PhoneVoicemailReceivedForAccessMemberEvent = Event<"phone.voicemail_receive
             download_url: string;
             duration: number;
             caller_number: string;
-            caller_number_type: number;
+            caller_number_type: 1 | 2;
             caller_name: string;
             caller_did_number?: string;
             callee_user_id?: string;
             callee_number: string;
-            callee_number_type: number;
+            callee_number_type: 1 | 2;
             callee_name: string;
             callee_did_number?: string;
-            callee_extension_type: string;
+            callee_extension_type: "user" | "callQueue" | "autoReceptionist" | "sharedLineGroup";
             callee_id: string;
             call_log_id?: string;
+            call_history_id?: string;
             call_id?: string;
             access_member_id?: string;
-            access_member_extension_type?: string;
+            access_member_extension_type?: "user" | "commonAreaPhone";
         };
     };
 };
@@ -12429,22 +13607,22 @@ type PhoneCalleeUnholdEvent = Event<"phone.callee_unhold"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number?: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number?: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             date_time: string;
         };
@@ -12464,7 +13642,7 @@ type PhoneConferenceStartedEvent = Event<"phone.conference_started"> & {
                 extension_number?: number;
                 id?: string;
                 name?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist" | "commonAreaPhone" | "sharedLineGroup";
             };
             date_time: string;
         };
@@ -12485,7 +13663,7 @@ type PhoneGenericDeviceProvisionEvent = Event<"phone.generic_device_provision"> 
                 name: string;
             };
             provision?: {
-                type: string;
+                type: "manual";
                 sip_accounts?: {
                     sip_domain?: string;
                     outbound_proxy: string;
@@ -12516,12 +13694,12 @@ type PhoneRecordingPausedEvent = Event<"phone.recording_paused"> & {
             user_id: string;
             caller_number: string;
             callee_number: string;
-            direction: string;
+            direction: "inbound" | "outbound";
             date_time: string;
-            recording_type: string;
+            recording_type: "OnDemand" | "Automatic";
             call_id: string;
             owner: {
-                type: string;
+                type: "user" | "callQueue" | "commonArea";
                 id: string;
                 name: string;
                 extension_number?: number;
@@ -12531,7 +13709,7 @@ type PhoneRecordingPausedEvent = Event<"phone.recording_paused"> & {
     event_ts: number;
 };
 type PhoneSmsReceivedEvent = Event<"phone.sms_received"> & {
-    event: string;
+    event: "phone.sms_received";
     event_ts: number;
     payload: {
         account_id: string;
@@ -12539,18 +13717,18 @@ type PhoneSmsReceivedEvent = Event<"phone.sms_received"> & {
             sender: {
                 phone_number: string;
                 id?: string;
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist";
                 display_name?: string;
             };
             to_members: {
                 id?: string;
-                type?: string;
+                type?: "user";
                 display_name?: string;
                 phone_number: string;
                 is_message_owner?: boolean;
             }[];
             owner: {
-                type?: string;
+                type?: "user" | "callQueue" | "autoReceptionist";
                 id?: string;
                 team_id?: string;
             };
@@ -12566,6 +13744,11 @@ type PhoneSmsReceivedEvent = Event<"phone.sms_received"> & {
             message_id: string;
             message_type: number;
             date_time: string;
+            phone_number_campaign_opt_statuses?: {
+                consumer_phone_number: string;
+                zoom_phone_user_number: string;
+                opt_status: "pending" | "opt_out" | "opt_in";
+            }[];
         };
     };
 };
@@ -12578,14 +13761,14 @@ type PhoneRecordingFailedEvent = Event<"phone.recording_failed"> & {
             user_id: string;
             caller_number: string;
             callee_number: string;
-            direction: string;
+            direction: "inbound" | "outbound";
             date_time: string;
-            recording_type: string;
+            recording_type: "OnDemand" | "Automatic";
             call_id: string;
             channel_id: string;
             sip_id: string;
             owner: {
-                type: string;
+                type: "user" | "callQueue" | "commonArea";
                 id: string;
                 name: string;
                 extension_number?: number;
@@ -12595,7 +13778,7 @@ type PhoneRecordingFailedEvent = Event<"phone.recording_failed"> & {
     event_ts: number;
 };
 type PhoneCallerCallHistoryCompletedEvent = Event<"phone.caller_call_history_completed"> & {
-    event: string;
+    event: "phone.caller_call_history_completed";
     event_ts: number;
     payload: {
         account_id: string;
@@ -12603,19 +13786,22 @@ type PhoneCallerCallHistoryCompletedEvent = Event<"phone.caller_call_history_com
             user_id: string;
             call_logs: {
                 id: string;
+                call_path_id: string;
                 call_id: string;
                 group_id?: string;
-                connect_type?: string;
-                call_type?: string;
-                direction?: string;
+                connect_type?: "internal" | "external";
+                call_type?: "general" | "emergency";
+                direction?: "inbound" | "outbound";
+                hide_caller_id?: boolean;
+                end_to_end?: boolean;
                 caller_ext_id?: string;
                 caller_name?: string;
                 caller_email?: string;
                 caller_employee_id?: string;
                 caller_did_number?: string;
                 caller_ext_number?: string;
-                caller_ext_type?: string;
-                caller_number_type?: string;
+                caller_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+                caller_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number";
                 caller_device_private_ip?: string;
                 caller_device_public_ip?: string;
                 caller_device_type?: string;
@@ -12630,8 +13816,8 @@ type PhoneCallerCallHistoryCompletedEvent = Event<"phone.caller_call_history_com
                 callee_ext_number?: string;
                 callee_email?: string;
                 callee_employee_id?: string;
-                callee_ext_type?: string;
-                callee_number_type?: string;
+                callee_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
+                callee_number_type?: "zoom_pstn" | "zoom_toll_free_number" | "external_pstn" | "external_contact" | "byoc" | "byop" | "3rd_party_contact_center" | "zoom_service_number" | "external_service_number" | "zoom_contact_center" | "meeting_phone_number" | "meeting_id" | "anonymous_number";
                 callee_device_private_ip?: string;
                 callee_device_public_ip?: string;
                 callee_device_type?: string;
@@ -12643,15 +13829,15 @@ type PhoneCallerCallHistoryCompletedEvent = Event<"phone.caller_call_history_com
                 start_time: string;
                 answer_time?: string;
                 end_time?: string;
-                event?: string;
-                result: string;
-                result_reason?: string;
+                event?: "incoming" | "transfer_from_zoom_contact_center" | "shared_line_incoming" | "outgoing" | "call_me_on" | "outgoing_to_zoom_contact_center" | "warm_transfer" | "forward" | "ring_to_member" | "overflow" | "direct_transfer" | "barge" | "monitor" | "whisper" | "listen" | "takeover" | "conference_barge" | "park" | "timeout" | "park_pick_up" | "merge" | "shared";
+                result: "answered" | "accepted" | "picked_up" | "connected" | "succeeded" | "voicemail" | "hang_up" | "canceled" | "call_failed" | "unconnected" | "rejected" | "busy" | "ring_timeout" | "overflowed" | "no_answer" | "invalid_key" | "invalid_operation" | "abandoned" | "system_blocked" | "service_unavailable";
+                result_reason?: "answered_by_other" | "pickup_by_other" | "call_out_by_other";
                 operator_ext_number?: string;
                 operator_ext_id?: string;
-                operator_ext_type?: string;
+                operator_ext_type?: "user" | "call_queue" | "auto_receptionist" | "common_area" | "zoom_room" | "cisco_room" | "shared_line_group" | "group_call_pickup" | "external_contact";
                 operator_name?: string;
                 recording_id?: string;
-                recording_type?: string;
+                recording_type?: "ad-hoc" | "automatic";
                 voicemail_id?: string;
                 talk_time?: number;
                 hold_time?: number;
@@ -12681,56 +13867,29 @@ type PhoneCallerMuteEvent = Event<"phone.caller_mute"> & {
             call_id: string;
             callee: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 user_id?: string;
                 phone_number: string;
                 extension_number?: number;
                 timezone?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             caller: {
                 extension_id?: string;
-                extension_type?: string;
+                extension_type?: "user" | "callQueue" | "autoReceptionist" | "commonArea" | "commonAreaPhone" | "sharedLineGroup" | "zoomRoom" | "ciscoRoom/PolycomRoom" | "contactCenter" | "pstn" | "five9" | "twilio";
                 phone_number: string;
                 user_id?: string;
                 extension_number?: number;
                 timezone?: string;
                 device_id?: string;
-                connection_type?: string;
+                connection_type?: "pstn_off_net" | "voip" | "pstn_on_net" | "contact_center" | "byop";
             };
             date_time: string;
         };
     };
 };
-type PhoneEvents = PhoneRecordingDeletedEvent | PhoneCallerCallLogCompletedEvent | PhoneRecordingCompletedForAccessMemberEvent | PhoneRecordingResumedEvent | PhoneRecordingTranscriptCompletedEvent | PhoneCallLogPermanentlyDeletedEvent | PhoneTransferCallToVoicemailInitiatedEvent | PhoneCalleeMissedEvent | PhoneCallerRingingEvent | PhoneVoicemailReceivedEvent | PhoneSmsSentEvent | PhoneVoicemailDeletedEvent | PhoneVoicemailTranscriptCompletedEvent | PhoneRecordingPermanentlyDeletedEvent | PhonePeeringNumberEmergencyAddressUpdatedEvent | PhoneSmsCampaignNumberOptOutEvent | PhoneCallerEndedEvent | PhoneCalleeEndedEvent | PhoneCalleeCallHistoryCompletedEvent | PhoneVoicemailPermanentlyDeletedEvent | PhoneSmsCampaignNumberOptInEvent | PhoneCalleeMuteEvent | PhoneCallHistoryDeletedEvent | PhoneCallLogDeletedEvent | PhoneCallerHoldEvent | PhoneCallerConnectedEvent | PhoneRecordingCompletedEvent | PhoneRecordingStartedEvent | PhoneSmsSentFailedEvent | PhoneCalleeCallLogCompletedEvent | PhoneCalleeRingingEvent | PhoneCallerUnholdEvent | PhoneCalleeHoldEvent | PhoneCalleeAnsweredEvent | PhoneCallerUnmuteEvent | PhoneDeviceRegistrationEvent | PhoneBlindTransferInitiatedEvent | PhoneAccountSettingsUpdatedEvent | PhoneCalleeMeetingInvitingEvent | PhoneCalleeParkedEvent | PhoneEmergencyAlertEvent | PhoneCalleeRejectedEvent | PhoneGroupSettingsUpdatedEvent | PhoneCalleeUnmuteEvent | PhoneRecordingStoppedEvent | PhoneCallerMeetingInvitingEvent | PhoneVoicemailReceivedForAccessMemberEvent | PhoneCalleeUnholdEvent | PhoneConferenceStartedEvent | PhoneGenericDeviceProvisionEvent | PhoneRecordingPausedEvent | PhoneSmsReceivedEvent | PhoneRecordingFailedEvent | PhoneCallerCallHistoryCompletedEvent | PhonePeeringNumberCnamUpdatedEvent | PhoneCallerMuteEvent;
+type PhoneEvents = PhoneRecordingDeletedEvent | PhoneCallerCallLogCompletedEvent | PhoneRecordingCompletedForAccessMemberEvent | PhoneRecordingResumedEvent | PhoneRecordingTranscriptCompletedEvent | PhoneCallLogPermanentlyDeletedEvent | PhoneTransferCallToVoicemailInitiatedEvent | PhoneCalleeMissedEvent | PhoneCallerRingingEvent | PhoneVoicemailReceivedEvent | PhoneSmsSentEvent | PhoneVoicemailDeletedEvent | PhoneVoicemailTranscriptCompletedEvent | PhoneRecordingPermanentlyDeletedEvent | PhonePeeringNumberEmergencyAddressUpdatedEvent | PhoneSmsCampaignNumberOptOutEvent | PhoneCallerEndedEvent | PhoneCalleeEndedEvent | PhoneCalleeCallHistoryCompletedEvent | PhoneVoicemailPermanentlyDeletedEvent | PhoneSmsCampaignNumberOptInEvent | PhoneCalleeMuteEvent | PhoneSmsEtiquetteWarnEvent | PhoneCallHistoryDeletedEvent | PhoneSmsEtiquetteBlockEvent | PhoneCallLogDeletedEvent | PhoneCallerHoldEvent | PhoneCallerConnectedEvent | PhoneRecordingCompletedEvent | PhoneRecordingStartedEvent | PhoneSmsSentFailedEvent | PhoneCalleeCallLogCompletedEvent | PhoneCalleeRingingEvent | PhoneCallerUnholdEvent | PhoneCalleeHoldEvent | PhoneCalleeAnsweredEvent | PhoneCallerUnmuteEvent | PhoneDeviceRegistrationEvent | PhoneBlindTransferInitiatedEvent | PhoneAccountSettingsUpdatedEvent | PhoneCalleeMeetingInvitingEvent | PhoneCalleeParkedEvent | PhoneEmergencyAlertEvent | PhoneAiCallSummaryChangedEvent | PhoneCalleeRejectedEvent | PhoneGroupSettingsUpdatedEvent | PhoneCalleeUnmuteEvent | PhoneRecordingStoppedEvent | PhoneCallerMeetingInvitingEvent | PhoneVoicemailReceivedForAccessMemberEvent | PhoneCalleeUnholdEvent | PhoneConferenceStartedEvent | PhoneGenericDeviceProvisionEvent | PhoneRecordingPausedEvent | PhoneSmsReceivedEvent | PhoneRecordingFailedEvent | PhoneCallerCallHistoryCompletedEvent | PhonePeeringNumberCnamUpdatedEvent | PhoneCallerMuteEvent;
 declare class PhoneEventProcessor extends EventManager<PhoneEndpoints, PhoneEvents> {
-}
-
-/**
- * Credentials for access token & refresh token, which are used to access Zoom's APIs.
- *
- * As access token is short-lived (usually a single hour), its expiration time is checked
- * first. If it's possible to use the access token, it's used; however, if it has expired
- * or is close to expiring, the refresh token should be used to generate a new access token
- * before the API call is made. Refresh tokens are generally valid for 90 days.
- *
- * If neither the access token nor the refresh token is available, {@link OAuthTokenRefreshFailedError}
- * shall be thrown, informing the developer that neither value can be used, and the user must re-authorize.
- * It's likely that this error will be rare, but it _can_ be thrown.
- */
-interface OAuthToken {
-    accessToken: string;
-    expirationTimeIso: string;
-    refreshToken: string;
-    scopes: string[];
-}
-declare class OAuth extends InteractiveAuth<OAuthToken> {
-    private assertResponseAccessToken;
-    private fetchAccessToken;
-    getToken(): Promise<string>;
-    initRedirectCode(code: string): Promise<void>;
-    private mapOAuthToken;
-    private refreshAccessToken;
 }
 
 type PhoneOptions<R extends Receiver> = CommonClientOptions<OAuth, R>;
@@ -12747,4 +13906,5 @@ declare class PhoneS2SAuthClient<ReceiverType extends Receiver = HttpReceiver, O
     protected initEventProcessor(endpoints: PhoneEndpoints): PhoneEventProcessor;
 }
 
-export { type AccountsAddPhoneNumbersForAccountsCustomizedOutboundCallerIDRequestBody, type AccountsDeletePhoneNumbersForAccountsCustomizedOutboundCallerIDQueryParams, type AccountsListAccountsCustomizedOutboundCallerIDPhoneNumbersQueryParams, type AccountsListAccountsCustomizedOutboundCallerIDPhoneNumbersResponse, type AccountsListAccountsZoomPhoneSettingsQueryParams, type AccountsListAccountsZoomPhoneSettingsResponse, type AlertsAddAlertSettingRequestBody, type AlertsAddAlertSettingResponse, type AlertsDeleteAlertSettingPathParams, type AlertsGetAlertSettingDetailsPathParams, type AlertsGetAlertSettingDetailsResponse, type AlertsListAlertSettingsWithPagingQueryQueryParams, type AlertsListAlertSettingsWithPagingQueryResponse, type AlertsUpdateAlertSettingPathParams, type AlertsUpdateAlertSettingRequestBody, ApiResponseError, type AudioLibraryAddAudioItemForTextToSpeechConversionPathParams, type AudioLibraryAddAudioItemForTextToSpeechConversionRequestBody, type AudioLibraryAddAudioItemForTextToSpeechConversionResponse, type AudioLibraryAddAudioItemsPathParams, type AudioLibraryAddAudioItemsRequestBody, type AudioLibraryAddAudioItemsResponse, type AudioLibraryDeleteAudioItemPathParams, type AudioLibraryGetAudioItemPathParams, type AudioLibraryGetAudioItemResponse, type AudioLibraryListAudioItemsPathParams, type AudioLibraryListAudioItemsResponse, type AudioLibraryUpdateAudioItemPathParams, type AudioLibraryUpdateAudioItemRequestBody, type AutoReceptionistsAddAutoReceptionistRequestBody, type AutoReceptionistsAddAutoReceptionistResponse, type AutoReceptionistsAddPolicySubsettingPathParams, type AutoReceptionistsAddPolicySubsettingRequestBody, type AutoReceptionistsAddPolicySubsettingResponse, type AutoReceptionistsAssignPhoneNumbersPathParams, type AutoReceptionistsAssignPhoneNumbersRequestBody, type AutoReceptionistsDeleteNonPrimaryAutoReceptionistPathParams, type AutoReceptionistsDeletePolicySubsettingPathParams, type AutoReceptionistsDeletePolicySubsettingQueryParams, type AutoReceptionistsGetAutoReceptionistPathParams, type AutoReceptionistsGetAutoReceptionistPolicyPathParams, type AutoReceptionistsGetAutoReceptionistPolicyResponse, type AutoReceptionistsGetAutoReceptionistResponse, type AutoReceptionistsListAutoReceptionistsQueryParams, type AutoReceptionistsListAutoReceptionistsResponse, type AutoReceptionistsUnassignAllPhoneNumbersPathParams, type AutoReceptionistsUnassignPhoneNumberPathParams, type AutoReceptionistsUpdateAutoReceptionistPathParams, type AutoReceptionistsUpdateAutoReceptionistPolicyPathParams, type AutoReceptionistsUpdateAutoReceptionistPolicyRequestBody, type AutoReceptionistsUpdateAutoReceptionistRequestBody, type AutoReceptionistsUpdatePolicySubsettingPathParams, type AutoReceptionistsUpdatePolicySubsettingRequestBody, AwsLambdaReceiver, AwsReceiverRequestError, type BillingAccountGetBillingAccountDetailsPathParams, type BillingAccountGetBillingAccountDetailsResponse, type BillingAccountListBillingAccountsQueryParams, type BillingAccountListBillingAccountsResponse, type BlockedListCreateBlockedListRequestBody, type BlockedListCreateBlockedListResponse, type BlockedListDeleteBlockedListPathParams, type BlockedListGetBlockedListDetailsPathParams, type BlockedListGetBlockedListDetailsResponse, type BlockedListListBlockedListsQueryParams, type BlockedListListBlockedListsResponse, type BlockedListUpdateBlockedListPathParams, type BlockedListUpdateBlockedListRequestBody, type CallHandlingAddCallHandlingSettingPathParams, type CallHandlingAddCallHandlingSettingRequestBody, type CallHandlingAddCallHandlingSettingResponse, type CallHandlingDeleteCallHandlingSettingPathParams, type CallHandlingDeleteCallHandlingSettingQueryParams, type CallHandlingGetCallHandlingSettingsPathParams, type CallHandlingGetCallHandlingSettingsResponse, type CallHandlingUpdateCallHandlingSettingPathParams, type CallHandlingUpdateCallHandlingSettingRequestBody, type CallLogsAddClientCodeToCallHistoryPathParams, type CallLogsAddClientCodeToCallHistoryRequestBody, type CallLogsAddClientCodeToCallLogPathParams, type CallLogsAddClientCodeToCallLogRequestBody, type CallLogsDeleteUsersCallHistoryPathParams, type CallLogsDeleteUsersCallLogPathParams, type CallLogsGetAccountsCallHistoryQueryParams, type CallLogsGetAccountsCallHistoryResponse, type CallLogsGetAccountsCallLogsQueryParams, type CallLogsGetAccountsCallLogsResponse, type CallLogsGetCallLogDetailsPathParams, type CallLogsGetCallLogDetailsResponse, type CallLogsGetCallPathPathParams, type CallLogsGetCallPathResponse, type CallLogsGetUsersCallHistoryPathParams, type CallLogsGetUsersCallHistoryQueryParams, type CallLogsGetUsersCallHistoryResponse, type CallLogsGetUsersCallLogsPathParams, type CallLogsGetUsersCallLogsQueryParams, type CallLogsGetUsersCallLogsResponse, type CallLogsSyncUsersCallHistoryPathParams, type CallLogsSyncUsersCallHistoryQueryParams, type CallLogsSyncUsersCallHistoryResponse, type CallLogsSyncUsersCallLogsPathParams, type CallLogsSyncUsersCallLogsQueryParams, type CallLogsSyncUsersCallLogsResponse, type CallQueuesAddMembersToCallQueuePathParams, type CallQueuesAddMembersToCallQueueRequestBody, type CallQueuesAddPolicySettingToCallQueuePathParams, type CallQueuesAddPolicySettingToCallQueueRequestBody, type CallQueuesAddPolicySettingToCallQueueResponse, type CallQueuesAssignNumbersToCallQueuePathParams, type CallQueuesAssignNumbersToCallQueueRequestBody, type CallQueuesCreateCallQueueRequestBody, type CallQueuesCreateCallQueueResponse, type CallQueuesDeleteCQPolicySettingPathParams, type CallQueuesDeleteCQPolicySettingQueryParams, type CallQueuesDeleteCallQueuePathParams, type CallQueuesGetCallQueueDetailsPathParams, type CallQueuesGetCallQueueDetailsResponse, type CallQueuesGetCallQueueRecordingsPathParams, type CallQueuesGetCallQueueRecordingsQueryParams, type CallQueuesGetCallQueueRecordingsResponse, type CallQueuesListCallQueueMembersPathParams, type CallQueuesListCallQueueMembersResponse, type CallQueuesListCallQueuesQueryParams, type CallQueuesListCallQueuesResponse, type CallQueuesUnassignAllMembersPathParams, type CallQueuesUnassignAllPhoneNumbersPathParams, type CallQueuesUnassignMemberPathParams, type CallQueuesUnassignPhoneNumberPathParams, type CallQueuesUpdateCallQueueDetailsPathParams, type CallQueuesUpdateCallQueueDetailsRequestBody, type CallQueuesUpdateCallQueuesPolicySubsettingPathParams, type CallQueuesUpdateCallQueuesPolicySubsettingRequestBody, type CarrierResellerActivatePhoneNumbersRequestBody, type CarrierResellerCreatePhoneNumbersRequestBody, type CarrierResellerDeletePhoneNumberPathParams, type CarrierResellerListPhoneNumbersQueryParams, type CarrierResellerListPhoneNumbersResponse, ClientCredentialsRawResponseError, type CommonAreasAddCommonAreaRequestBody, type CommonAreasAddCommonAreaResponse, type CommonAreasAddCommonAreaSettingsPathParams, type CommonAreasAddCommonAreaSettingsRequestBody, type CommonAreasAddCommonAreaSettingsResponse, type CommonAreasApplyTemplateToCommonAreasPathParams, type CommonAreasApplyTemplateToCommonAreasRequestBody, type CommonAreasAssignCallingPlansToCommonAreaPathParams, type CommonAreasAssignCallingPlansToCommonAreaRequestBody, type CommonAreasAssignCallingPlansToCommonAreaResponse, type CommonAreasAssignPhoneNumbersToCommonAreaPathParams, type CommonAreasAssignPhoneNumbersToCommonAreaRequestBody, type CommonAreasAssignPhoneNumbersToCommonAreaResponse, type CommonAreasDeleteCommonAreaPathParams, type CommonAreasDeleteCommonAreaSettingPathParams, type CommonAreasDeleteCommonAreaSettingQueryParams, type CommonAreasGetCommonAreaDetailsPathParams, type CommonAreasGetCommonAreaDetailsResponse, type CommonAreasGetCommonAreaSettingsPathParams, type CommonAreasGetCommonAreaSettingsResponse, type CommonAreasListActivationCodesQueryParams, type CommonAreasListActivationCodesResponse, type CommonAreasListCommonAreasQueryParams, type CommonAreasListCommonAreasResponse, type CommonAreasUnassignCallingPlanFromCommonAreaPathParams, type CommonAreasUnassignCallingPlanFromCommonAreaQueryParams, type CommonAreasUnassignPhoneNumbersFromCommonAreaPathParams, type CommonAreasUpdateCommonAreaPathParams, type CommonAreasUpdateCommonAreaPinCodePathParams, type CommonAreasUpdateCommonAreaPinCodeRequestBody, type CommonAreasUpdateCommonAreaRequestBody, type CommonAreasUpdateCommonAreaSettingsPathParams, type CommonAreasUpdateCommonAreaSettingsRequestBody, CommonHttpRequestError, ConsoleLogger, type DashboardGetCallDetailsFromCallLogPathParams, type DashboardGetCallDetailsFromCallLogResponse, type DashboardGetCallQoSPathParams, type DashboardGetCallQoSResponse, type DashboardListCallLogsQueryParams, type DashboardListCallLogsResponse, type DashboardListPastCallMetricsQueryParams, type DashboardListPastCallMetricsResponse, type DashboardListTrackedLocationsQueryParams, type DashboardListTrackedLocationsResponse, type DeviceLineKeysBatchUpdateDeviceLineKeyPositionPathParams, type DeviceLineKeysBatchUpdateDeviceLineKeyPositionRequestBody, type DeviceLineKeysGetDeviceLineKeysInformationPathParams, type DeviceLineKeysGetDeviceLineKeysInformationResponse, type DialByNameDirectoryAddUsersToDirectoryOfSitePathParams, type DialByNameDirectoryAddUsersToDirectoryOfSiteRequestBody, type DialByNameDirectoryAddUsersToDirectoryRequestBody, type DialByNameDirectoryDeleteUsersFromDirectoryOfSitePathParams, type DialByNameDirectoryDeleteUsersFromDirectoryOfSiteQueryParams, type DialByNameDirectoryDeleteUsersFromDirectoryQueryParams, type DialByNameDirectoryListUsersInDirectoryBySitePathParams, type DialByNameDirectoryListUsersInDirectoryBySiteQueryParams, type DialByNameDirectoryListUsersInDirectoryBySiteResponse, type DialByNameDirectoryListUsersInDirectoryQueryParams, type DialByNameDirectoryListUsersInDirectoryResponse, type EmergencyAddressesAddEmergencyAddressRequestBody, type EmergencyAddressesAddEmergencyAddressResponse, type EmergencyAddressesDeleteEmergencyAddressPathParams, type EmergencyAddressesGetEmergencyAddressDetailsPathParams, type EmergencyAddressesGetEmergencyAddressDetailsResponse, type EmergencyAddressesListEmergencyAddressesQueryParams, type EmergencyAddressesListEmergencyAddressesResponse, type EmergencyAddressesUpdateEmergencyAddressPathParams, type EmergencyAddressesUpdateEmergencyAddressRequestBody, type EmergencyAddressesUpdateEmergencyAddressResponse, type EmergencyServiceLocationsAddEmergencyServiceLocationRequestBody, type EmergencyServiceLocationsAddEmergencyServiceLocationResponse, type EmergencyServiceLocationsBatchAddEmergencyServiceLocationsRequestBody, type EmergencyServiceLocationsBatchAddEmergencyServiceLocationsResponse, type EmergencyServiceLocationsDeleteEmergencyLocationPathParams, type EmergencyServiceLocationsGetEmergencyServiceLocationDetailsPathParams, type EmergencyServiceLocationsGetEmergencyServiceLocationDetailsResponse, type EmergencyServiceLocationsListEmergencyServiceLocationsQueryParams, type EmergencyServiceLocationsListEmergencyServiceLocationsResponse, type EmergencyServiceLocationsUpdateEmergencyServiceLocationPathParams, type EmergencyServiceLocationsUpdateEmergencyServiceLocationRequestBody, type ExternalContactsAddExternalContactRequestBody, type ExternalContactsAddExternalContactResponse, type ExternalContactsDeleteExternalContactPathParams, type ExternalContactsGetExternalContactDetailsPathParams, type ExternalContactsGetExternalContactDetailsResponse, type ExternalContactsListExternalContactsQueryParams, type ExternalContactsListExternalContactsResponse, type ExternalContactsUpdateExternalContactPathParams, type ExternalContactsUpdateExternalContactRequestBody, type FirmwareUpdateRulesAddFirmwareUpdateRuleRequestBody, type FirmwareUpdateRulesAddFirmwareUpdateRuleResponse, type FirmwareUpdateRulesDeleteFirmwareUpdateRulePathParams, type FirmwareUpdateRulesDeleteFirmwareUpdateRuleQueryParams, type FirmwareUpdateRulesGetFirmwareUpdateRuleInformationPathParams, type FirmwareUpdateRulesGetFirmwareUpdateRuleInformationResponse, type FirmwareUpdateRulesListFirmwareUpdateRulesQueryParams, type FirmwareUpdateRulesListFirmwareUpdateRulesResponse, type FirmwareUpdateRulesListUpdatableFirmwaresQueryParams, type FirmwareUpdateRulesListUpdatableFirmwaresResponse, type FirmwareUpdateRulesUpdateFirmwareUpdateRulePathParams, type FirmwareUpdateRulesUpdateFirmwareUpdateRuleRequestBody, type GroupCallPickupAddGroupCallPickupObjectRequestBody, type GroupCallPickupAddGroupCallPickupObjectResponse, type GroupCallPickupAddMembersToCallPickupGroupPathParams, type GroupCallPickupAddMembersToCallPickupGroupRequestBody, type GroupCallPickupDeleteGroupCallPickupObjectsPathParams, type GroupCallPickupGetCallPickupGroupByIDPathParams, type GroupCallPickupGetCallPickupGroupByIDResponse, type GroupCallPickupListCallPickupGroupMembersPathParams, type GroupCallPickupListCallPickupGroupMembersQueryParams, type GroupCallPickupListCallPickupGroupMembersResponse, type GroupCallPickupListGroupCallPickupObjectsQueryParams, type GroupCallPickupListGroupCallPickupObjectsResponse, type GroupCallPickupRemoveMembersFromCallPickupGroupPathParams, type GroupCallPickupUpdateGroupCallPickupInformationPathParams, type GroupCallPickupUpdateGroupCallPickupInformationRequestBody, type GroupsGetGroupPhoneSettingsPathParams, type GroupsGetGroupPhoneSettingsQueryParams, type GroupsGetGroupPhoneSettingsResponse, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, type IVRGetAutoReceptionistIVRPathParams, type IVRGetAutoReceptionistIVRQueryParams, type IVRGetAutoReceptionistIVRResponse, type IVRUpdateAutoReceptionistIVRPathParams, type IVRUpdateAutoReceptionistIVRRequestBody, type InboundBlockedListAddAccountsInboundBlockRuleRequestBody, type InboundBlockedListAddAccountsInboundBlockRuleResponse, type InboundBlockedListAddExtensionsInboundBlockRulePathParams, type InboundBlockedListAddExtensionsInboundBlockRuleRequestBody, type InboundBlockedListAddExtensionsInboundBlockRuleResponse, type InboundBlockedListDeleteAccountsInboundBlockRuleQueryParams, type InboundBlockedListDeleteAccountsInboundBlockedStatisticsQueryParams, type InboundBlockedListDeleteExtensionsInboundBlockRulePathParams, type InboundBlockedListDeleteExtensionsInboundBlockRuleQueryParams, type InboundBlockedListListAccountsInboundBlockRulesQueryParams, type InboundBlockedListListAccountsInboundBlockRulesResponse, type InboundBlockedListListAccountsInboundBlockedStatisticsQueryParams, type InboundBlockedListListAccountsInboundBlockedStatisticsResponse, type InboundBlockedListListExtensionsInboundBlockRulesPathParams, type InboundBlockedListListExtensionsInboundBlockRulesQueryParams, type InboundBlockedListListExtensionsInboundBlockRulesResponse, type InboundBlockedListMarkPhoneNumberAsBlockedForAllExtensionsRequestBody, type InboundBlockedListUpdateAccountsInboundBlockRulePathParams, type InboundBlockedListUpdateAccountsInboundBlockRuleRequestBody, type LineKeysBatchUpdateLineKeyPositionAndSettingsInformationPathParams, type LineKeysBatchUpdateLineKeyPositionAndSettingsInformationRequestBody, type LineKeysDeleteLineKeySettingPathParams, type LineKeysGetLineKeyPositionAndSettingsInformationPathParams, type LineKeysGetLineKeyPositionAndSettingsInformationResponse, LogLevel, type Logger, type MonitoringGroupsAddMembersToMonitoringGroupPathParams, type MonitoringGroupsAddMembersToMonitoringGroupQueryParams, type MonitoringGroupsAddMembersToMonitoringGroupRequestBody, type MonitoringGroupsCreateMonitoringGroupRequestBody, type MonitoringGroupsCreateMonitoringGroupResponse, type MonitoringGroupsDeleteMonitoringGroupPathParams, type MonitoringGroupsGetListOfMonitoringGroupsOnAccountQueryParams, type MonitoringGroupsGetListOfMonitoringGroupsOnAccountResponse, type MonitoringGroupsGetMembersOfMonitoringGroupPathParams, type MonitoringGroupsGetMembersOfMonitoringGroupQueryParams, type MonitoringGroupsGetMembersOfMonitoringGroupResponse, type MonitoringGroupsGetMonitoringGroupByIDPathParams, type MonitoringGroupsGetMonitoringGroupByIDResponse, type MonitoringGroupsRemoveAllMonitorsOrMonitoredMembersFromMonitoringGroupPathParams, type MonitoringGroupsRemoveAllMonitorsOrMonitoredMembersFromMonitoringGroupQueryParams, type MonitoringGroupsRemoveMemberFromMonitoringGroupPathParams, type MonitoringGroupsRemoveMemberFromMonitoringGroupQueryParams, type MonitoringGroupsUpdateMonitoringGroupPathParams, type MonitoringGroupsUpdateMonitoringGroupRequestBody, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, type OutboundCallingAddAccountLevelOutboundCallingExceptionRuleRequestBody, type OutboundCallingAddAccountLevelOutboundCallingExceptionRuleResponse, type OutboundCallingAddCommonAreaLevelOutboundCallingExceptionRulePathParams, type OutboundCallingAddCommonAreaLevelOutboundCallingExceptionRuleRequestBody, type OutboundCallingAddCommonAreaLevelOutboundCallingExceptionRuleResponse, type OutboundCallingAddSiteLevelOutboundCallingExceptionRulePathParams, type OutboundCallingAddSiteLevelOutboundCallingExceptionRuleRequestBody, type OutboundCallingAddSiteLevelOutboundCallingExceptionRuleResponse, type OutboundCallingAddUserLevelOutboundCallingExceptionRulePathParams, type OutboundCallingAddUserLevelOutboundCallingExceptionRuleRequestBody, type OutboundCallingAddUserLevelOutboundCallingExceptionRuleResponse, type OutboundCallingDeleteAccountLevelOutboundCallingExceptionRulePathParams, type OutboundCallingDeleteCommonAreaLevelOutboundCallingExceptionRulePathParams, type OutboundCallingDeleteSiteLevelOutboundCallingExceptionRulePathParams, type OutboundCallingDeleteUserLevelOutboundCallingExceptionRulePathParams, type OutboundCallingGetAccountLevelOutboundCallingCountriesAndRegionsQueryParams, type OutboundCallingGetAccountLevelOutboundCallingCountriesAndRegionsResponse, type OutboundCallingGetCommonAreaLevelOutboundCallingCountriesAndRegionsPathParams, type OutboundCallingGetCommonAreaLevelOutboundCallingCountriesAndRegionsQueryParams, type OutboundCallingGetCommonAreaLevelOutboundCallingCountriesAndRegionsResponse, type OutboundCallingGetSiteLevelOutboundCallingCountriesAndRegionsPathParams, type OutboundCallingGetSiteLevelOutboundCallingCountriesAndRegionsQueryParams, type OutboundCallingGetSiteLevelOutboundCallingCountriesAndRegionsResponse, type OutboundCallingGetUserLevelOutboundCallingCountriesAndRegionsPathParams, type OutboundCallingGetUserLevelOutboundCallingCountriesAndRegionsQueryParams, type OutboundCallingGetUserLevelOutboundCallingCountriesAndRegionsResponse, type OutboundCallingListAccountLevelOutboundCallingExceptionRulesQueryParams, type OutboundCallingListAccountLevelOutboundCallingExceptionRulesResponse, type OutboundCallingListCommonAreaLevelOutboundCallingExceptionRulesPathParams, type OutboundCallingListCommonAreaLevelOutboundCallingExceptionRulesQueryParams, type OutboundCallingListCommonAreaLevelOutboundCallingExceptionRulesResponse, type OutboundCallingListSiteLevelOutboundCallingExceptionRulesPathParams, type OutboundCallingListSiteLevelOutboundCallingExceptionRulesQueryParams, type OutboundCallingListSiteLevelOutboundCallingExceptionRulesResponse, type OutboundCallingListUserLevelOutboundCallingExceptionRulesPathParams, type OutboundCallingListUserLevelOutboundCallingExceptionRulesQueryParams, type OutboundCallingListUserLevelOutboundCallingExceptionRulesResponse, type OutboundCallingUpdateAccountLevelOutboundCallingCountriesOrRegionsRequestBody, type OutboundCallingUpdateAccountLevelOutboundCallingExceptionRulePathParams, type OutboundCallingUpdateAccountLevelOutboundCallingExceptionRuleRequestBody, type OutboundCallingUpdateCommonAreaLevelOutboundCallingCountriesOrRegionsPathParams, type OutboundCallingUpdateCommonAreaLevelOutboundCallingCountriesOrRegionsRequestBody, type OutboundCallingUpdateCommonAreaLevelOutboundCallingExceptionRulePathParams, type OutboundCallingUpdateCommonAreaLevelOutboundCallingExceptionRuleRequestBody, type OutboundCallingUpdateSiteLevelOutboundCallingCountriesOrRegionsPathParams, type OutboundCallingUpdateSiteLevelOutboundCallingCountriesOrRegionsRequestBody, type OutboundCallingUpdateSiteLevelOutboundCallingExceptionRulePathParams, type OutboundCallingUpdateSiteLevelOutboundCallingExceptionRuleRequestBody, type OutboundCallingUpdateUserLevelOutboundCallingCountriesOrRegionsPathParams, type OutboundCallingUpdateUserLevelOutboundCallingCountriesOrRegionsRequestBody, type OutboundCallingUpdateUserLevelOutboundCallingExceptionRulePathParams, type OutboundCallingUpdateUserLevelOutboundCallingExceptionRuleRequestBody, type PhoneAccountSettingsUpdatedEvent, type PhoneBlindTransferInitiatedEvent, type PhoneCallHistoryDeletedEvent, type PhoneCallLogDeletedEvent, type PhoneCallLogPermanentlyDeletedEvent, type PhoneCalleeAnsweredEvent, type PhoneCalleeCallHistoryCompletedEvent, type PhoneCalleeCallLogCompletedEvent, type PhoneCalleeEndedEvent, type PhoneCalleeHoldEvent, type PhoneCalleeMeetingInvitingEvent, type PhoneCalleeMissedEvent, type PhoneCalleeMuteEvent, type PhoneCalleeParkedEvent, type PhoneCalleeRejectedEvent, type PhoneCalleeRingingEvent, type PhoneCalleeUnholdEvent, type PhoneCalleeUnmuteEvent, type PhoneCallerCallHistoryCompletedEvent, type PhoneCallerCallLogCompletedEvent, type PhoneCallerConnectedEvent, type PhoneCallerEndedEvent, type PhoneCallerHoldEvent, type PhoneCallerMeetingInvitingEvent, type PhoneCallerMuteEvent, type PhoneCallerRingingEvent, type PhoneCallerUnholdEvent, type PhoneCallerUnmuteEvent, type PhoneConferenceStartedEvent, type PhoneDeviceRegistrationEvent, type PhoneDevicesAddDeviceRequestBody, type PhoneDevicesAddDeviceResponse, type PhoneDevicesAssignEntityToDevicePathParams, type PhoneDevicesAssignEntityToDeviceRequestBody, type PhoneDevicesDeleteDevicePathParams, type PhoneDevicesGetDeviceDetailsPathParams, type PhoneDevicesGetDeviceDetailsResponse, type PhoneDevicesListDevicesQueryParams, type PhoneDevicesListDevicesResponse, type PhoneDevicesRebootDeskPhonePathParams, type PhoneDevicesSyncDeskphonesRequestBody, type PhoneDevicesUnassignEntityFromDevicePathParams, type PhoneDevicesUpdateDevicePathParams, type PhoneDevicesUpdateDeviceRequestBody, type PhoneDevicesUpdateProvisionTemplateOfDevicePathParams, type PhoneDevicesUpdateProvisionTemplateOfDeviceRequestBody, type PhoneEmergencyAlertEvent, PhoneEndpoints, PhoneEventProcessor, type PhoneGenericDeviceProvisionEvent, type PhoneGroupSettingsUpdatedEvent, type PhoneNumbersAddBYOCPhoneNumbersRequestBody, type PhoneNumbersAddBYOCPhoneNumbersResponse, type PhoneNumbersAssignPhoneNumberToUserPathParams, type PhoneNumbersAssignPhoneNumberToUserRequestBody, type PhoneNumbersAssignPhoneNumberToUserResponse, type PhoneNumbersDeleteUnassignedPhoneNumbersQueryParams, type PhoneNumbersGetPhoneNumberPathParams, type PhoneNumbersGetPhoneNumberResponse, type PhoneNumbersListPhoneNumbersQueryParams, type PhoneNumbersListPhoneNumbersResponse, type PhoneNumbersUnassignPhoneNumberPathParams, type PhoneNumbersUpdatePhoneNumberPathParams, type PhoneNumbersUpdatePhoneNumberRequestBody, type PhoneNumbersUpdateSitesUnassignedPhoneNumbersPathParams, type PhoneNumbersUpdateSitesUnassignedPhoneNumbersRequestBody, PhoneOAuthClient, type PhoneOptions, type PhonePeeringNumberCnamUpdatedEvent, type PhonePeeringNumberEmergencyAddressUpdatedEvent, type PhonePlansListCallingPlansResponse, type PhonePlansListPlanInformationResponse, type PhoneRecordingCompletedEvent, type PhoneRecordingCompletedForAccessMemberEvent, type PhoneRecordingDeletedEvent, type PhoneRecordingFailedEvent, type PhoneRecordingPausedEvent, type PhoneRecordingPermanentlyDeletedEvent, type PhoneRecordingResumedEvent, type PhoneRecordingStartedEvent, type PhoneRecordingStoppedEvent, type PhoneRecordingTranscriptCompletedEvent, type PhoneRolesAddMembersToRolesPathParams, type PhoneRolesAddMembersToRolesRequestBody, type PhoneRolesDeleteMembersInRolePathParams, type PhoneRolesDeleteMembersInRoleQueryParams, type PhoneRolesDeletePhoneRolePathParams, type PhoneRolesDuplicatePhoneRoleRequestBody, type PhoneRolesDuplicatePhoneRoleResponse, type PhoneRolesGetRoleInformationPathParams, type PhoneRolesGetRoleInformationResponse, type PhoneRolesListMembersInRolePathParams, type PhoneRolesListMembersInRoleQueryParams, type PhoneRolesListMembersInRoleResponse, type PhoneRolesListPhoneRolesResponse, type PhoneRolesUpdatePhoneRolePathParams, type PhoneRolesUpdatePhoneRoleRequestBody, PhoneS2SAuthClient, type PhoneS2SAuthOptions, type PhoneSmsCampaignNumberOptInEvent, type PhoneSmsCampaignNumberOptOutEvent, type PhoneSmsReceivedEvent, type PhoneSmsSentEvent, type PhoneSmsSentFailedEvent, type PhoneTransferCallToVoicemailInitiatedEvent, type PhoneVoicemailDeletedEvent, type PhoneVoicemailPermanentlyDeletedEvent, type PhoneVoicemailReceivedEvent, type PhoneVoicemailReceivedForAccessMemberEvent, type PhoneVoicemailTranscriptCompletedEvent, type PrivateDirectoryAddMembersToPrivateDirectoryRequestBody, type PrivateDirectoryListPrivateDirectoryMembersQueryParams, type PrivateDirectoryListPrivateDirectoryMembersResponse, type PrivateDirectoryRemoveMemberFromPrivateDirectoryPathParams, type PrivateDirectoryRemoveMemberFromPrivateDirectoryQueryParams, type PrivateDirectoryUpdatePrivateDirectoryMemberPathParams, type PrivateDirectoryUpdatePrivateDirectoryMemberRequestBody, ProductClientConstructionError, type ProviderExchangeAddPeeringPhoneNumbersRequestBody, type ProviderExchangeAddPeeringPhoneNumbersResponse, type ProviderExchangeListCarrierPeeringPhoneNumbersQueryParams, type ProviderExchangeListCarrierPeeringPhoneNumbersResponse, type ProviderExchangeListPeeringPhoneNumbersQueryParams, type ProviderExchangeListPeeringPhoneNumbersResponse, type ProviderExchangeRemovePeeringPhoneNumbersQueryParams, type ProviderExchangeRemovePeeringPhoneNumbersResponse, type ProviderExchangeUpdatePeeringPhoneNumbersRequestBody, type ProviderExchangeUpdatePeeringPhoneNumbersResponse, type ProvisionTemplatesAddProvisionTemplateRequestBody, type ProvisionTemplatesAddProvisionTemplateResponse, type ProvisionTemplatesDeleteProvisionTemplatePathParams, type ProvisionTemplatesGetProvisionTemplatePathParams, type ProvisionTemplatesGetProvisionTemplateResponse, type ProvisionTemplatesListProvisionTemplatesQueryParams, type ProvisionTemplatesListProvisionTemplatesResponse, type ProvisionTemplatesUpdateProvisionTemplatePathParams, type ProvisionTemplatesUpdateProvisionTemplateRequestBody, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, type RecordingsDeleteCallRecordingPathParams, type RecordingsDownloadPhoneRecordingPathParams, type RecordingsDownloadPhoneRecordingTranscriptPathParams, type RecordingsGetCallRecordingsQueryParams, type RecordingsGetCallRecordingsResponse, type RecordingsGetRecordingByCallIDPathParams, type RecordingsGetRecordingByCallIDResponse, type RecordingsGetUsersRecordingsPathParams, type RecordingsGetUsersRecordingsQueryParams, type RecordingsGetUsersRecordingsResponse, type RecordingsUpdateAutoDeleteFieldPathParams, type RecordingsUpdateAutoDeleteFieldRequestBody, type RecordingsUpdateRecordingStatusPathParams, type RecordingsUpdateRecordingStatusRequestBody, type ReportsGetCallChargesUsageReportQueryParams, type ReportsGetCallChargesUsageReportResponse, type ReportsGetOperationLogsReportQueryParams, type ReportsGetOperationLogsReportResponse, type ReportsGetSMSMMSChargesUsageReportQueryParams, type ReportsGetSMSMMSChargesUsageReportResponse, type RoutingRulesAddDirectoryBackupRoutingRuleRequestBody, type RoutingRulesAddDirectoryBackupRoutingRuleResponse, type RoutingRulesDeleteDirectoryBackupRoutingRulePathParams, type RoutingRulesGetDirectoryBackupRoutingRulePathParams, type RoutingRulesGetDirectoryBackupRoutingRuleResponse, type RoutingRulesListDirectoryBackupRoutingRulesQueryParams, type RoutingRulesListDirectoryBackupRoutingRulesResponse, type RoutingRulesUpdateDirectoryBackupRoutingRulePathParams, type RoutingRulesUpdateDirectoryBackupRoutingRuleRequestBody, S2SRawResponseError, type SMSCampaignAssignPhoneNumberToSMSCampaignPathParams, type SMSCampaignAssignPhoneNumberToSMSCampaignRequestBody, type SMSCampaignAssignPhoneNumberToSMSCampaignResponse, type SMSCampaignGetSMSCampaignPathParams, type SMSCampaignGetSMSCampaignResponse, type SMSCampaignListOptStatusesOfPhoneNumbersAssignedToSMSCampaignPathParams, type SMSCampaignListOptStatusesOfPhoneNumbersAssignedToSMSCampaignQueryParams, type SMSCampaignListOptStatusesOfPhoneNumbersAssignedToSMSCampaignResponse, type SMSCampaignListSMSCampaignsQueryParams, type SMSCampaignListSMSCampaignsResponse, type SMSCampaignUnassignPhoneNumberPathParams, type SMSCampaignUpdateOptStatusesOfPhoneNumbersAssignedToSMSCampaignPathParams, type SMSCampaignUpdateOptStatusesOfPhoneNumbersAssignedToSMSCampaignRequestBody, type SMSGetAccountsSMSSessionsQueryParams, type SMSGetAccountsSMSSessionsResponse, type SMSGetSMSByMessageIDPathParams, type SMSGetSMSByMessageIDResponse, type SMSGetSMSSessionDetailsPathParams, type SMSGetSMSSessionDetailsQueryParams, type SMSGetSMSSessionDetailsResponse, type SMSGetUsersSMSSessionsPathParams, type SMSGetUsersSMSSessionsQueryParams, type SMSGetUsersSMSSessionsResponse, type SMSListUsersSMSSessionsInDescendingOrderPathParams, type SMSListUsersSMSSessionsInDescendingOrderQueryParams, type SMSListUsersSMSSessionsInDescendingOrderResponse, type SMSSyncSMSBySessionIDPathParams, type SMSSyncSMSBySessionIDQueryParams, type SMSSyncSMSBySessionIDResponse, type SettingTemplatesAddSettingTemplateRequestBody, type SettingTemplatesAddSettingTemplateResponse, type SettingTemplatesGetSettingTemplateDetailsPathParams, type SettingTemplatesGetSettingTemplateDetailsQueryParams, type SettingTemplatesGetSettingTemplateDetailsResponse, type SettingTemplatesListSettingTemplatesQueryParams, type SettingTemplatesListSettingTemplatesResponse, type SettingTemplatesUpdateSettingTemplatePathParams, type SettingTemplatesUpdateSettingTemplateRequestBody, type SettingsGetPhoneAccountSettingsResponse, type SettingsGetPortedNumberDetailsPathParams, type SettingsGetPortedNumberDetailsResponse, type SettingsListBYOCSIPTrunksQueryParams, type SettingsListBYOCSIPTrunksResponse, type SettingsListPortedNumbersQueryParams, type SettingsListPortedNumbersResponse, type SettingsListSIPGroupsQueryParams, type SettingsListSIPGroupsResponse, type SettingsUpdatePhoneAccountSettingsRequestBody, type SharedLineAppearanceListSharedLineAppearancesQueryParams, type SharedLineAppearanceListSharedLineAppearancesResponse, type SharedLineGroupAddMembersToSharedLineGroupPathParams, type SharedLineGroupAddMembersToSharedLineGroupRequestBody, type SharedLineGroupAddPolicySettingToSharedLineGroupPathParams, type SharedLineGroupAddPolicySettingToSharedLineGroupRequestBody, type SharedLineGroupAddPolicySettingToSharedLineGroupResponse, type SharedLineGroupAssignPhoneNumbersPathParams, type SharedLineGroupAssignPhoneNumbersRequestBody, type SharedLineGroupCreateSharedLineGroupRequestBody, type SharedLineGroupCreateSharedLineGroupResponse, type SharedLineGroupDeleteSLGPolicySettingPathParams, type SharedLineGroupDeleteSLGPolicySettingQueryParams, type SharedLineGroupDeleteSharedLineGroupPathParams, type SharedLineGroupGetSharedLineGroupPathParams, type SharedLineGroupGetSharedLineGroupPolicyPathParams, type SharedLineGroupGetSharedLineGroupPolicyResponse, type SharedLineGroupGetSharedLineGroupResponse, type SharedLineGroupListSharedLineGroupsQueryParams, type SharedLineGroupListSharedLineGroupsResponse, type SharedLineGroupUnassignAllPhoneNumbersPathParams, type SharedLineGroupUnassignMemberFromSharedLineGroupPathParams, type SharedLineGroupUnassignMembersFromSharedLineGroupPathParams, type SharedLineGroupUnassignPhoneNumberPathParams, type SharedLineGroupUpdateSLGPolicySettingPathParams, type SharedLineGroupUpdateSLGPolicySettingRequestBody, type SharedLineGroupUpdateSharedLineGroupPathParams, type SharedLineGroupUpdateSharedLineGroupPolicyPathParams, type SharedLineGroupUpdateSharedLineGroupPolicyRequestBody, type SharedLineGroupUpdateSharedLineGroupRequestBody, type SitesAddCustomizedOutboundCallerIDPhoneNumbersPathParams, type SitesAddCustomizedOutboundCallerIDPhoneNumbersRequestBody, type SitesAddSiteSettingPathParams, type SitesAddSiteSettingRequestBody, type SitesAddSiteSettingResponse, type SitesCreatePhoneSiteRequestBody, type SitesCreatePhoneSiteResponse, type SitesDeletePhoneSitePathParams, type SitesDeletePhoneSiteQueryParams, type SitesDeleteSiteSettingPathParams, type SitesDeleteSiteSettingQueryParams, type SitesGetPhoneSiteDetailsPathParams, type SitesGetPhoneSiteDetailsResponse, type SitesGetPhoneSiteSettingPathParams, type SitesGetPhoneSiteSettingResponse, type SitesListCustomizedOutboundCallerIDPhoneNumbersPathParams, type SitesListCustomizedOutboundCallerIDPhoneNumbersQueryParams, type SitesListCustomizedOutboundCallerIDPhoneNumbersResponse, type SitesListPhoneSitesQueryParams, type SitesListPhoneSitesResponse, type SitesRemoveCustomizedOutboundCallerIDPhoneNumbersPathParams, type SitesRemoveCustomizedOutboundCallerIDPhoneNumbersQueryParams, type SitesUpdatePhoneSiteDetailsPathParams, type SitesUpdatePhoneSiteDetailsRequestBody, type SitesUpdateSiteSettingPathParams, type SitesUpdateSiteSettingRequestBody, type StateStore, StatusCode, type TokenStore, type UsersAddPhoneNumbersForUsersCustomizedOutboundCallerIDPathParams, type UsersAddPhoneNumbersForUsersCustomizedOutboundCallerIDRequestBody, type UsersAddUsersSharedAccessSettingPathParams, type UsersAddUsersSharedAccessSettingRequestBody, type UsersAddUsersSharedAccessSettingResponse, type UsersAssignCallingPlanToUserPathParams, type UsersAssignCallingPlanToUserRequestBody, type UsersBatchAddUsersRequestBody, type UsersBatchAddUsersResponse, type UsersDeleteUsersSharedAccessSettingPathParams, type UsersDeleteUsersSharedAccessSettingQueryParams, type UsersGetUsersProfilePathParams, type UsersGetUsersProfileResponse, type UsersGetUsersProfileSettingsPathParams, type UsersGetUsersProfileSettingsResponse, type UsersListPhoneUsersQueryParams, type UsersListPhoneUsersResponse, type UsersListUsersPhoneNumbersForCustomizedOutboundCallerIDPathParams, type UsersListUsersPhoneNumbersForCustomizedOutboundCallerIDQueryParams, type UsersListUsersPhoneNumbersForCustomizedOutboundCallerIDResponse, type UsersRemoveUsersCustomizedOutboundCallerIDPhoneNumbersPathParams, type UsersRemoveUsersCustomizedOutboundCallerIDPhoneNumbersQueryParams, type UsersUnassignUsersCallingPlanPathParams, type UsersUnassignUsersCallingPlanQueryParams, type UsersUpdateMultipleUsersPropertiesInBatchRequestBody, type UsersUpdateUsersCallingPlanPathParams, type UsersUpdateUsersCallingPlanRequestBody, type UsersUpdateUsersProfilePathParams, type UsersUpdateUsersProfileRequestBody, type UsersUpdateUsersProfileSettingsPathParams, type UsersUpdateUsersProfileSettingsRequestBody, type UsersUpdateUsersSharedAccessSettingPathParams, type UsersUpdateUsersSharedAccessSettingRequestBody, type VoicemailsDownloadPhoneVoicemailPathParams, type VoicemailsGetAccountVoicemailsQueryParams, type VoicemailsGetAccountVoicemailsResponse, type VoicemailsGetUserVoicemailDetailsFromCallLogPathParams, type VoicemailsGetUserVoicemailDetailsFromCallLogResponse, type VoicemailsGetUsersVoicemailsPathParams, type VoicemailsGetUsersVoicemailsQueryParams, type VoicemailsGetUsersVoicemailsResponse, type VoicemailsGetVoicemailDetailsPathParams, type VoicemailsGetVoicemailDetailsResponse, type VoicemailsUpdateVoicemailReadStatusPathParams, type VoicemailsUpdateVoicemailReadStatusQueryParams, type ZoomRoomsAddZoomRoomToZoomPhoneRequestBody, type ZoomRoomsAssignCallingPlansToZoomRoomPathParams, type ZoomRoomsAssignCallingPlansToZoomRoomRequestBody, type ZoomRoomsAssignPhoneNumbersToZoomRoomPathParams, type ZoomRoomsAssignPhoneNumbersToZoomRoomRequestBody, type ZoomRoomsGetZoomRoomUnderZoomPhoneLicensePathParams, type ZoomRoomsGetZoomRoomUnderZoomPhoneLicenseResponse, type ZoomRoomsListZoomRoomsUnderZoomPhoneLicenseQueryParams, type ZoomRoomsListZoomRoomsUnderZoomPhoneLicenseResponse, type ZoomRoomsListZoomRoomsWithoutZoomPhoneAssignmentQueryParams, type ZoomRoomsListZoomRoomsWithoutZoomPhoneAssignmentResponse, type ZoomRoomsRemoveCallingPlanFromZoomRoomPathParams, type ZoomRoomsRemoveCallingPlanFromZoomRoomQueryParams, type ZoomRoomsRemovePhoneNumberFromZoomRoomPathParams, type ZoomRoomsRemoveZoomRoomFromZPAccountPathParams, type ZoomRoomsUpdateZoomRoomUnderZoomPhoneLicensePathParams, type ZoomRoomsUpdateZoomRoomUnderZoomPhoneLicenseRequestBody, isCoreError, isStateStore };
+export { ApiResponseError, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, LogLevel, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, PhoneEndpoints, PhoneEventProcessor, PhoneOAuthClient, PhoneS2SAuthClient, ProductClientConstructionError, ReceiverInconsistentStateError, ReceiverOAuthFlowError, S2SRawResponseError, StatusCode, isCoreError, isStateStore };
+export type { AccountsAddPhoneNumbersForAccountsCustomizedOutboundCallerIDRequestBody, AccountsAddPhoneNumbersForAccountsCustomizedOutboundCallerIDResponse, AccountsDeletePhoneNumbersForAccountsCustomizedOutboundCallerIDQueryParams, AccountsListAccountsCustomizedOutboundCallerIDPhoneNumbersQueryParams, AccountsListAccountsCustomizedOutboundCallerIDPhoneNumbersResponse, AccountsListAccountsZoomPhoneSettingsQueryParams, AccountsListAccountsZoomPhoneSettingsResponse, AlertsAddAlertSettingRequestBody, AlertsAddAlertSettingResponse, AlertsDeleteAlertSettingPathParams, AlertsGetAlertSettingDetailsPathParams, AlertsGetAlertSettingDetailsResponse, AlertsListAlertSettingsWithPagingQueryQueryParams, AlertsListAlertSettingsWithPagingQueryResponse, AlertsUpdateAlertSettingPathParams, AlertsUpdateAlertSettingRequestBody, AudioLibraryAddAudioItemForTextToSpeechConversionPathParams, AudioLibraryAddAudioItemForTextToSpeechConversionRequestBody, AudioLibraryAddAudioItemForTextToSpeechConversionResponse, AudioLibraryAddAudioItemsPathParams, AudioLibraryAddAudioItemsRequestBody, AudioLibraryAddAudioItemsResponse, AudioLibraryDeleteAudioItemPathParams, AudioLibraryGetAudioItemPathParams, AudioLibraryGetAudioItemResponse, AudioLibraryListAudioItemsPathParams, AudioLibraryListAudioItemsResponse, AudioLibraryUpdateAudioItemPathParams, AudioLibraryUpdateAudioItemRequestBody, AutoReceptionistsAddAutoReceptionistRequestBody, AutoReceptionistsAddAutoReceptionistResponse, AutoReceptionistsAddPolicySubsettingPathParams, AutoReceptionistsAddPolicySubsettingRequestBody, AutoReceptionistsAddPolicySubsettingResponse, AutoReceptionistsAssignPhoneNumbersPathParams, AutoReceptionistsAssignPhoneNumbersRequestBody, AutoReceptionistsDeleteNonPrimaryAutoReceptionistPathParams, AutoReceptionistsDeletePolicySubsettingPathParams, AutoReceptionistsDeletePolicySubsettingQueryParams, AutoReceptionistsGetAutoReceptionistPathParams, AutoReceptionistsGetAutoReceptionistPolicyPathParams, AutoReceptionistsGetAutoReceptionistPolicyResponse, AutoReceptionistsGetAutoReceptionistResponse, AutoReceptionistsListAutoReceptionistsQueryParams, AutoReceptionistsListAutoReceptionistsResponse, AutoReceptionistsUnassignAllPhoneNumbersPathParams, AutoReceptionistsUnassignPhoneNumberPathParams, AutoReceptionistsUpdateAutoReceptionistPathParams, AutoReceptionistsUpdateAutoReceptionistPolicyPathParams, AutoReceptionistsUpdateAutoReceptionistPolicyRequestBody, AutoReceptionistsUpdateAutoReceptionistRequestBody, AutoReceptionistsUpdatePolicySubsettingPathParams, AutoReceptionistsUpdatePolicySubsettingRequestBody, BillingAccountGetBillingAccountDetailsPathParams, BillingAccountGetBillingAccountDetailsResponse, BillingAccountListBillingAccountsQueryParams, BillingAccountListBillingAccountsResponse, BlockedListCreateBlockedListRequestBody, BlockedListCreateBlockedListResponse, BlockedListDeleteBlockedListPathParams, BlockedListGetBlockedListDetailsPathParams, BlockedListGetBlockedListDetailsResponse, BlockedListListBlockedListsQueryParams, BlockedListListBlockedListsResponse, BlockedListUpdateBlockedListPathParams, BlockedListUpdateBlockedListRequestBody, CallHandlingAddCallHandlingSettingPathParams, CallHandlingAddCallHandlingSettingRequestBody, CallHandlingAddCallHandlingSettingResponse, CallHandlingDeleteCallHandlingSettingPathParams, CallHandlingDeleteCallHandlingSettingQueryParams, CallHandlingGetCallHandlingSettingsPathParams, CallHandlingGetCallHandlingSettingsResponse, CallHandlingUpdateCallHandlingSettingPathParams, CallHandlingUpdateCallHandlingSettingRequestBody, CallLogsAddClientCodeToCallHistoryPathParams, CallLogsAddClientCodeToCallHistoryRequestBody, CallLogsAddClientCodeToCallLogPathParams, CallLogsAddClientCodeToCallLogRequestBody, CallLogsDeleteUsersCallHistoryPathParams, CallLogsDeleteUsersCallLogPathParams, CallLogsGetAccountsCallHistoryQueryParams, CallLogsGetAccountsCallHistoryResponse, CallLogsGetAccountsCallLogsQueryParams, CallLogsGetAccountsCallLogsResponse, CallLogsGetCallHistoryDetailPathParams, CallLogsGetCallHistoryDetailResponse, CallLogsGetCallLogDetailsPathParams, CallLogsGetCallLogDetailsResponse, CallLogsGetCallPathPathParams, CallLogsGetCallPathResponse, CallLogsGetUserAICallSummaryDetailPathParams, CallLogsGetUserAICallSummaryDetailResponse, CallLogsGetUsersCallHistoryPathParams, CallLogsGetUsersCallHistoryQueryParams, CallLogsGetUsersCallHistoryResponse, CallLogsGetUsersCallLogsPathParams, CallLogsGetUsersCallLogsQueryParams, CallLogsGetUsersCallLogsResponse, CallLogsSyncUsersCallHistoryPathParams, CallLogsSyncUsersCallHistoryQueryParams, CallLogsSyncUsersCallHistoryResponse, CallLogsSyncUsersCallLogsPathParams, CallLogsSyncUsersCallLogsQueryParams, CallLogsSyncUsersCallLogsResponse, CallQueuesAddMembersToCallQueuePathParams, CallQueuesAddMembersToCallQueueRequestBody, CallQueuesAddPolicySubsettingToCallQueuePathParams, CallQueuesAddPolicySubsettingToCallQueueRequestBody, CallQueuesAddPolicySubsettingToCallQueueResponse, CallQueuesAssignNumbersToCallQueuePathParams, CallQueuesAssignNumbersToCallQueueRequestBody, CallQueuesCreateCallQueueRequestBody, CallQueuesCreateCallQueueResponse, CallQueuesDeleteCQPolicySettingPathParams, CallQueuesDeleteCQPolicySettingQueryParams, CallQueuesDeleteCallQueuePathParams, CallQueuesGetCallQueueDetailsPathParams, CallQueuesGetCallQueueDetailsResponse, CallQueuesGetCallQueueRecordingsPathParams, CallQueuesGetCallQueueRecordingsQueryParams, CallQueuesGetCallQueueRecordingsResponse, CallQueuesListCallQueueAnalyticsQueryParams, CallQueuesListCallQueueAnalyticsResponse, CallQueuesListCallQueueMembersPathParams, CallQueuesListCallQueueMembersResponse, CallQueuesListCallQueuesQueryParams, CallQueuesListCallQueuesResponse, CallQueuesUnassignAllMembersPathParams, CallQueuesUnassignAllPhoneNumbersPathParams, CallQueuesUnassignMemberPathParams, CallQueuesUnassignPhoneNumberPathParams, CallQueuesUpdateCallQueueDetailsPathParams, CallQueuesUpdateCallQueueDetailsRequestBody, CallQueuesUpdateCallQueuesPolicySubsettingPathParams, CallQueuesUpdateCallQueuesPolicySubsettingRequestBody, CarrierResellerActivatePhoneNumbersRequestBody, CarrierResellerCreatePhoneNumbersRequestBody, CarrierResellerDeletePhoneNumberPathParams, CarrierResellerListPhoneNumbersQueryParams, CarrierResellerListPhoneNumbersResponse, ClientCredentialsToken, CommonAreasAddCommonAreaRequestBody, CommonAreasAddCommonAreaResponse, CommonAreasAddCommonAreaSettingPathParams, CommonAreasAddCommonAreaSettingRequestBody, CommonAreasAddCommonAreaSettingResponse, CommonAreasApplyTemplateToCommonAreasPathParams, CommonAreasApplyTemplateToCommonAreasRequestBody, CommonAreasAssignCallingPlansToCommonAreaPathParams, CommonAreasAssignCallingPlansToCommonAreaRequestBody, CommonAreasAssignCallingPlansToCommonAreaResponse, CommonAreasAssignPhoneNumbersToCommonAreaPathParams, CommonAreasAssignPhoneNumbersToCommonAreaRequestBody, CommonAreasAssignPhoneNumbersToCommonAreaResponse, CommonAreasDeleteCommonAreaPathParams, CommonAreasDeleteCommonAreaSettingPathParams, CommonAreasDeleteCommonAreaSettingQueryParams, CommonAreasGenerateActivationCodesForCommonAreasRequestBody, CommonAreasGenerateActivationCodesForCommonAreasResponse, CommonAreasGetCommonAreaDetailsPathParams, CommonAreasGetCommonAreaDetailsResponse, CommonAreasGetCommonAreaSettingsPathParams, CommonAreasGetCommonAreaSettingsResponse, CommonAreasListActivationCodesQueryParams, CommonAreasListActivationCodesResponse, CommonAreasListCommonAreasQueryParams, CommonAreasListCommonAreasResponse, CommonAreasUnassignCallingPlanFromCommonAreaPathParams, CommonAreasUnassignCallingPlanFromCommonAreaQueryParams, CommonAreasUnassignPhoneNumbersFromCommonAreaPathParams, CommonAreasUpdateCommonAreaPathParams, CommonAreasUpdateCommonAreaPinCodePathParams, CommonAreasUpdateCommonAreaPinCodeRequestBody, CommonAreasUpdateCommonAreaRequestBody, CommonAreasUpdateCommonAreaSettingPathParams, CommonAreasUpdateCommonAreaSettingRequestBody, DashboardGetCallDetailsFromCallLogPathParams, DashboardGetCallDetailsFromCallLogResponse, DashboardGetCallQoSPathParams, DashboardGetCallQoSResponse, DashboardListCallLogsQueryParams, DashboardListCallLogsResponse, DashboardListDefaultEmergencyAddressUsersQueryParams, DashboardListDefaultEmergencyAddressUsersResponse, DashboardListDetectablePersonalLocationUsersQueryParams, DashboardListDetectablePersonalLocationUsersResponse, DashboardListNomadicEmergencyServicesUsersQueryParams, DashboardListNomadicEmergencyServicesUsersResponse, DashboardListPastCallMetricsQueryParams, DashboardListPastCallMetricsResponse, DashboardListRealTimeLocationForIPPhonesQueryParams, DashboardListRealTimeLocationForIPPhonesResponse, DashboardListRealTimeLocationForUsersQueryParams, DashboardListRealTimeLocationForUsersResponse, DashboardListTrackedLocationsQueryParams, DashboardListTrackedLocationsResponse, DashboardListUsersPermissionForLocationSharingQueryParams, DashboardListUsersPermissionForLocationSharingResponse, DeviceLineKeysBatchUpdateDeviceLineKeyPositionPathParams, DeviceLineKeysBatchUpdateDeviceLineKeyPositionRequestBody, DeviceLineKeysGetDeviceLineKeysInformationPathParams, DeviceLineKeysGetDeviceLineKeysInformationResponse, DialByNameDirectoryAddUsersToDirectoryOfSitePathParams, DialByNameDirectoryAddUsersToDirectoryOfSiteRequestBody, DialByNameDirectoryAddUsersToDirectoryRequestBody, DialByNameDirectoryDeleteUsersFromDirectoryOfSitePathParams, DialByNameDirectoryDeleteUsersFromDirectoryOfSiteQueryParams, DialByNameDirectoryDeleteUsersFromDirectoryQueryParams, DialByNameDirectoryListUsersInDirectoryBySitePathParams, DialByNameDirectoryListUsersInDirectoryBySiteQueryParams, DialByNameDirectoryListUsersInDirectoryBySiteResponse, DialByNameDirectoryListUsersInDirectoryQueryParams, DialByNameDirectoryListUsersInDirectoryResponse, EmergencyAddressesAddEmergencyAddressRequestBody, EmergencyAddressesAddEmergencyAddressResponse, EmergencyAddressesDeleteEmergencyAddressPathParams, EmergencyAddressesGetEmergencyAddressDetailsPathParams, EmergencyAddressesGetEmergencyAddressDetailsResponse, EmergencyAddressesListEmergencyAddressesQueryParams, EmergencyAddressesListEmergencyAddressesResponse, EmergencyAddressesUpdateEmergencyAddressPathParams, EmergencyAddressesUpdateEmergencyAddressRequestBody, EmergencyAddressesUpdateEmergencyAddressResponse, EmergencyServiceLocationsAddEmergencyServiceLocationRequestBody, EmergencyServiceLocationsAddEmergencyServiceLocationResponse, EmergencyServiceLocationsBatchAddEmergencyServiceLocationsRequestBody, EmergencyServiceLocationsBatchAddEmergencyServiceLocationsResponse, EmergencyServiceLocationsDeleteEmergencyLocationPathParams, EmergencyServiceLocationsGetEmergencyServiceLocationDetailsPathParams, EmergencyServiceLocationsGetEmergencyServiceLocationDetailsResponse, EmergencyServiceLocationsListEmergencyServiceLocationsQueryParams, EmergencyServiceLocationsListEmergencyServiceLocationsResponse, EmergencyServiceLocationsUpdateEmergencyServiceLocationPathParams, EmergencyServiceLocationsUpdateEmergencyServiceLocationRequestBody, ExternalContactsAddExternalContactRequestBody, ExternalContactsAddExternalContactResponse, ExternalContactsDeleteExternalContactPathParams, ExternalContactsGetExternalContactDetailsPathParams, ExternalContactsGetExternalContactDetailsResponse, ExternalContactsListExternalContactsQueryParams, ExternalContactsListExternalContactsResponse, ExternalContactsUpdateExternalContactPathParams, ExternalContactsUpdateExternalContactRequestBody, FirmwareUpdateRulesAddFirmwareUpdateRuleRequestBody, FirmwareUpdateRulesAddFirmwareUpdateRuleResponse, FirmwareUpdateRulesDeleteFirmwareUpdateRulePathParams, FirmwareUpdateRulesDeleteFirmwareUpdateRuleQueryParams, FirmwareUpdateRulesGetFirmwareUpdateRuleInformationPathParams, FirmwareUpdateRulesGetFirmwareUpdateRuleInformationResponse, FirmwareUpdateRulesListFirmwareUpdateRulesQueryParams, FirmwareUpdateRulesListFirmwareUpdateRulesResponse, FirmwareUpdateRulesListUpdatableFirmwaresQueryParams, FirmwareUpdateRulesListUpdatableFirmwaresResponse, FirmwareUpdateRulesUpdateFirmwareUpdateRulePathParams, FirmwareUpdateRulesUpdateFirmwareUpdateRuleRequestBody, GroupCallPickupAddGroupCallPickupObjectRequestBody, GroupCallPickupAddGroupCallPickupObjectResponse, GroupCallPickupAddMembersToCallPickupGroupPathParams, GroupCallPickupAddMembersToCallPickupGroupRequestBody, GroupCallPickupDeleteGroupCallPickupObjectsPathParams, GroupCallPickupGetCallPickupGroupByIDPathParams, GroupCallPickupGetCallPickupGroupByIDResponse, GroupCallPickupListCallPickupGroupMembersPathParams, GroupCallPickupListCallPickupGroupMembersQueryParams, GroupCallPickupListCallPickupGroupMembersResponse, GroupCallPickupListGroupCallPickupObjectsQueryParams, GroupCallPickupListGroupCallPickupObjectsResponse, GroupCallPickupRemoveMembersFromCallPickupGroupPathParams, GroupCallPickupUpdateGroupCallPickupInformationPathParams, GroupCallPickupUpdateGroupCallPickupInformationRequestBody, GroupsGetGroupPhoneSettingsPathParams, GroupsGetGroupPhoneSettingsQueryParams, GroupsGetGroupPhoneSettingsResponse, GroupsGetGroupPolicyDetailsPathParams, GroupsGetGroupPolicyDetailsResponse, GroupsUpdateGroupPolicyPathParams, GroupsUpdateGroupPolicyRequestBody, HttpReceiverOptions, IVRGetAutoReceptionistIVRPathParams, IVRGetAutoReceptionistIVRQueryParams, IVRGetAutoReceptionistIVRResponse, IVRUpdateAutoReceptionistIVRPathParams, IVRUpdateAutoReceptionistIVRRequestBody, InboundBlockedListAddAccountsInboundBlockRuleRequestBody, InboundBlockedListAddAccountsInboundBlockRuleResponse, InboundBlockedListAddExtensionsInboundBlockRulePathParams, InboundBlockedListAddExtensionsInboundBlockRuleRequestBody, InboundBlockedListAddExtensionsInboundBlockRuleResponse, InboundBlockedListDeleteAccountsInboundBlockRuleQueryParams, InboundBlockedListDeleteAccountsInboundBlockedStatisticsQueryParams, InboundBlockedListDeleteExtensionsInboundBlockRulePathParams, InboundBlockedListDeleteExtensionsInboundBlockRuleQueryParams, InboundBlockedListListAccountsInboundBlockRulesQueryParams, InboundBlockedListListAccountsInboundBlockRulesResponse, InboundBlockedListListAccountsInboundBlockedStatisticsQueryParams, InboundBlockedListListAccountsInboundBlockedStatisticsResponse, InboundBlockedListListExtensionsInboundBlockRulesPathParams, InboundBlockedListListExtensionsInboundBlockRulesQueryParams, InboundBlockedListListExtensionsInboundBlockRulesResponse, InboundBlockedListMarkPhoneNumberAsBlockedForAllExtensionsRequestBody, InboundBlockedListUpdateAccountsInboundBlockRulePathParams, InboundBlockedListUpdateAccountsInboundBlockRuleRequestBody, JwtToken, LineKeysBatchUpdateLineKeyPositionAndSettingsInformationPathParams, LineKeysBatchUpdateLineKeyPositionAndSettingsInformationRequestBody, LineKeysDeleteLineKeySettingPathParams, LineKeysGetLineKeyPositionAndSettingsInformationPathParams, LineKeysGetLineKeyPositionAndSettingsInformationResponse, Logger, MonitoringGroupsAddMembersToMonitoringGroupPathParams, MonitoringGroupsAddMembersToMonitoringGroupQueryParams, MonitoringGroupsAddMembersToMonitoringGroupRequestBody, MonitoringGroupsAddMembersToMonitoringGroupResponse, MonitoringGroupsCreateMonitoringGroupRequestBody, MonitoringGroupsCreateMonitoringGroupResponse, MonitoringGroupsDeleteMonitoringGroupPathParams, MonitoringGroupsGetListOfMonitoringGroupsOnAccountQueryParams, MonitoringGroupsGetListOfMonitoringGroupsOnAccountResponse, MonitoringGroupsGetMembersOfMonitoringGroupPathParams, MonitoringGroupsGetMembersOfMonitoringGroupQueryParams, MonitoringGroupsGetMembersOfMonitoringGroupResponse, MonitoringGroupsGetMonitoringGroupByIDPathParams, MonitoringGroupsGetMonitoringGroupByIDResponse, MonitoringGroupsRemoveAllMonitorsOrMonitoredMembersFromMonitoringGroupPathParams, MonitoringGroupsRemoveAllMonitorsOrMonitoredMembersFromMonitoringGroupQueryParams, MonitoringGroupsRemoveMemberFromMonitoringGroupPathParams, MonitoringGroupsRemoveMemberFromMonitoringGroupQueryParams, MonitoringGroupsUpdateMonitoringGroupPathParams, MonitoringGroupsUpdateMonitoringGroupRequestBody, OAuthToken, OutboundCallingAddAccountLevelOutboundCallingExceptionRuleRequestBody, OutboundCallingAddAccountLevelOutboundCallingExceptionRuleResponse, OutboundCallingAddCommonAreaLevelOutboundCallingExceptionRulePathParams, OutboundCallingAddCommonAreaLevelOutboundCallingExceptionRuleRequestBody, OutboundCallingAddCommonAreaLevelOutboundCallingExceptionRuleResponse, OutboundCallingAddSiteLevelOutboundCallingExceptionRulePathParams, OutboundCallingAddSiteLevelOutboundCallingExceptionRuleRequestBody, OutboundCallingAddSiteLevelOutboundCallingExceptionRuleResponse, OutboundCallingAddUserLevelOutboundCallingExceptionRulePathParams, OutboundCallingAddUserLevelOutboundCallingExceptionRuleRequestBody, OutboundCallingAddUserLevelOutboundCallingExceptionRuleResponse, OutboundCallingDeleteAccountLevelOutboundCallingExceptionRulePathParams, OutboundCallingDeleteCommonAreaLevelOutboundCallingExceptionRulePathParams, OutboundCallingDeleteSiteLevelOutboundCallingExceptionRulePathParams, OutboundCallingDeleteUserLevelOutboundCallingExceptionRulePathParams, OutboundCallingGetAccountLevelOutboundCallingCountriesAndRegionsQueryParams, OutboundCallingGetAccountLevelOutboundCallingCountriesAndRegionsResponse, OutboundCallingGetCommonAreaLevelOutboundCallingCountriesAndRegionsPathParams, OutboundCallingGetCommonAreaLevelOutboundCallingCountriesAndRegionsQueryParams, OutboundCallingGetCommonAreaLevelOutboundCallingCountriesAndRegionsResponse, OutboundCallingGetSiteLevelOutboundCallingCountriesAndRegionsPathParams, OutboundCallingGetSiteLevelOutboundCallingCountriesAndRegionsQueryParams, OutboundCallingGetSiteLevelOutboundCallingCountriesAndRegionsResponse, OutboundCallingGetUserLevelOutboundCallingCountriesAndRegionsPathParams, OutboundCallingGetUserLevelOutboundCallingCountriesAndRegionsQueryParams, OutboundCallingGetUserLevelOutboundCallingCountriesAndRegionsResponse, OutboundCallingListAccountLevelOutboundCallingExceptionRulesQueryParams, OutboundCallingListAccountLevelOutboundCallingExceptionRulesResponse, OutboundCallingListCommonAreaLevelOutboundCallingExceptionRulesPathParams, OutboundCallingListCommonAreaLevelOutboundCallingExceptionRulesQueryParams, OutboundCallingListCommonAreaLevelOutboundCallingExceptionRulesResponse, OutboundCallingListSiteLevelOutboundCallingExceptionRulesPathParams, OutboundCallingListSiteLevelOutboundCallingExceptionRulesQueryParams, OutboundCallingListSiteLevelOutboundCallingExceptionRulesResponse, OutboundCallingListUserLevelOutboundCallingExceptionRulesPathParams, OutboundCallingListUserLevelOutboundCallingExceptionRulesQueryParams, OutboundCallingListUserLevelOutboundCallingExceptionRulesResponse, OutboundCallingUpdateAccountLevelOutboundCallingCountriesOrRegionsRequestBody, OutboundCallingUpdateAccountLevelOutboundCallingExceptionRulePathParams, OutboundCallingUpdateAccountLevelOutboundCallingExceptionRuleRequestBody, OutboundCallingUpdateCommonAreaLevelOutboundCallingCountriesOrRegionsPathParams, OutboundCallingUpdateCommonAreaLevelOutboundCallingCountriesOrRegionsRequestBody, OutboundCallingUpdateCommonAreaLevelOutboundCallingExceptionRulePathParams, OutboundCallingUpdateCommonAreaLevelOutboundCallingExceptionRuleRequestBody, OutboundCallingUpdateSiteLevelOutboundCallingCountriesOrRegionsPathParams, OutboundCallingUpdateSiteLevelOutboundCallingCountriesOrRegionsRequestBody, OutboundCallingUpdateSiteLevelOutboundCallingExceptionRulePathParams, OutboundCallingUpdateSiteLevelOutboundCallingExceptionRuleRequestBody, OutboundCallingUpdateUserLevelOutboundCallingCountriesOrRegionsPathParams, OutboundCallingUpdateUserLevelOutboundCallingCountriesOrRegionsRequestBody, OutboundCallingUpdateUserLevelOutboundCallingExceptionRulePathParams, OutboundCallingUpdateUserLevelOutboundCallingExceptionRuleRequestBody, PhoneAccountSettingsUpdatedEvent, PhoneAiCallSummaryChangedEvent, PhoneBlindTransferInitiatedEvent, PhoneCallHistoryDeletedEvent, PhoneCallLogDeletedEvent, PhoneCallLogPermanentlyDeletedEvent, PhoneCalleeAnsweredEvent, PhoneCalleeCallHistoryCompletedEvent, PhoneCalleeCallLogCompletedEvent, PhoneCalleeEndedEvent, PhoneCalleeHoldEvent, PhoneCalleeMeetingInvitingEvent, PhoneCalleeMissedEvent, PhoneCalleeMuteEvent, PhoneCalleeParkedEvent, PhoneCalleeRejectedEvent, PhoneCalleeRingingEvent, PhoneCalleeUnholdEvent, PhoneCalleeUnmuteEvent, PhoneCallerCallHistoryCompletedEvent, PhoneCallerCallLogCompletedEvent, PhoneCallerConnectedEvent, PhoneCallerEndedEvent, PhoneCallerHoldEvent, PhoneCallerMeetingInvitingEvent, PhoneCallerMuteEvent, PhoneCallerRingingEvent, PhoneCallerUnholdEvent, PhoneCallerUnmuteEvent, PhoneConferenceStartedEvent, PhoneDeviceRegistrationEvent, PhoneDevicesAddDeviceRequestBody, PhoneDevicesAddDeviceResponse, PhoneDevicesAssignEntityToDevicePathParams, PhoneDevicesAssignEntityToDeviceRequestBody, PhoneDevicesAssignEntityToDeviceResponse, PhoneDevicesDeleteDevicePathParams, PhoneDevicesGetDeviceDetailsPathParams, PhoneDevicesGetDeviceDetailsResponse, PhoneDevicesListDevicesQueryParams, PhoneDevicesListDevicesResponse, PhoneDevicesListSmartphonesQueryParams, PhoneDevicesListSmartphonesResponse, PhoneDevicesRebootDeskPhonePathParams, PhoneDevicesSyncDeskphonesRequestBody, PhoneDevicesUnassignEntityFromDevicePathParams, PhoneDevicesUpdateDevicePathParams, PhoneDevicesUpdateDeviceRequestBody, PhoneDevicesUpdateProvisionTemplateOfDevicePathParams, PhoneDevicesUpdateProvisionTemplateOfDeviceRequestBody, PhoneEmergencyAlertEvent, PhoneEvents, PhoneGenericDeviceProvisionEvent, PhoneGroupSettingsUpdatedEvent, PhoneNumbersAddBYOCPhoneNumbersRequestBody, PhoneNumbersAddBYOCPhoneNumbersResponse, PhoneNumbersAssignPhoneNumberToUserPathParams, PhoneNumbersAssignPhoneNumberToUserRequestBody, PhoneNumbersAssignPhoneNumberToUserResponse, PhoneNumbersDeleteUnassignedPhoneNumbersQueryParams, PhoneNumbersGetPhoneNumberPathParams, PhoneNumbersGetPhoneNumberResponse, PhoneNumbersListPhoneNumbersQueryParams, PhoneNumbersListPhoneNumbersResponse, PhoneNumbersUnassignPhoneNumberPathParams, PhoneNumbersUpdatePhoneNumberPathParams, PhoneNumbersUpdatePhoneNumberRequestBody, PhoneNumbersUpdateSitesUnassignedPhoneNumbersPathParams, PhoneNumbersUpdateSitesUnassignedPhoneNumbersRequestBody, PhoneOptions, PhonePeeringNumberCnamUpdatedEvent, PhonePeeringNumberEmergencyAddressUpdatedEvent, PhonePlansListCallingPlansResponse, PhonePlansListPlanInformationResponse, PhoneRecordingCompletedEvent, PhoneRecordingCompletedForAccessMemberEvent, PhoneRecordingDeletedEvent, PhoneRecordingFailedEvent, PhoneRecordingPausedEvent, PhoneRecordingPermanentlyDeletedEvent, PhoneRecordingResumedEvent, PhoneRecordingStartedEvent, PhoneRecordingStoppedEvent, PhoneRecordingTranscriptCompletedEvent, PhoneRolesAddMembersToRolesPathParams, PhoneRolesAddMembersToRolesRequestBody, PhoneRolesAddPhoneRoleTargetsPathParams, PhoneRolesAddPhoneRoleTargetsRequestBody, PhoneRolesAddPhoneRoleTargetsResponse, PhoneRolesDeleteMembersInRolePathParams, PhoneRolesDeleteMembersInRoleQueryParams, PhoneRolesDeletePhoneRolePathParams, PhoneRolesDeletePhoneRoleTargetsPathParams, PhoneRolesDeletePhoneRoleTargetsRequestBody, PhoneRolesDuplicatePhoneRoleRequestBody, PhoneRolesDuplicatePhoneRoleResponse, PhoneRolesGetRoleInformationPathParams, PhoneRolesGetRoleInformationResponse, PhoneRolesListMembersInRolePathParams, PhoneRolesListMembersInRoleQueryParams, PhoneRolesListMembersInRoleResponse, PhoneRolesListPhoneRoleTargetsPathParams, PhoneRolesListPhoneRoleTargetsQueryParams, PhoneRolesListPhoneRoleTargetsResponse, PhoneRolesListPhoneRolesResponse, PhoneRolesUpdatePhoneRolePathParams, PhoneRolesUpdatePhoneRoleRequestBody, PhoneS2SAuthOptions, PhoneSmsCampaignNumberOptInEvent, PhoneSmsCampaignNumberOptOutEvent, PhoneSmsEtiquetteBlockEvent, PhoneSmsEtiquetteWarnEvent, PhoneSmsReceivedEvent, PhoneSmsSentEvent, PhoneSmsSentFailedEvent, PhoneTransferCallToVoicemailInitiatedEvent, PhoneVoicemailDeletedEvent, PhoneVoicemailPermanentlyDeletedEvent, PhoneVoicemailReceivedEvent, PhoneVoicemailReceivedForAccessMemberEvent, PhoneVoicemailTranscriptCompletedEvent, PrivateDirectoryAddMembersToPrivateDirectoryRequestBody, PrivateDirectoryListPrivateDirectoryMembersQueryParams, PrivateDirectoryListPrivateDirectoryMembersResponse, PrivateDirectoryRemoveMemberFromPrivateDirectoryPathParams, PrivateDirectoryRemoveMemberFromPrivateDirectoryQueryParams, PrivateDirectoryUpdatePrivateDirectoryMemberPathParams, PrivateDirectoryUpdatePrivateDirectoryMemberRequestBody, ProviderExchangeAddPeeringPhoneNumbersRequestBody, ProviderExchangeAddPeeringPhoneNumbersResponse, ProviderExchangeListCarrierPeeringPhoneNumbersQueryParams, ProviderExchangeListCarrierPeeringPhoneNumbersResponse, ProviderExchangeListPeeringPhoneNumbersQueryParams, ProviderExchangeListPeeringPhoneNumbersResponse, ProviderExchangeRemovePeeringPhoneNumbersQueryParams, ProviderExchangeRemovePeeringPhoneNumbersResponse, ProviderExchangeUpdatePeeringPhoneNumbersRequestBody, ProviderExchangeUpdatePeeringPhoneNumbersResponse, ProvisionTemplatesAddProvisionTemplateRequestBody, ProvisionTemplatesAddProvisionTemplateResponse, ProvisionTemplatesDeleteProvisionTemplatePathParams, ProvisionTemplatesGetProvisionTemplatePathParams, ProvisionTemplatesGetProvisionTemplateResponse, ProvisionTemplatesListProvisionTemplatesQueryParams, ProvisionTemplatesListProvisionTemplatesResponse, ProvisionTemplatesUpdateProvisionTemplatePathParams, ProvisionTemplatesUpdateProvisionTemplateRequestBody, Receiver, ReceiverInitOptions, RecordingsDeleteCallRecordingPathParams, RecordingsDownloadPhoneRecordingPathParams, RecordingsDownloadPhoneRecordingTranscriptPathParams, RecordingsGetCallRecordingsQueryParams, RecordingsGetCallRecordingsResponse, RecordingsGetRecordingByCallIDPathParams, RecordingsGetRecordingByCallIDResponse, RecordingsGetUsersRecordingsPathParams, RecordingsGetUsersRecordingsQueryParams, RecordingsGetUsersRecordingsResponse, RecordingsUpdateAutoDeleteFieldPathParams, RecordingsUpdateAutoDeleteFieldRequestBody, RecordingsUpdateRecordingStatusPathParams, RecordingsUpdateRecordingStatusRequestBody, ReportsGetCallChargesUsageReportQueryParams, ReportsGetCallChargesUsageReportResponse, ReportsGetOperationLogsReportQueryParams, ReportsGetOperationLogsReportResponse, ReportsGetSMSMMSChargesUsageReportQueryParams, ReportsGetSMSMMSChargesUsageReportResponse, RoutingRulesAddDirectoryBackupRoutingRuleRequestBody, RoutingRulesAddDirectoryBackupRoutingRuleResponse, RoutingRulesDeleteDirectoryBackupRoutingRulePathParams, RoutingRulesGetDirectoryBackupRoutingRulePathParams, RoutingRulesGetDirectoryBackupRoutingRuleResponse, RoutingRulesListDirectoryBackupRoutingRulesQueryParams, RoutingRulesListDirectoryBackupRoutingRulesResponse, RoutingRulesUpdateDirectoryBackupRoutingRulePathParams, RoutingRulesUpdateDirectoryBackupRoutingRuleRequestBody, S2SAuthToken, SMSCampaignAssignPhoneNumberToSMSCampaignPathParams, SMSCampaignAssignPhoneNumberToSMSCampaignRequestBody, SMSCampaignAssignPhoneNumberToSMSCampaignResponse, SMSCampaignGetSMSCampaignPathParams, SMSCampaignGetSMSCampaignResponse, SMSCampaignListOptStatusesOfPhoneNumbersAssignedToSMSCampaignPathParams, SMSCampaignListOptStatusesOfPhoneNumbersAssignedToSMSCampaignQueryParams, SMSCampaignListOptStatusesOfPhoneNumbersAssignedToSMSCampaignResponse, SMSCampaignListSMSCampaignsQueryParams, SMSCampaignListSMSCampaignsResponse, SMSCampaignListUsersOptStatusesOfPhoneNumbersPathParams, SMSCampaignListUsersOptStatusesOfPhoneNumbersQueryParams, SMSCampaignListUsersOptStatusesOfPhoneNumbersResponse, SMSCampaignUnassignPhoneNumberPathParams, SMSCampaignUpdateOptStatusesOfPhoneNumbersAssignedToSMSCampaignPathParams, SMSCampaignUpdateOptStatusesOfPhoneNumbersAssignedToSMSCampaignRequestBody, SMSGetAccountsSMSSessionsQueryParams, SMSGetAccountsSMSSessionsResponse, SMSGetSMSByMessageIDPathParams, SMSGetSMSByMessageIDResponse, SMSGetSMSSessionDetailsPathParams, SMSGetSMSSessionDetailsQueryParams, SMSGetSMSSessionDetailsResponse, SMSGetUsersSMSSessionsPathParams, SMSGetUsersSMSSessionsQueryParams, SMSGetUsersSMSSessionsResponse, SMSListUsersSMSSessionsInDescendingOrderPathParams, SMSListUsersSMSSessionsInDescendingOrderQueryParams, SMSListUsersSMSSessionsInDescendingOrderResponse, SMSPostSMSMessageRequestBody, SMSPostSMSMessageResponse, SMSSyncSMSBySessionIDPathParams, SMSSyncSMSBySessionIDQueryParams, SMSSyncSMSBySessionIDResponse, SettingTemplatesAddSettingTemplateRequestBody, SettingTemplatesAddSettingTemplateResponse, SettingTemplatesGetSettingTemplateDetailsPathParams, SettingTemplatesGetSettingTemplateDetailsQueryParams, SettingTemplatesGetSettingTemplateDetailsResponse, SettingTemplatesListSettingTemplatesQueryParams, SettingTemplatesListSettingTemplatesResponse, SettingTemplatesUpdateSettingTemplatePathParams, SettingTemplatesUpdateSettingTemplateRequestBody, SettingsGetAccountPolicyDetailsPathParams, SettingsGetAccountPolicyDetailsResponse, SettingsGetPhoneAccountSettingsResponse, SettingsGetPortedNumberDetailsPathParams, SettingsGetPortedNumberDetailsResponse, SettingsListBYOCSIPTrunksQueryParams, SettingsListBYOCSIPTrunksResponse, SettingsListPortedNumbersQueryParams, SettingsListPortedNumbersResponse, SettingsListSIPGroupsQueryParams, SettingsListSIPGroupsResponse, SettingsUpdateAccountPolicyPathParams, SettingsUpdateAccountPolicyRequestBody, SettingsUpdatePhoneAccountSettingsRequestBody, SharedLineAppearanceListSharedLineAppearancesQueryParams, SharedLineAppearanceListSharedLineAppearancesResponse, SharedLineGroupAddMembersToSharedLineGroupPathParams, SharedLineGroupAddMembersToSharedLineGroupRequestBody, SharedLineGroupAddPolicySettingToSharedLineGroupPathParams, SharedLineGroupAddPolicySettingToSharedLineGroupRequestBody, SharedLineGroupAddPolicySettingToSharedLineGroupResponse, SharedLineGroupAssignPhoneNumbersPathParams, SharedLineGroupAssignPhoneNumbersRequestBody, SharedLineGroupCreateSharedLineGroupRequestBody, SharedLineGroupCreateSharedLineGroupResponse, SharedLineGroupDeleteSLGPolicySettingPathParams, SharedLineGroupDeleteSLGPolicySettingQueryParams, SharedLineGroupDeleteSharedLineGroupPathParams, SharedLineGroupGetSharedLineGroupPathParams, SharedLineGroupGetSharedLineGroupPolicyPathParams, SharedLineGroupGetSharedLineGroupPolicyResponse, SharedLineGroupGetSharedLineGroupResponse, SharedLineGroupListSharedLineGroupsQueryParams, SharedLineGroupListSharedLineGroupsResponse, SharedLineGroupUnassignAllPhoneNumbersPathParams, SharedLineGroupUnassignMemberFromSharedLineGroupPathParams, SharedLineGroupUnassignMembersFromSharedLineGroupPathParams, SharedLineGroupUnassignPhoneNumberPathParams, SharedLineGroupUpdateSLGPolicySettingPathParams, SharedLineGroupUpdateSLGPolicySettingRequestBody, SharedLineGroupUpdateSharedLineGroupPathParams, SharedLineGroupUpdateSharedLineGroupPolicyPathParams, SharedLineGroupUpdateSharedLineGroupPolicyRequestBody, SharedLineGroupUpdateSharedLineGroupRequestBody, SitesAddCustomizedOutboundCallerIDPhoneNumbersPathParams, SitesAddCustomizedOutboundCallerIDPhoneNumbersRequestBody, SitesAddCustomizedOutboundCallerIDPhoneNumbersResponse, SitesAddSiteSettingPathParams, SitesAddSiteSettingRequestBody, SitesAddSiteSettingResponse, SitesCreatePhoneSiteRequestBody, SitesCreatePhoneSiteResponse, SitesDeletePhoneSitePathParams, SitesDeletePhoneSiteQueryParams, SitesDeleteSiteSettingPathParams, SitesDeleteSiteSettingQueryParams, SitesGetPhoneSiteDetailsPathParams, SitesGetPhoneSiteDetailsResponse, SitesGetPhoneSiteSettingPathParams, SitesGetPhoneSiteSettingResponse, SitesListCustomizedOutboundCallerIDPhoneNumbersPathParams, SitesListCustomizedOutboundCallerIDPhoneNumbersQueryParams, SitesListCustomizedOutboundCallerIDPhoneNumbersResponse, SitesListPhoneSitesQueryParams, SitesListPhoneSitesResponse, SitesRemoveCustomizedOutboundCallerIDPhoneNumbersPathParams, SitesRemoveCustomizedOutboundCallerIDPhoneNumbersQueryParams, SitesUpdatePhoneSiteDetailsPathParams, SitesUpdatePhoneSiteDetailsRequestBody, SitesUpdateSiteSettingPathParams, SitesUpdateSiteSettingRequestBody, StateStore, TokenStore, UsersAddPhoneNumbersForUsersCustomizedOutboundCallerIDPathParams, UsersAddPhoneNumbersForUsersCustomizedOutboundCallerIDRequestBody, UsersAddUsersSharedAccessSettingPathParams, UsersAddUsersSharedAccessSettingRequestBody, UsersAddUsersSharedAccessSettingResponse, UsersAssignCallingPlanToUserPathParams, UsersAssignCallingPlanToUserRequestBody, UsersBatchAddUsersRequestBody, UsersBatchAddUsersResponse, UsersDeleteUsersSharedAccessSettingPathParams, UsersDeleteUsersSharedAccessSettingQueryParams, UsersGetUserPolicyDetailsPathParams, UsersGetUserPolicyDetailsResponse, UsersGetUsersProfilePathParams, UsersGetUsersProfileResponse, UsersGetUsersProfileSettingsPathParams, UsersGetUsersProfileSettingsResponse, UsersListPhoneUsersQueryParams, UsersListPhoneUsersResponse, UsersListUsersPhoneNumbersForCustomizedOutboundCallerIDPathParams, UsersListUsersPhoneNumbersForCustomizedOutboundCallerIDQueryParams, UsersListUsersPhoneNumbersForCustomizedOutboundCallerIDResponse, UsersRemoveUsersCustomizedOutboundCallerIDPhoneNumbersPathParams, UsersRemoveUsersCustomizedOutboundCallerIDPhoneNumbersQueryParams, UsersUnassignUsersCallingPlanPathParams, UsersUnassignUsersCallingPlanQueryParams, UsersUpdateMultipleUsersPropertiesInBatchRequestBody, UsersUpdateUserPolicyPathParams, UsersUpdateUserPolicyRequestBody, UsersUpdateUsersCallingPlanPathParams, UsersUpdateUsersCallingPlanRequestBody, UsersUpdateUsersProfilePathParams, UsersUpdateUsersProfileRequestBody, UsersUpdateUsersProfileSettingsPathParams, UsersUpdateUsersProfileSettingsRequestBody, UsersUpdateUsersSharedAccessSettingPathParams, UsersUpdateUsersSharedAccessSettingRequestBody, VoicemailsDeleteVoicemailPathParams, VoicemailsDownloadPhoneVoicemailPathParams, VoicemailsGetAccountVoicemailsQueryParams, VoicemailsGetAccountVoicemailsResponse, VoicemailsGetUserVoicemailDetailsFromCallLogPathParams, VoicemailsGetUserVoicemailDetailsFromCallLogResponse, VoicemailsGetUsersVoicemailsPathParams, VoicemailsGetUsersVoicemailsQueryParams, VoicemailsGetUsersVoicemailsResponse, VoicemailsGetVoicemailDetailsPathParams, VoicemailsGetVoicemailDetailsResponse, VoicemailsUpdateVoicemailReadStatusPathParams, VoicemailsUpdateVoicemailReadStatusQueryParams, ZoomRoomsAddZoomRoomToZoomPhoneRequestBody, ZoomRoomsAssignCallingPlansToZoomRoomPathParams, ZoomRoomsAssignCallingPlansToZoomRoomRequestBody, ZoomRoomsAssignPhoneNumbersToZoomRoomPathParams, ZoomRoomsAssignPhoneNumbersToZoomRoomRequestBody, ZoomRoomsAssignPhoneNumbersToZoomRoomResponse, ZoomRoomsGetZoomRoomUnderZoomPhoneLicensePathParams, ZoomRoomsGetZoomRoomUnderZoomPhoneLicenseResponse, ZoomRoomsListZoomRoomsUnderZoomPhoneLicenseQueryParams, ZoomRoomsListZoomRoomsUnderZoomPhoneLicenseResponse, ZoomRoomsListZoomRoomsWithoutZoomPhoneAssignmentQueryParams, ZoomRoomsListZoomRoomsWithoutZoomPhoneAssignmentResponse, ZoomRoomsRemoveCallingPlanFromZoomRoomPathParams, ZoomRoomsRemoveCallingPlanFromZoomRoomQueryParams, ZoomRoomsRemovePhoneNumberFromZoomRoomPathParams, ZoomRoomsRemoveZoomRoomFromZPAccountPathParams, ZoomRoomsUpdateZoomRoomUnderZoomPhoneLicensePathParams, ZoomRoomsUpdateZoomRoomUnderZoomPhoneLicenseRequestBody };

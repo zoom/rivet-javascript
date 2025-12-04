@@ -1,8 +1,10 @@
 const Chatbot = require("./chatbot/chatbot.cjs");
+const Commerce = require("./commerce/commerce.cjs");
 const TeamChat = require("./teamchat/teamchat.cjs");
 const Users = require("./users/users.cjs");
+const Marketplace = require("./marketplace/marketplace.cjs");
 const Phone = require("./phone/phone.cjs");
 const Accounts = require("./accounts/accounts.cjs");
 const Meetings = require("./meetings/meetings.cjs");
 const VideoSdk = require("./videosdk/videosdk.cjs");
-module.exports = { Chatbot, TeamChat, Users, Phone, Accounts, Meetings, VideoSdk };
+module.exports = { Chatbot, Commerce, TeamChat, Users, Marketplace, Phone, Accounts, Meetings, VideoSdk };

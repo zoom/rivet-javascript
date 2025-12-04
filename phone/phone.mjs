@@ -424,6 +424,9 @@ class JwtStateStore {
 
 const DEFAULT_INSTALL_PATH = "/zoom/oauth/install";
 const DEFAULT_CALLBACK_PATH = "/zoom/oauth/callback";
+const DEFAULT_STATE_COOKIE_NAME = "zoom-oauth-state";
+const DEFAULT_STATE_COOKIE_MAX_AGE = 600; // 10 minutes in seconds
+const MAXIMUM_STATE_MAX_AGE = 3600; // 1 hour in seconds
 const OAUTH_AUTHORIZE_PATH = "/oauth/authorize";
 const hasInstallerOptions = (obj) => typeof obj.installerOptions.redirectUri !== "undefined" &&
     typeof obj.installerOptions.stateStore !== "undefined";
@@ -450,7 +453,10 @@ class InteractiveAuth extends Auth {
         searchParams.set("redirect_uri", this.getFullRedirectUri());
         searchParams.set("response_type", "code");
         searchParams.set("state", generatedState);
-        return authUrl.toString();
+        return {
+            fullUrl: authUrl.toString(),
+            generatedState
+        };
     }
     getFullRedirectUri() {
         if (!this.installerOptions?.redirectUri || !this.installerOptions.redirectUriPath) {
@@ -460,14 +466,20 @@ class InteractiveAuth extends Auth {
     }
     // Don't return a type; we want it to be as narrow as possible (used for ReturnType).
     // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore }) {
+    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore, stateCookieName, stateCookieMaxAge }) {
         const updatedOptions = {
             directInstall: Boolean(directInstall),
             installPath: installPath ? prependSlashes(installPath) : DEFAULT_INSTALL_PATH,
             redirectUri,
             redirectUriPath: redirectUriPath ? prependSlashes(redirectUriPath) : DEFAULT_CALLBACK_PATH,
-            stateStore: isStateStore(stateStore) ? stateStore : new JwtStateStore({ stateSecret: stateStore })
+            stateStore: isStateStore(stateStore) ? stateStore : new JwtStateStore({ stateSecret: stateStore }),
+            stateCookieName: stateCookieName ?? DEFAULT_STATE_COOKIE_NAME,
+            stateCookieMaxAge: stateCookieMaxAge ?? DEFAULT_STATE_COOKIE_MAX_AGE
         };
+        if (updatedOptions.stateCookieMaxAge > MAXIMUM_STATE_MAX_AGE) {
+            // This method is always called from ProductClient, so this should be fine.
+            throw new ProductClientConstructionError(`stateCookieMaxAge cannot be greater than ${MAXIMUM_STATE_MAX_AGE.toString()} seconds.`);
+        }
         this.installerOptions = updatedOptions;
         return updatedOptions;
     }
@@ -579,9 +591,6 @@ class HttpReceiver {
     server;
     logger;
     constructor(options) {
-        if (!options.webhooksSecretToken) {
-            throw new HTTPReceiverConstructionError("webhooksSecretToken is a required constructor option.");
-        }
         this.options = mergeDefaultOptions(options, { endpoints: HttpReceiver.DEFAULT_ENDPOINT });
         this.options.endpoints = prependSlashes(this.options.endpoints);
         this.logger =
@@ -594,6 +603,19 @@ class HttpReceiver {
     }
     canInstall() {
         return true;
+    }
+    buildDeletedStateCookieHeader(name) {
+        return `${name}=deleted; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Path=/; Secure;`;
+    }
+    buildStateCookieHeader(name, value, maxAge) {
+        return `${name}=${value}; HttpOnly; Max-Age=${maxAge.toString()}; Path=/; Secure;`;
+    }
+    getRequestCookie(req, name) {
+        return req.headers.cookie
+            ?.split(";")
+            .find((cookie) => cookie.trim().startsWith(name))
+            ?.split("=")[1]
+            ?.trim();
     }
     getServerCreator() {
         return this.hasSecureOptions() ? createServer : createServer$1;
@@ -609,8 +631,20 @@ class HttpReceiver {
         this.eventEmitter = eventEmitter;
         this.interactiveAuth = interactiveAuth;
     }
+    setResponseCookie(res, cookie) {
+        const existingCookies = res.getHeader("Set-Cookie") ?? [];
+        const cookiesArray = Array.isArray(existingCookies) ? existingCookies
+            : typeof existingCookies === "string" ? [existingCookies]
+                : [existingCookies.toString()];
+        res.setHeader("Set-Cookie", [...cookiesArray, cookie]);
+    }
+    areNormalizedUrlsEqual(firstUrl, secondUrl) {
+        const normalizedFirstUrl = firstUrl.endsWith("/") ? firstUrl.slice(0, -1) : firstUrl;
+        const normalizedSecondUrl = secondUrl.endsWith("/") ? secondUrl.slice(0, -1) : secondUrl;
+        return normalizedFirstUrl == normalizedSecondUrl;
+    }
     start(port) {
-        if (typeof port !== "number" && isNaN(Number(port)) && !this.options.port) {
+        if (typeof port !== "number" && isNaN(Number(port)) && !this.options.port && this.options.port !== 0) {
             const errorMessage = "HTTP receiver must have number-coercible port found in constructor option or method call.";
             this.logger.error(errorMessage);
             throw new HTTPReceiverPortNotNumberError(errorMessage);
@@ -627,69 +661,84 @@ class HttpReceiver {
                 // Handle interactive OAuth flow, if user is going to installPath or redirectUriPath
                 if (interactiveAuth && interactiveAuth instanceof InteractiveAuth && interactiveAuth.installerOptions) {
                     const { installerOptions } = interactiveAuth;
-                    if (pathname == installerOptions.installPath) {
-                        const authUrl = await Promise.resolve(interactiveAuth.getAuthorizationUrl());
+                    if (this.areNormalizedUrlsEqual(pathname, installerOptions.installPath)) {
+                        const { fullUrl, generatedState } = await interactiveAuth.getAuthorizationUrl();
+                        const stateCookie = this.buildStateCookieHeader(installerOptions.stateCookieName, generatedState, installerOptions.stateCookieMaxAge);
                         await (installerOptions.directInstall ?
-                            this.writeTemporaryRedirect(res, authUrl)
-                            : this.writeResponse(res, StatusCode.OK, defaultInstallTemplate(authUrl)));
+                            this.writeTemporaryRedirect(res, fullUrl, stateCookie)
+                            : this.writeResponse(res, StatusCode.OK, defaultInstallTemplate(fullUrl), stateCookie));
                         return;
                     }
                     // The user has navigated to the redirect page; init the code
-                    if (pathname === installerOptions.redirectUriPath) {
-                        const authCode = searchParams.get("code");
-                        const stateCode = searchParams.get("state");
+                    if (this.areNormalizedUrlsEqual(pathname, installerOptions.redirectUriPath)) {
+                        const authCodeParam = searchParams.get("code");
+                        const stateCodeParam = searchParams.get("state");
+                        const stateCodeCookie = this.getRequestCookie(req, installerOptions.stateCookieName);
                         try {
-                            if (!authCode || !stateCode) {
+                            // Can't proceed if no auth code or state code in search parameters
+                            if (!authCodeParam || !stateCodeParam) {
                                 const errorMessage = "OAuth callback did not include code and/or state in request.";
                                 this.logger.error(errorMessage);
                                 throw new ReceiverOAuthFlowError(errorMessage);
                             }
-                            // Wrapped in `await Promise.resolve(...)`, as method may return a `Promise` or may not.
-                            await Promise.resolve(installerOptions.stateStore.verifyState(stateCode));
-                            await Promise.resolve(interactiveAuth.initRedirectCode(authCode));
-                            await this.writeResponse(res, StatusCode.OK, defaultCallbackSuccessTemplate());
+                            // Ensure that the state token is verified, according to our state store
+                            await installerOptions.stateStore.verifyState(stateCodeParam);
+                            // Ensure that the state token we received (in search parameters) IS THE SAME as the state cookie
+                            if (!stateCodeCookie || stateCodeCookie !== stateCodeParam) {
+                                const errorMessage = "The state parameter is not from this browser session.";
+                                this.logger.error(errorMessage);
+                                throw new ReceiverOAuthFlowError(errorMessage);
+                            }
+                            await interactiveAuth.initRedirectCode(authCodeParam);
+                            const deletionStateCookie = this.buildDeletedStateCookieHeader(installerOptions.stateCookieName);
+                            await this.writeResponse(res, StatusCode.OK, defaultCallbackSuccessTemplate(), deletionStateCookie);
                             return;
                         }
                         catch (err) {
                             const htmlTemplate = isCoreError(err) ?
                                 defaultCallbackKnownErrorTemplate(err.name, err.message)
                                 : defaultCallbackUnknownErrorTemplate();
-                            await this.writeResponse(res, StatusCode.INTERNAL_SERVER_ERROR, htmlTemplate);
+                            const deletionStateCookie = this.buildDeletedStateCookieHeader(installerOptions.stateCookieName);
+                            await this.writeResponse(res, StatusCode.INTERNAL_SERVER_ERROR, htmlTemplate, deletionStateCookie);
                             return;
                         }
                     }
                 }
-                // We currently only support a single endpoint, though this will change in the future.
-                if (!this.hasEndpoint(pathname)) {
-                    await this.writeResponse(res, StatusCode.NOT_FOUND);
-                    return;
-                }
-                // We currently only support POST requests, as that's what Zoom sends.
-                if (req.method !== "post" && req.method !== "POST") {
-                    await this.writeResponse(res, StatusCode.METHOD_NOT_ALLOWED);
-                    return;
-                }
-                try {
-                    const { webhooksSecretToken } = this.options;
-                    const request = await CommonHttpRequest.buildFromIncomingMessage(req, webhooksSecretToken);
-                    const processedEvent = request.processEvent();
-                    if (isHashedUrlValidation(processedEvent)) {
-                        await this.writeResponse(res, StatusCode.OK, processedEvent);
+                // This section is only applicable if we have a webhooks secret token—if we don't, then this
+                // receiver is, in effect, just for OAuth usage, meaning installing and validating.
+                if (this.options.webhooksSecretToken) {
+                    // We currently only support a single endpoint, though this will change in the future.
+                    if (!this.hasEndpoint(pathname)) {
+                        await this.writeResponse(res, StatusCode.NOT_FOUND);
+                        return;
                     }
-                    else {
-                        await this.eventEmitter?.emit(processedEvent.event, processedEvent);
-                        await this.writeResponse(res, StatusCode.OK, { message: "Zoom event processed successfully." });
+                    // We currently only support POST requests, as that's what Zoom sends.
+                    if (req.method !== "post" && req.method !== "POST") {
+                        await this.writeResponse(res, StatusCode.METHOD_NOT_ALLOWED);
+                        return;
                     }
-                }
-                catch (err) {
-                    if (isCoreError(err, "CommonHttpRequestError")) {
-                        await this.writeResponse(res, StatusCode.BAD_REQUEST, { error: err.message });
+                    try {
+                        const { webhooksSecretToken } = this.options;
+                        const request = await CommonHttpRequest.buildFromIncomingMessage(req, webhooksSecretToken);
+                        const processedEvent = request.processEvent();
+                        if (isHashedUrlValidation(processedEvent)) {
+                            await this.writeResponse(res, StatusCode.OK, processedEvent);
+                        }
+                        else {
+                            await this.eventEmitter?.emit(processedEvent.event, processedEvent);
+                            await this.writeResponse(res, StatusCode.OK, { message: "Zoom event processed successfully." });
+                        }
                     }
-                    else {
-                        console.error(err);
-                        await this.writeResponse(res, StatusCode.INTERNAL_SERVER_ERROR, {
-                            error: "An unknown error occurred. Please try again later."
-                        });
+                    catch (err) {
+                        if (isCoreError(err, "CommonHttpRequestError")) {
+                            await this.writeResponse(res, StatusCode.BAD_REQUEST, { error: err.message });
+                        }
+                        else {
+                            console.error(err);
+                            await this.writeResponse(res, StatusCode.INTERNAL_SERVER_ERROR, {
+                                error: "An unknown error occurred. Please try again later."
+                            });
+                        }
                     }
                 }
             })());
@@ -723,18 +772,24 @@ class HttpReceiver {
             resolve();
         });
     }
-    writeTemporaryRedirect(res, location) {
+    writeTemporaryRedirect(res, location, setCookie) {
         return new Promise((resolve) => {
+            if (setCookie) {
+                this.setResponseCookie(res, setCookie);
+            }
             res.writeHead(StatusCode.TEMPORARY_REDIRECT, { Location: location });
             res.end(() => {
                 resolve();
             });
         });
     }
-    writeResponse(res, statusCode, bodyContent) {
+    writeResponse(res, statusCode, bodyContent, setCookie) {
         return new Promise((resolve) => {
             const mimeType = typeof bodyContent === "object" ? "application/json" : "text/html";
             bodyContent = typeof bodyContent === "object" ? JSON.stringify(bodyContent) : bodyContent;
+            if (setCookie) {
+                this.setResponseCookie(res, setCookie);
+            }
             res.writeHead(statusCode, { "Content-Type": mimeType });
             res.end(bodyContent, () => {
                 resolve();
@@ -743,87 +798,13 @@ class HttpReceiver {
     }
 }
 
-const type = "module";
-const name = "@zoom/rivet";
-const author = "Zoom Communications, Inc.";
-const contributors = [
-  {
-    name: "James Coon",
-    email: "james.coon@zoom.us",
-    url: "https://www.npmjs.com/~jcoon97"
-  },
-  {
-    name: "Will Ezrine",
-    email: "will.ezrine@zoom.us",
-    url: "https://www.npmjs.com/~wezrine"
-  },
-  {
-    name: "Tommy Gaessler",
-    email: "tommy.gaessler@zoom.us",
-    url: "https://www.npmjs.com/~tommygaessler"
-  }
-];
-const packageManager = "pnpm@9.9.0";
-const version = "0.2.2";
-const scripts = {
-  test: "vitest",
-  "test:coverage": "vitest --coverage",
-  "export": "rollup --config ./rollup.config.mjs",
-  prepare: "husky",
-  lint: "eslint './packages/**/*.ts' --ignore-pattern '**/*{Endpoints,EventProcessor}.ts' --ignore-pattern '**/*.{spec,test,test-d}.ts'"
-};
-const devDependencies = {
-  "@eslint/js": "^9.12.0",
-  "@rollup/plugin-commonjs": "^28.0.0",
-  "@rollup/plugin-json": "^6.1.0",
-  "@rollup/plugin-node-resolve": "^15.3.0",
-  "@rollup/plugin-typescript": "^12.1.0",
-  "@tsconfig/recommended": "^1.0.7",
-  "@tsconfig/strictest": "^2.0.5",
-  "@types/eslint__js": "^8.42.3",
-  "@types/node": "^22.7.5",
-  "@types/semver": "^7.5.8",
-  "@types/supertest": "^6.0.2",
-  "@vitest/coverage-v8": "2.1.3",
-  dotenv: "^16.4.5",
-  eslint: "^9.12.0",
-  "eslint-plugin-n": "^17.11.1",
-  "eslint-plugin-promise": "^7.1.0",
-  "get-port": "^7.1.0",
-  husky: "^9.1.6",
-  "lint-staged": "^15.2.10",
-  nock: "^13.5.5",
-  prettier: "^3.3.3",
-  "prettier-plugin-organize-imports": "^4.1.0",
-  rollup: "^4.24.0",
-  "rollup-plugin-copy": "^3.5.0",
-  "rollup-plugin-dts": "^6.1.1",
-  semver: "^7.6.3",
-  supertest: "^7.0.0",
-  "ts-node": "^10.9.2",
-  tslib: "^2.7.0",
-  typescript: "^5.6.3",
-  "typescript-eslint": "^8.8.1",
-  vitest: "2.1.3"
-};
+const version = "0.4.0";
 var packageJson = {
-  type: type,
-  name: name,
-  author: author,
-  contributors: contributors,
-  packageManager: packageManager,
-  version: version,
-  scripts: scripts,
-  devDependencies: devDependencies,
-  "lint-staged": {
-  "*": "prettier --ignore-unknown --write",
-  "*.ts !*{Endpoints,EventProcessor}.ts !*.{spec,test,test-d}.ts": [
-    "eslint --fix",
-    "eslint"
-  ]
-}
-};
+  version: version};
 
+// eslint-disable-next-line no-control-regex
+const ASCII_CONTROL_CHARACTERS_PATTERN = /[\x00-\x1F\x7F]/;
+const NON_ASCII_CHARACTERS_PATTERN = /[^\x20-\x7E]/;
 class WebEndpoints {
     /** @internal */
     static DEFAULT_BASE_URL = "https://api.zoom.us/v2";
@@ -852,9 +833,22 @@ class WebEndpoints {
         return (async ({ path, body, query }) => await this.makeRequest(method, baseUrlOverride, urlPathBuilder(path), requestMimeType ?? WebEndpoints.DEFAULT_MIME_TYPE, body, query)).bind(this);
     }
     buildUserAgent() {
-        return (`rivet/${packageJson.version} ` +
+        const customUserAgentName = this.getCustomUserAgentName();
+        const userAgent = `rivet/${packageJson.version}${customUserAgentName ? ` (${customUserAgentName})` : ""}`;
+        return (`${userAgent} ` +
             `${basename(process.title)}/${process.version.replace("v", "")} ` +
             `${os.platform()}/${os.release()}`);
+    }
+    getCustomUserAgentName() {
+        const { userAgentName } = this.options;
+        if (!userAgentName || typeof userAgentName !== "string") {
+            return null;
+        }
+        return userAgentName
+            .replace(new RegExp(ASCII_CONTROL_CHARACTERS_PATTERN, "g"), "")
+            .replace(new RegExp(NON_ASCII_CHARACTERS_PATTERN, "g"), "")
+            .trim()
+            .slice(0, 100);
     }
     getHeaders(bearerToken, contentType) {
         return {
@@ -1026,9 +1020,14 @@ class PhoneEndpoints extends WebEndpoints {
             urlPathBuilder: ({ callLogId }) => `/phone/call_history/${callLogId}`
         }),
         addClientCodeToCallHistory: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ callLogId }) => `/phone/call_history/${callLogId}/client_code` }),
+        getCallHistoryDetail: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ callHistoryId }) => `/phone/call_history_detail/${callHistoryId}` }),
         getAccountsCallLogs: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/call_logs` }),
         getCallLogDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ callLogId }) => `/phone/call_logs/${callLogId}` }),
         addClientCodeToCallLog: this.buildEndpoint({ method: "PUT", urlPathBuilder: ({ callLogId }) => `/phone/call_logs/${callLogId}/client_code` }),
+        getUserAICallSummaryDetail: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: ({ userId, aiCallSummaryId }) => `/phone/user/${userId}/ai_call_summary/${aiCallSummaryId}`
+        }),
         getUsersCallHistory: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/phone/users/${userId}/call_history` }),
         syncUsersCallHistory: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/phone/users/${userId}/call_history/sync` }),
         deleteUsersCallHistory: this.buildEndpoint({
@@ -1043,6 +1042,7 @@ class PhoneEndpoints extends WebEndpoints {
         })
     };
     callQueues = {
+        listCallQueueAnalytics: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/call_queue_analytics` }),
         listCallQueues: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/call_queues` }),
         createCallQueue: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/phone/call_queues` }),
         getCallQueueDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ callQueueId }) => `/phone/call_queues/${callQueueId}` }),
@@ -1070,7 +1070,7 @@ class PhoneEndpoints extends WebEndpoints {
             method: "DELETE",
             urlPathBuilder: ({ callQueueId, phoneNumberId }) => `/phone/call_queues/${callQueueId}/phone_numbers/${phoneNumberId}`
         }),
-        addPolicySettingToCallQueue: this.buildEndpoint({
+        addPolicySubsettingToCallQueue: this.buildEndpoint({
             method: "POST",
             urlPathBuilder: ({ callQueueId, policyType }) => `/phone/call_queues/${callQueueId}/policies/${policyType}`
         }),
@@ -1102,6 +1102,7 @@ class PhoneEndpoints extends WebEndpoints {
     commonAreas = {
         listCommonAreas: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/common_areas` }),
         addCommonArea: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/phone/common_areas` }),
+        generateActivationCodesForCommonAreas: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/phone/common_areas/activation_code` }),
         listActivationCodes: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/common_areas/activation_codes` }),
         applyTemplateToCommonAreas: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ templateId }) => `/phone/common_areas/template_id/${templateId}` }),
         getCommonAreaDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ commonAreaId }) => `/phone/common_areas/${commonAreaId}` }),
@@ -1122,7 +1123,7 @@ class PhoneEndpoints extends WebEndpoints {
         }),
         updateCommonAreaPinCode: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ commonAreaId }) => `/phone/common_areas/${commonAreaId}/pin_code` }),
         getCommonAreaSettings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ commonAreaId }) => `/phone/common_areas/${commonAreaId}/settings` }),
-        addCommonAreaSettings: this.buildEndpoint({
+        addCommonAreaSetting: this.buildEndpoint({
             method: "POST",
             urlPathBuilder: ({ commonAreaId, settingType }) => `/phone/common_areas/${commonAreaId}/settings/${settingType}`
         }),
@@ -1130,7 +1131,7 @@ class PhoneEndpoints extends WebEndpoints {
             method: "DELETE",
             urlPathBuilder: ({ commonAreaId, settingType }) => `/phone/common_areas/${commonAreaId}/settings/${settingType}`
         }),
-        updateCommonAreaSettings: this.buildEndpoint({
+        updateCommonAreaSetting: this.buildEndpoint({
             method: "PATCH",
             urlPathBuilder: ({ commonAreaId, settingType }) => `/phone/common_areas/${commonAreaId}/settings/${settingType}`
         })
@@ -1142,6 +1143,12 @@ class PhoneEndpoints extends WebEndpoints {
             urlPathBuilder: ({ callId }) => `/phone/metrics/call_logs/${callId}/qos`
         }),
         getCallDetailsFromCallLog: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ call_id }) => `/phone/metrics/call_logs/${call_id}` }),
+        listDefaultEmergencyAddressUsers: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/metrics/emergency_services/default_emergency_address/users` }),
+        listDetectablePersonalLocationUsers: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/metrics/emergency_services/detectable_personal_location/users` }),
+        listUsersPermissionForLocationSharing: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/metrics/emergency_services/location_sharing_permission/users` }),
+        listNomadicEmergencyServicesUsers: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/metrics/emergency_services/nomadic_emergency_services/users` }),
+        listRealTimeLocationForIPPhones: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/metrics/emergency_services/realtime_location/devices` }),
+        listRealTimeLocationForUsers: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/metrics/emergency_services/realtime_location/users` }),
         listTrackedLocations: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/metrics/location_tracking` }),
         listPastCallMetrics: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/metrics/past_calls` })
     };
@@ -1216,6 +1223,14 @@ class PhoneEndpoints extends WebEndpoints {
         })
     };
     groups = {
+        getGroupPolicyDetails: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: ({ groupId, policyType }) => `/phone/groups/${groupId}/policies/${policyType}`
+        }),
+        updateGroupPolicy: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ groupId, policyType }) => `/phone/groups/${groupId}/policies/${policyType}`
+        }),
         getGroupPhoneSettings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ groupId }) => `/phone/groups/${groupId}/settings` })
     };
     iVR = {
@@ -1364,7 +1379,8 @@ class PhoneEndpoints extends WebEndpoints {
         rebootDeskPhone: this.buildEndpoint({
             method: "POST",
             urlPathBuilder: ({ deviceId }) => `/phone/devices/${deviceId}/reboot`
-        })
+        }),
+        listSmartphones: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/smartphones` })
     };
     phoneNumbers = {
         addBYOCPhoneNumbers: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/phone/byoc_numbers` }),
@@ -1403,7 +1419,10 @@ class PhoneEndpoints extends WebEndpoints {
         updatePhoneRole: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ roleId }) => `/phone/roles/${roleId}` }),
         listMembersInRole: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ roleId }) => `/phone/roles/${roleId}/members` }),
         addMembersToRoles: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ roleId }) => `/phone/roles/${roleId}/members` }),
-        deleteMembersInRole: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ roleId }) => `/phone/roles/${roleId}/members` })
+        deleteMembersInRole: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ roleId }) => `/phone/roles/${roleId}/members` }),
+        listPhoneRoleTargets: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ roleId }) => `/phone/roles/${roleId}/targets` }),
+        addPhoneRoleTargets: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ roleId }) => `/phone/roles/${roleId}/targets` }),
+        deletePhoneRoleTargets: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ roleId }) => `/phone/roles/${roleId}/targets` })
     };
     privateDirectory = {
         listPrivateDirectoryMembers: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/private_directory/members` }),
@@ -1454,6 +1473,10 @@ class PhoneEndpoints extends WebEndpoints {
         updateDirectoryBackupRoutingRule: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ routingRuleId }) => `/phone/routing_rules/${routingRuleId}` })
     };
     sMS = {
+        postSMSMessage: this.buildEndpoint({
+            method: "POST",
+            urlPathBuilder: () => `/phone/sms/messages`
+        }),
         getAccountsSMSSessions: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/sms/sessions` }),
         getSMSSessionDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ sessionId }) => `/phone/sms/sessions/${sessionId}` }),
         getSMSByMessageID: this.buildEndpoint({
@@ -1479,7 +1502,8 @@ class PhoneEndpoints extends WebEndpoints {
         unassignPhoneNumber: this.buildEndpoint({
             method: "DELETE",
             urlPathBuilder: ({ smsCampaignId, phoneNumberId }) => `/phone/sms_campaigns/${smsCampaignId}/phone_numbers/${phoneNumberId}`
-        })
+        }),
+        listUsersOptStatusesOfPhoneNumbers: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/phone/user/${userId}/sms_campaigns/phone_numbers/opt_status` })
     };
     settingTemplates = {
         listSettingTemplates: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/setting_templates` }),
@@ -1488,6 +1512,8 @@ class PhoneEndpoints extends WebEndpoints {
         updateSettingTemplate: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ templateId }) => `/phone/setting_templates/${templateId}` })
     };
     settings = {
+        getAccountPolicyDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ policyType }) => `/phone/policies/${policyType}` }),
+        updateAccountPolicy: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ policyType }) => `/phone/policies/${policyType}` }),
         listPortedNumbers: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/phone/ported_numbers/orders` }),
         getPortedNumberDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ orderId }) => `/phone/ported_numbers/orders/${orderId}` }),
         getPhoneAccountSettings: this.buildEndpoint({
@@ -1611,6 +1637,11 @@ class PhoneEndpoints extends WebEndpoints {
             method: "DELETE",
             urlPathBuilder: ({ userId }) => `/phone/users/${userId}/outbound_caller_id/customized_numbers`
         }),
+        getUserPolicyDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId, policyType }) => `/phone/users/${userId}/policies/${policyType}` }),
+        updateUserPolicy: this.buildEndpoint({
+            method: "PATCH",
+            urlPathBuilder: ({ userId, policyType }) => `/phone/users/${userId}/policies/${policyType}`
+        }),
         getUsersProfileSettings: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ userId }) => `/phone/users/${userId}/settings` }),
         updateUsersProfileSettings: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ userId }) => `/phone/users/${userId}/settings` }),
         addUsersSharedAccessSetting: this.buildEndpoint({
@@ -1635,6 +1666,10 @@ class PhoneEndpoints extends WebEndpoints {
             urlPathBuilder: ({ fileId }) => `/phone/voice_mails/download/${fileId}`
         }),
         getVoicemailDetails: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ voicemailId }) => `/phone/voice_mails/${voicemailId}` }),
+        deleteVoicemail: this.buildEndpoint({
+            method: "DELETE",
+            urlPathBuilder: ({ voicemailId }) => `/phone/voice_mails/${voicemailId}`
+        }),
         updateVoicemailReadStatus: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ voicemailId }) => `/phone/voice_mails/${voicemailId}` })
     };
     zoomRooms = {
@@ -1648,10 +1683,7 @@ class PhoneEndpoints extends WebEndpoints {
         removeZoomRoomFromZPAccount: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ roomId }) => `/phone/rooms/${roomId}` }),
         updateZoomRoomUnderZoomPhoneLicense: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ roomId }) => `/phone/rooms/${roomId}` }),
         assignCallingPlansToZoomRoom: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ roomId }) => `/phone/rooms/${roomId}/calling_plans` }),
-        removeCallingPlanFromZoomRoom: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ roomId, type }) => `/phone/rooms/${roomId}/calling_plans/${type.toString()}`
-        }),
+        removeCallingPlanFromZoomRoom: this.buildEndpoint({ method: "DELETE", urlPathBuilder: ({ roomId, type }) => `/phone/rooms/${roomId}/calling_plans/${type}` }),
         assignPhoneNumbersToZoomRoom: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ roomId }) => `/phone/rooms/${roomId}/phone_numbers` }),
         removePhoneNumberFromZoomRoom: this.buildEndpoint({
             method: "DELETE",
@@ -1747,7 +1779,9 @@ class ProductClient {
         // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
         if (!isReceiverDisabled(options)) {
             // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
-            if (!hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
+            // This is mainly applicable for products where we expect webhooks to be used; in events where webhooks are not
+            // expected, then it's perfectly fine for the developer to not provide a receiver of a webhooks secret token.
+            if (this.webEventConsumer && !hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
                 throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
             }
             this.receiver = (hasExplicitReceiver(options) ?
@@ -1768,7 +1802,7 @@ class ProductClient {
     }
     async start() {
         if (!this.receiver) {
-            throw new ReceiverInconsistentStateError("Receiver not constructed. Was disableReceiver set to true?");
+            throw new ReceiverInconsistentStateError("Receiver failed to construct. Was disableReceiver set to true?");
         }
         // Method call is wrapped in `await` and `Promise.resolve()`, as the call
         // may or may not return a promise. This is not required when implementing `Receiver`.

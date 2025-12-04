@@ -132,48 +132,6 @@ class ConsoleLogger {
     }
 }
 
-class EventManager {
-    endpoints;
-    /** @internal */
-    listeners;
-    constructor(endpoints) {
-        this.endpoints = endpoints;
-        this.listeners = {};
-    }
-    appendListener(eventName, predicate, listener) {
-        if (this.listeners[eventName]) {
-            this.listeners[eventName].push({ predicate, listener });
-        }
-        else {
-            this.listeners[eventName] = [{ predicate, listener }];
-        }
-    }
-    filteredEvent(eventName, predicate, listener) {
-        if (typeof predicate !== "function" || typeof listener !== "function") {
-            throw new Error("Event predicate and listener must be of type function.");
-        }
-        this.appendListener(eventName, predicate, listener);
-    }
-    async emit(eventName, payload) {
-        if (!this.listeners[eventName])
-            return;
-        await Promise.all(this.listeners[eventName].map(async ({ predicate, listener }) => {
-            if (typeof predicate !== "undefined" && !predicate(payload))
-                return;
-            await Promise.resolve(listener(payload));
-        }));
-    }
-    event(eventName, listener) {
-        if (typeof listener !== "function") {
-            throw new Error("Event listener must be of type function.");
-        }
-        this.appendListener(eventName, undefined, listener);
-    }
-    withContext() {
-        throw new Error("Method not implemented. Only to be used for type.");
-    }
-}
-
 /** @internal */
 const hashUrlValidationEvent = ({ payload: { plainToken } }, webhooksSecretToken) => ({
     encryptedToken: node_crypto.createHmac("sha256", webhooksSecretToken).update(plainToken).digest("hex"),
@@ -798,88 +756,6 @@ class HttpReceiver {
     }
 }
 
-class ClientCredentialsAuth extends Auth {
-    assertRawToken(obj) {
-        if (typeof obj.access_token !== "string" ||
-            typeof obj.expires_in !== "number" ||
-            typeof obj.scope !== "string") {
-            throw new ClientCredentialsRawResponseError(`Failed to match raw response ${JSON.stringify(obj)} to expected shape.`);
-        }
-    }
-    async fetchClientCredentials() {
-        const response = await this.makeOAuthTokenRequest("client_credentials");
-        this.assertRawToken(response.data);
-        return this.mapClientCredentials(response.data);
-    }
-    async getToken() {
-        const { tokenStore } = this;
-        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
-        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
-            return currentToken.accessToken;
-        }
-        const clientCredentials = await this.fetchClientCredentials();
-        await Promise.resolve(tokenStore.storeToken(clientCredentials));
-        return clientCredentials.accessToken;
-    }
-    mapClientCredentials({ access_token, expires_in, scope }) {
-        return {
-            accessToken: access_token,
-            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
-            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
-        };
-    }
-}
-
-// Utility functions for determining if client options include custom receiver, or, if not,
-// a webhooks secret token, as one of those is required!
-const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
-const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
-const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
-const DEFAULT_HTTP_RECEIVER_PORT = 8080;
-const DEFAULT_LOGLEVEL = exports.LogLevel.ERROR;
-class ProductClient {
-    auth;
-    endpoints;
-    webEventConsumer;
-    receiver;
-    constructor(options) {
-        this.auth = this.initAuth(options);
-        this.endpoints = this.initEndpoints(this.auth, options);
-        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
-        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
-        if (!isReceiverDisabled(options)) {
-            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
-            // This is mainly applicable for products where we expect webhooks to be used; in events where webhooks are not
-            // expected, then it's perfectly fine for the developer to not provide a receiver of a webhooks secret token.
-            if (this.webEventConsumer && !hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
-                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
-            }
-            this.receiver = (hasExplicitReceiver(options) ?
-                options.receiver
-                : this.initDefaultReceiver(options));
-            this.receiver.init({
-                eventEmitter: this.webEventConsumer,
-                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
-            });
-        }
-    }
-    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
-        return new HttpReceiver({
-            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
-            webhooksSecretToken,
-            logLevel: logLevel ?? DEFAULT_LOGLEVEL
-        });
-    }
-    async start() {
-        if (!this.receiver) {
-            throw new ReceiverInconsistentStateError("Receiver failed to construct. Was disableReceiver set to true?");
-        }
-        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
-        // may or may not return a promise. This is not required when implementing `Receiver`.
-        return (await Promise.resolve(this.receiver.start()));
-    }
-}
-
 const version = "0.4.0";
 var packageJson = {
   version: version};
@@ -993,125 +869,156 @@ class WebEndpoints {
     }
 }
 
-class ChatbotEndpoints extends WebEndpoints {
-    messages = {
-        /** Insert Send Docs here */
-        sendChatbotMessage: this.buildEndpoint({
-            method: "POST",
-            urlPathBuilder: () => `/im/chat/messages`
+class CommerceEndpoints extends WebEndpoints {
+    accountManagement = {
+        createEndCustomerAccount: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/commerce/account` }),
+        addContactsToExistingEndCustomerOrYourOwnAccount: this.buildEndpoint({ method: "POST", urlPathBuilder: ({ accountKey }) => `/commerce/account/${accountKey}/contacts` }),
+        getsListOfAllAccountsAssociatedWithZoomPartnerSubResellerByAccountType: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/accounts` }),
+        getAccountDetailsForZoomPartnerSubResellerEndCustomer: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ accountKey }) => `/commerce/accounts/${accountKey}` })
+    };
+    billing = {
+        getsAllBillingDocumentsForDistributorOrReseller: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/billing_documents` }),
+        getsPDFDocumentForBillingDocumentID: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: ({ documentNumber }) => `/commerce/billing_documents/${documentNumber}/document`
         }),
-        editChatbotMessage: this.buildEndpoint({
-            method: "PUT",
-            urlPathBuilder: ({ message_id }) => `/im/chat/messages/${message_id}`
-        }),
-        deleteChatbotMessage: this.buildEndpoint({
-            method: "DELETE",
-            urlPathBuilder: ({ message_id }) => `/im/chat/messages/${message_id}`
-        }),
-        linkUnfurls: this.buildEndpoint({
-            method: "POST",
-            urlPathBuilder: ({ userId, triggerId }) => `/im/chat/users/${userId}/unfurls/${triggerId}`
+        getDetailedInformationAboutSpecificInvoiceForDistributorOrReseller: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ invoiceNumber }) => `/commerce/invoices/${invoiceNumber}` })
+    };
+    dealRegistration = {
+        retrievesAllValidZoomCampaignsWhichDealRegistrationCanBeAssociatedWith: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/campaigns` }),
+        createsNewDealRegistrationForPartner: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/commerce/deal_registration` }),
+        getsAllValidDealRegistrationsForPartner: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/deal_registrations` }),
+        getsDetailsForDealRegistrationByDealRegistrationNumber: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ dealRegKey }) => `/commerce/deal_registrations/${dealRegKey}` }),
+        updatesExistingDealRegistration: this.buildEndpoint({ method: "PATCH", urlPathBuilder: ({ dealRegKey }) => `/commerce/deal_registrations/${dealRegKey}` })
+    };
+    order = {
+        createsSubscriptionOrderForZoomPartner: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/commerce/order` }),
+        previewDeltaOrderMetricsAndSubscriptionsInOrder: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/commerce/order/preview` }),
+        getsAllOrdersForZoomPartner: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/orders` }),
+        getsOrderDetailsByOrderReferenceID: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ orderReferenceId }) => `/commerce/orders/${orderReferenceId}` })
+    };
+    productCatalog = {
+        getsZoomProductCatalogForZoomPartner: this.buildEndpoint({ method: "POST", urlPathBuilder: () => `/commerce/catalog` }),
+        getsDetailsForZoomProductOrOffer: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ offerId }) => `/commerce/catalog/${offerId}` }),
+        getsPricebookInDownloadableFile: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/pricebooks` })
+    };
+    subscription = {
+        getsSubscriptionsForZoomPartner: this.buildEndpoint({ method: "GET", urlPathBuilder: () => `/commerce/subscriptions` }),
+        getsSubscriptionDetailsForGivenSubscriptionNumber: this.buildEndpoint({ method: "GET", urlPathBuilder: ({ subscriptionNumber }) => `/commerce/subscriptions/${subscriptionNumber}` }),
+        getsSubscriptionChangesVersionsForGivenSubscriptionNumber: this.buildEndpoint({
+            method: "GET",
+            urlPathBuilder: ({ subscriptionNumber }) => `/commerce/subscriptions/${subscriptionNumber}/versions`
         })
     };
 }
 
-function compareCandidate(pattern, candidate) {
-    if (!candidate) {
-        return false;
+class S2SAuth extends Auth {
+    accountId;
+    constructor({ accountId, ...restOptions }) {
+        super(restOptions);
+        this.accountId = accountId;
     }
-    if (typeof pattern === "string") {
-        if (pattern === "*") {
-            return true;
+    assertRawToken(obj) {
+        if (typeof obj.access_token !== "string" ||
+            typeof obj.expires_in !== "number" ||
+            typeof obj.scope !== "string") {
+            throw new S2SRawResponseError(`Failed to match raw response ${JSON.stringify(obj)} to expected shape.`);
         }
-        return pattern.includes(candidate);
     }
-    else if (pattern instanceof RegExp) {
-        return pattern.test(candidate);
+    async fetchAccessToken() {
+        const response = await this.makeOAuthTokenRequest("account_credentials", {
+            account_id: this.accountId
+        });
+        this.assertRawToken(response.data);
+        return this.mapAccessToken(response.data);
     }
-    else {
-        throw new Error("Pattern must be a string or regular expression");
+    async getToken() {
+        const { tokenStore } = this;
+        const currentToken = await Promise.resolve(tokenStore.getLatestToken());
+        if (currentToken && !this.isAlmostExpired(currentToken.expirationTimeIso)) {
+            return currentToken.accessToken;
+        }
+        const token = await this.fetchAccessToken();
+        await Promise.resolve(tokenStore.storeToken(token));
+        return token.accessToken;
+    }
+    mapAccessToken({ access_token, expires_in, scope }) {
+        return {
+            accessToken: access_token,
+            expirationTimeIso: dayjs().add(expires_in, "seconds").toISOString(),
+            scopes: scope.includes(" ") ? scope.split(" ") : [scope]
+        };
     }
 }
 
-function createMessageElement(message_text) {
-    return {
-        type: "message",
-        text: message_text
-    };
-}
-function createMessage(message_text) {
-    return {
-        body: [createMessageElement(message_text)]
-    };
-}
-
-const createContent = (stringOrCardContent) => {
-    let content;
-    if (typeof stringOrCardContent === "string") {
-        content = createMessage(stringOrCardContent);
-    }
-    else {
-        content = stringOrCardContent;
-    }
-    return content;
-};
-class ChatbotEventProcessor extends EventManager {
-    onSlashCommand(commandName, listener) {
-        this.filteredEvent("bot_notification", ({ payload }) => compareCandidate(commandName, payload.cmd), async (payload) => {
-            await listener({
-                say: async (stringOrCardContent) => {
-                    return await this.endpoints.messages.sendChatbotMessage({
-                        body: {
-                            robot_jid: payload.payload.robotJid,
-                            account_id: payload.payload.accountId,
-                            to_jid: payload.payload.toJid,
-                            user_jid: payload.payload.userId,
-                            content: createContent(stringOrCardContent)
-                        }
-                    });
-                },
-                ...payload
+// Utility functions for determining if client options include custom receiver, or, if not,
+// a webhooks secret token, as one of those is required!
+const hasExplicitReceiver = (obj) => typeof obj.receiver !== "undefined";
+const hasWebhooksSecretToken = (obj) => typeof obj.webhooksSecretToken !== "undefined";
+const isReceiverDisabled = (options) => typeof options.disableReceiver !== "undefined" && options.disableReceiver;
+const DEFAULT_HTTP_RECEIVER_PORT = 8080;
+const DEFAULT_LOGLEVEL = exports.LogLevel.ERROR;
+class ProductClient {
+    auth;
+    endpoints;
+    webEventConsumer;
+    receiver;
+    constructor(options) {
+        this.auth = this.initAuth(options);
+        this.endpoints = this.initEndpoints(this.auth, options);
+        this.webEventConsumer = this.initEventProcessor(this.endpoints, options);
+        // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
+        if (!isReceiverDisabled(options)) {
+            // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
+            // This is mainly applicable for products where we expect webhooks to be used; in events where webhooks are not
+            // expected, then it's perfectly fine for the developer to not provide a receiver of a webhooks secret token.
+            if (this.webEventConsumer && !hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
+                throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
+            }
+            this.receiver = (hasExplicitReceiver(options) ?
+                options.receiver
+                : this.initDefaultReceiver(options));
+            this.receiver.init({
+                eventEmitter: this.webEventConsumer,
+                interactiveAuth: this.auth instanceof InteractiveAuth ? this.auth : undefined
             });
+        }
+    }
+    initDefaultReceiver({ port, webhooksSecretToken, logLevel }) {
+        return new HttpReceiver({
+            port: port ?? DEFAULT_HTTP_RECEIVER_PORT,
+            webhooksSecretToken,
+            logLevel: logLevel ?? DEFAULT_LOGLEVEL
         });
     }
-    onButtonClick(actionId, listener) {
-        this.filteredEvent("interactive_message_actions", ({ payload }) => compareCandidate(actionId, payload.actionItem.value), async (payload) => {
-            await listener({
-                say: async (stringOrCardContent) => {
-                    return await this.endpoints.messages.sendChatbotMessage({
-                        body: {
-                            robot_jid: payload.payload.robotJid,
-                            account_id: payload.payload.accountId,
-                            to_jid: payload.payload.toJid,
-                            user_jid: payload.payload.userId,
-                            content: createContent(stringOrCardContent)
-                        }
-                    });
-                },
-                ...payload
-            });
-        });
+    async start() {
+        if (!this.receiver) {
+            throw new ReceiverInconsistentStateError("Receiver failed to construct. Was disableReceiver set to true?");
+        }
+        // Method call is wrapped in `await` and `Promise.resolve()`, as the call
+        // may or may not return a promise. This is not required when implementing `Receiver`.
+        return (await Promise.resolve(this.receiver.start()));
     }
 }
 
-class ChatbotClient extends ProductClient {
-    initAuth({ clientId, clientSecret, tokenStore }) {
-        return new ClientCredentialsAuth({ clientId, clientSecret, tokenStore });
+class CommerceS2SAuthClient extends ProductClient {
+    initAuth({ accountId, clientId, clientSecret, tokenStore }) {
+        return new S2SAuth({ accountId, clientId, clientSecret, tokenStore });
     }
     initEndpoints(auth, options) {
-        return new ChatbotEndpoints({ auth, ...options });
+        return new CommerceEndpoints({ auth, ...options });
     }
-    initEventProcessor(endpoints) {
-        return new ChatbotEventProcessor(endpoints);
+    initEventProcessor() {
+        return undefined;
     }
 }
 
 exports.ApiResponseError = ApiResponseError;
 exports.AwsLambdaReceiver = AwsLambdaReceiver;
 exports.AwsReceiverRequestError = AwsReceiverRequestError;
-exports.ChatbotClient = ChatbotClient;
-exports.ChatbotEventProcessor = ChatbotEventProcessor;
 exports.ClientCredentialsRawResponseError = ClientCredentialsRawResponseError;
+exports.CommerceEndpoints = CommerceEndpoints;
+exports.CommerceS2SAuthClient = CommerceS2SAuthClient;
 exports.CommonHttpRequestError = CommonHttpRequestError;
 exports.ConsoleLogger = ConsoleLogger;
 exports.HTTPReceiverConstructionError = HTTPReceiverConstructionError;
