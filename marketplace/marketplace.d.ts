@@ -125,12 +125,6 @@ interface ClientCredentialsToken {
     expirationTimeIso: string;
     scopes: string[];
 }
-declare class ClientCredentialsAuth extends Auth<ClientCredentialsToken> {
-    private assertRawToken;
-    private fetchClientCredentials;
-    getToken(): Promise<string>;
-    private mapClientCredentials;
-}
 
 interface JwtToken {
     token: string;
@@ -385,6 +379,14 @@ interface OAuthToken {
     refreshToken: string;
     scopes: string[];
 }
+declare class OAuth extends InteractiveAuth<OAuthToken> {
+    private assertResponseAccessToken;
+    private fetchAccessToken;
+    getToken(): Promise<string>;
+    initRedirectCode(code: string): Promise<void>;
+    private mapOAuthToken;
+    private refreshAccessToken;
+}
 
 interface RivetError<ErrorCode extends string = string> extends Error {
     readonly errorCode: ErrorCode;
@@ -441,446 +443,433 @@ declare class AwsLambdaReceiver implements Receiver {
     stop(): Promise<void>;
 }
 
-interface CardContent {
-    settings?: any;
-    head?: Header;
-    body?: (MultiplePages | Sections | ContentBodyElements)[];
-}
-type ContentBodyElements = Message | Fields | Actions | Attachment | File | Divider | Progress | StaticSelect | MemberSelect | ChannelSelect | TimePicker | DatePicker | RadioGroup | CheckboxGroup | SwitchGroup | Alert | MultipleImage | Input | Textarea | VideoPlayer;
-interface Header {
-    text: string;
-    style?: Style;
-    sub_head?: SubHeader;
-}
-interface SubHeader {
-    text: string;
-    style?: Style;
-}
-interface Sections extends Partial<Footer> {
-    type: "section";
-    sidebar_color?: string;
-    sections: ContentBodyElements[];
-}
-interface MultiplePages {
-    type: "page";
-    cur_page: number;
-    pages: {
-        pageNo: number;
-        body: Sections[];
+type AppSendAppNotificationsRequestBody = {
+    notification_id?: string;
+    message?: {
+        text?: string;
+    };
+    user_id?: string;
+};
+type AppGetUserOrAccountEventSubscriptionQueryParams = {
+    page_size?: number;
+    next_page_token?: string;
+    user_id: string;
+    subscription_scope?: string;
+    account_id: string;
+};
+type AppGetUserOrAccountEventSubscriptionResponse = {
+    next_page_token?: string;
+    page_size?: number;
+} & {
+    event_subscriptions?: {
+        event_subscription_id?: string;
+        events?: string[];
+        event_subscription_name?: string;
+        event_webhook_url?: string;
+        subscription_scope?: string;
+        created_source?: string;
+        subscriber_id?: string;
     }[];
-}
-interface Message {
-    type: "message";
-    text: string;
-    style?: Style;
-    editable?: boolean;
-    is_markdown_support?: boolean;
-    link?: string;
-}
-interface Fields {
-    type: "fields";
-    items: {
-        key: string;
-        value: string;
-        short?: boolean;
-        editable?: boolean;
-    }[];
-}
-interface Actions {
-    type: "actions";
-    items: {
-        text: string;
-        value: string;
-        style: string;
-    }[];
-}
-interface Attachment {
-    type: "attachments";
-    resource_url: string;
-    img_url: string;
-    information: {
-        title: {
-            text: string;
+};
+type AppCreateEventSubscriptionRequestBody = {
+    events: string[];
+    event_subscription_name?: string;
+    event_webhook_url: string;
+    user_ids?: string[];
+    subscription_scope: string;
+    account_id?: string;
+};
+type AppCreateEventSubscriptionResponse = {
+    event_subscription_id?: string;
+};
+type AppUnsubscribeAppEventSubscriptionQueryParams = {
+    event_subscription_id: string;
+    user_ids?: string;
+    account_id: string;
+};
+type AppDeleteEventSubscriptionPathParams = {
+    eventSubscriptionId: string;
+};
+type AppSubscribeEventSubscriptionPathParams = {
+    eventSubscriptionId: string;
+};
+type AppSubscribeEventSubscriptionRequestBody = {
+    user_ids?: string[];
+    account_id: string;
+};
+type AppListAppsQueryParams = {
+    page_size?: number;
+    next_page_token?: string;
+    type?: string;
+};
+type AppListAppsResponse = {
+    next_page_token?: string;
+    page_size?: number;
+} & {
+    apps?: {
+        app_id?: string;
+        app_name?: string;
+        app_type?: string;
+        app_usage?: number;
+        app_status?: string;
+        request_id?: string;
+        request_total_number?: number;
+        request_pending_number?: number;
+        request_approved_number?: number;
+        request_declined_number?: number;
+        latest_request_date_time?: string;
+        reviewer_name?: string;
+        review_date_time?: string;
+        app_developer_type?: string;
+        app_description?: string;
+        app_icon?: string;
+        scopes?: {
+            scope_name?: string;
+            scope_description?: string;
+        }[];
+        app_privacy_policy_url?: string;
+        app_directory_url?: string;
+        app_help_url?: string;
+        restricted_time?: string;
+        approval_info?: {
+            approved_type?: string;
+            approver_id?: string;
+            approved_time?: string;
+            app_approval_closed?: boolean;
         };
-        description: {
-            text: string;
+    }[];
+};
+type AppCreateAppsRequestBody = {
+    app_type: string;
+    app_name: string;
+    scopes?: string[];
+    contact_name: string;
+    contact_email: string;
+    company_name: string;
+    active?: boolean;
+    publish?: boolean;
+    manifest?: object;
+};
+type AppCreateAppsResponse = {
+    created_at?: string;
+    app_id?: string;
+    app_name?: string;
+    app_type?: string;
+    scopes?: string[];
+    production_credentials?: {
+        client_id?: string;
+        client_secret?: string;
+    };
+    development_credentials?: {
+        client_id?: string;
+        client_secret?: string;
+    };
+};
+type AppGetInformationAboutAppPathParams = {
+    appId: string;
+};
+type AppGetInformationAboutAppResponse = {
+    app_id?: string;
+    app_name?: string;
+    app_description?: string;
+    app_type?: string;
+    app_usage?: number;
+    app_status?: string;
+    app_links?: {
+        documentation_url?: string;
+        privacy_policy_url?: string;
+        support_url?: string;
+        terms_of_use_url?: string;
+    };
+    app_permissions?: {
+        group?: string;
+        group_message?: string;
+        title?: string;
+        permissions?: {
+            name?: string;
+        }[];
+    }[];
+    app_requirements?: {
+        user_role?: string;
+        min_client_version?: string;
+        account_eligibility?: {
+            account_types?: string[];
+            premium_events?: {
+                event_name?: string;
+                event?: string;
+            }[];
         };
     };
-}
-interface File {
-    type: "file";
-    icon_url: string;
-    title: {
-        text: string;
-        file_url: string;
-    };
-    description: {
-        text: string;
-    };
-}
-interface Divider {
-    type: "divider";
-    style: {
-        bold: boolean;
-        dotted: boolean;
-        color: string;
-    };
-}
-interface Progress {
-    type: "progress_bar";
-    value: number;
-}
-interface StaticSelect {
-    type: "select";
-    text: string;
-    selected_item?: {
-        text: string;
-        value: string;
-    };
-    select_items: {
-        text: string;
-        value: string;
+    app_scopes?: string[];
+};
+type AppGetAppsUserRequestsPathParams = {
+    appId: string;
+};
+type AppGetAppsUserRequestsQueryParams = {
+    page_size?: number;
+    next_page_token?: string;
+    status?: string;
+};
+type AppGetAppsUserRequestsResponse = {
+    next_page_token?: string;
+    page_size?: number;
+} & {
+    requests?: {
+        request_user_id?: string;
+        request_user_name?: string;
+        request_user_email?: string;
+        request_user_department?: string;
+        request_date_time?: string;
+        reason?: string;
+        status?: string;
     }[];
-}
-interface MemberSelect {
-    type: "select";
-    text: string;
-    static_source: string;
-}
-interface ChannelSelect {
-    type: "select";
-    text: string;
-    static_source: string;
-}
-interface TimePicker {
-    type: "timepicker";
-    initial_time: string;
-    action_id: string;
-}
-interface DatePicker {
-    type: "datepicker";
-    initial_date: string;
-    action_id: string;
-}
-interface RadioGroup {
-    type: "radio_buttons";
-    initial_option: {
-        value: string;
-        text: string;
-    };
-    options: {
-        value: string;
-        text: string;
+};
+type AppAddAppAllowRequestsForUsersPathParams = {
+    appId: string;
+};
+type AppAddAppAllowRequestsForUsersRequestBody = {
+    action: string;
+    user_ids?: string[];
+    group_ids?: string[];
+};
+type AppAddAppAllowRequestsForUsersResponse = {
+    added_at?: string;
+    user_ids?: string[];
+    group_ids?: string[];
+};
+type AppUpdateAppsRequestStatusPathParams = {
+    appId: string;
+};
+type AppUpdateAppsRequestStatusRequestBody = {
+    action: string;
+    request_user_ids?: string[];
+};
+type AppGetWebhookLogsPathParams = {
+    appId: string;
+};
+type AppGetWebhookLogsQueryParams = {
+    next_page_token?: string;
+    page_size?: number;
+    from?: string;
+    to?: string;
+    event?: string;
+    type?: number;
+};
+type AppGetWebhookLogsResponse = {
+    next_page_token?: string;
+    page_size?: number;
+    webhook_logs?: {
+        event?: string;
+        status?: number;
+        failed_reason_type?: number;
+        user_id?: string;
+        endpoint?: string;
+        subscription_id?: string;
+        request_headers?: string;
+        request_body?: string;
+        response_headers?: string;
+        response_body?: string;
+        date_time?: string;
+        trace_id?: string;
     }[];
-    action_id: string;
-}
-interface CheckboxGroup {
-    type: "checkboxes";
-    options: {
-        text: string;
-        value: string;
-        initial_selected?: boolean;
-    }[];
-    action_id: string;
-}
-interface SwitchGroup {
-    type: "checkboxes";
-    options: {
-        text: string;
-        value: string;
-        initial_selected?: boolean;
-    }[];
-    action_id: string;
-    style: string;
-}
-interface Alert {
-    type: "alert";
-    text: string;
-    level: string;
-    closable: boolean;
-}
-interface MultipleImage {
-    type: "images";
-    cur_index: number;
-    images: {
-        image_url: string;
-        alt_text: string;
-        image_index: number;
-    }[];
-}
-interface Input {
-    type: "plain_text_input";
-    action_id: string;
-    text: string;
-    value: string;
-    placeholder: string;
-    multiline: boolean;
-    min_length: number;
-    max_length: number;
-}
-interface Textarea {
-    type: "plain_text_input";
-    action_id: string;
-    text: string;
-    value: string;
-    placeholder: string;
-    multiline: boolean;
-    min_length: number;
-    max_length: number;
-}
-interface VideoPlayer {
-    type: "video";
-    title: {
-        text: string;
-        is_markdown_support: boolean;
-    };
-    action_id: string;
-    title_url: string;
-    video_url: string;
-    thumbnail_url: string;
-    author_name: string;
-    provider_name: string;
-    provider_icon_url: string;
-}
-interface Style {
-    color: string;
-    bold: boolean;
-    italic: boolean;
-}
-interface Footer {
-    footer: string;
-    footer_icon: string;
-    ts: number;
-}
-
-type SendChatbotMessagesRequestBody = {
-    /**The Bot JID. You can find this value in the **Feature** tab's **Chat Subscription** section of your Marketplace Chatbot app.*/
-    robot_jid: string;
-    /**The JID of the group channel or user to whom the message was sent.*/
-    to_jid: string;
-    /**The authorized account's account ID.*/
-    account_id?: string;
-    content: CardContent;
-    /**The user ID of the user who will receive Chatbot messages in the group channel. Only this user will see the Chatbot's messages.*/
-    visible_to_user?: string;
-    /**The JID of the user on whose behalf the message is being sent. This is used to prevent members of a channel from getting notifications that were set up by a user who has left the channel.*/
-    user_jid: string;
-    /**Whether to apply the [Markdown parser to your Chatbot message](/docs/team-chat-apps/customizing-messages/message-with-markdown/).*/
-    is_markdown_support?: boolean;
 };
-type SendChatbotMessagesResponse = object;
-type EditChatbotMessagePathParams = {
-    message_id: string;
+type AppGetAppUserEntitlementsQueryParams = {
+    user_id?: string;
 };
-type EditChatbotMessageRequestBody = {
-    /**The Bot JID. You can find this value in the **Feature** tab's **Chat Subscription** section of your Marketplace Chatbot app.*/
-    robot_jid: string;
-    /**The account ID to which the message was sent. You can get this value from the [Chatbot request sent to your server](/docs/team-chat-apps/send-edit-and-delete-messages/#send-messages).*/
-    account_id?: string;
-    content: CardContent;
-    /**The JID of the user on whose behalf the message is being sent. This is used to prevent members of a channel from getting notifications that were set up by a user who has left the channel.*/
-    user_jid: string;
-    /**Whether to apply the [Markdown parser to your Chatbot message](/docs/team-chat-apps/customizing-messages/message-with-markdown/).*/
-    is_markdown_support?: boolean;
-};
-type EditChatbotMessageResponse = {
-    /**The updated message's ID.*/
-    message_id?: string;
-    /**The Bot JID. You can find this value in the **Feature** tab's **Chat Subscription** section of your Marketplace Chatbot app.*/
-    robot_jid?: string;
-    /**The date and time at which the message was sent.*/
-    sent_time?: string;
-    /**The JID of the group channel or user to whom the message was sent.*/
-    to_jid?: string;
-    /**The JID of the user on whose behalf the message is being sent. This is used to prevent members of a channel from getting notifications that were set up by a user who has left the channel.*/
-    user_jid?: string;
-};
-type DeleteChatbotMessagePathParams = {
-    message_id: string;
-};
-type DeleteChatbotMessageQueryParams = {
-    account_id?: string;
-    user_jid: string;
-    robot_jid: string;
-};
-type DeleteChatbotMessageResponse = {
-    /**The deleted message's ID.*/
-    message_id?: string;
-    /**The Bot JID. You can find this value in the **Feature** tab's **Chat Subscription** section of your Marketplace Chatbot app.*/
-    robot_jid?: string;
-    /**The date and time at which the message was deleted.*/
-    sent_time?: string;
-    /**The JID of the group channel or user to whom the message was sent.*/
-    to_jid?: string;
-    /**The JID of the user on whose behalf the message is being sent. This is used to prevent members of a channel from getting notifications that were set up by a user who has left the channel.*/
-    user_jid?: string;
-};
-type LinkUnfurlsPathParams = {
+type AppGetAppUserEntitlementsResponse = {
+    id?: string;
+    plan_name?: string;
+    plan_id?: string;
+}[];
+type AppGetUsersAppRequestsPathParams = {
     userId: string;
-    triggerId: string;
 };
-type LinkUnfurlsRequestBody = {
-    /**A JSON-format template that describes how the edited message should be displayed for the user. For more information, see the Chatbot [Customizing-Messages](https://developers.zoom.us/docs/team-chat-apps/customizing-messages/) documentation. */
-    content: string;
+type AppGetUsersAppRequestsQueryParams = {
+    page_size?: number;
+    next_page_token?: string;
+    type?: string;
 };
-declare class ChatbotEndpoints extends WebEndpoints {
-    readonly messages: {
-        /** Insert Send Docs here */
-        sendChatbotMessage: (_: object & {
-            body: SendChatbotMessagesRequestBody;
-        }) => Promise<BaseResponse<object>>;
-        editChatbotMessage: (_: {
-            path: EditChatbotMessagePathParams;
+type AppGetUsersAppRequestsResponse = {
+    next_page_token?: string;
+    page_size?: number;
+} & {
+    apps?: {
+        app_id?: string;
+        app_name?: string;
+        app_type?: string;
+        app_usage?: number;
+        app_status?: string;
+        request_id?: string;
+        request_date_time?: string;
+        request_status?: string;
+    }[];
+};
+type AppGetUsersEntitlementsPathParams = {
+    userId: string;
+};
+type AppGetUsersEntitlementsResponse = {
+    entitlements?: {
+        entitlement_id?: number;
+    }[];
+};
+type AppsGenerateAppDeeplinkRequestBody = {
+    type?: number;
+    user_id?: string;
+    action?: string;
+};
+type AppsGenerateAppDeeplinkResponse = {
+    deeplink?: string;
+};
+type ManifestValidateAppManifestRequestBody = {
+    manifest: object;
+    app_id?: string;
+};
+type ManifestValidateAppManifestResponse = {
+    ok?: boolean;
+    error?: string;
+    errors?: {
+        message: string;
+        setting: string;
+    }[];
+};
+type ManifestExportAppManifestFromExistingAppPathParams = {
+    appId: string;
+};
+type ManifestExportAppManifestFromExistingAppResponse = {
+    manifest?: object;
+};
+type ManifestUpdateAppByManifestPathParams = {
+    appId: string;
+};
+type ManifestUpdateAppByManifestRequestBody = {
+    manifest: object;
+};
+declare class MarketplaceEndpoints extends WebEndpoints {
+    readonly app: {
+        sendAppNotifications: (_: object & {
+            body?: AppSendAppNotificationsRequestBody;
+        }) => Promise<BaseResponse<unknown>>;
+        getUserOrAccountEventSubscription: (_: object & {
+            query: AppGetUserOrAccountEventSubscriptionQueryParams;
+        }) => Promise<BaseResponse<AppGetUserOrAccountEventSubscriptionResponse>>;
+        createEventSubscription: (_: object & {
+            body: AppCreateEventSubscriptionRequestBody;
+        }) => Promise<BaseResponse<AppCreateEventSubscriptionResponse>>;
+        unsubscribeAppEventSubscription: (_: object & {
+            query: AppUnsubscribeAppEventSubscriptionQueryParams;
+        }) => Promise<BaseResponse<unknown>>;
+        deleteEventSubscription: (_: {
+            path: AppDeleteEventSubscriptionPathParams;
+        } & object) => Promise<BaseResponse<unknown>>;
+        subscribeEventSubscription: (_: {
+            path: AppSubscribeEventSubscriptionPathParams;
         } & {
-            body: EditChatbotMessageRequestBody;
-        } & object) => Promise<BaseResponse<EditChatbotMessageResponse>>;
-        deleteChatbotMessage: (_: {
-            path: DeleteChatbotMessagePathParams;
+            body: AppSubscribeEventSubscriptionRequestBody;
+        } & object) => Promise<BaseResponse<unknown>>;
+        listApps: (_: object & {
+            query?: AppListAppsQueryParams;
+        }) => Promise<BaseResponse<AppListAppsResponse>>;
+        createApps: (_: object & {
+            body: AppCreateAppsRequestBody;
+        }) => Promise<BaseResponse<AppCreateAppsResponse>>;
+        getInformationAboutApp: (_: {
+            path: AppGetInformationAboutAppPathParams;
+        } & object) => Promise<BaseResponse<AppGetInformationAboutAppResponse>>;
+        getAppsUserRequests: (_: {
+            path: AppGetAppsUserRequestsPathParams;
         } & object & {
-            query: DeleteChatbotMessageQueryParams;
-        }) => Promise<BaseResponse<DeleteChatbotMessageResponse>>;
-        linkUnfurls: (_: {
-            path: LinkUnfurlsPathParams;
+            query?: AppGetAppsUserRequestsQueryParams;
+        }) => Promise<BaseResponse<AppGetAppsUserRequestsResponse>>;
+        addAppAllowRequestsForUsers: (_: {
+            path: AppAddAppAllowRequestsForUsersPathParams;
         } & {
-            body: LinkUnfurlsRequestBody;
+            body: AppAddAppAllowRequestsForUsersRequestBody;
+        } & object) => Promise<BaseResponse<AppAddAppAllowRequestsForUsersResponse>>;
+        updateAppsRequestStatus: (_: {
+            path: AppUpdateAppsRequestStatusPathParams;
+        } & {
+            body: AppUpdateAppsRequestStatusRequestBody;
+        } & object) => Promise<BaseResponse<unknown>>;
+        getWebhookLogs: (_: {
+            path: AppGetWebhookLogsPathParams;
+        } & object & {
+            query?: AppGetWebhookLogsQueryParams;
+        }) => Promise<BaseResponse<AppGetWebhookLogsResponse>>;
+        getAppUserEntitlements: (_: object & {
+            query?: AppGetAppUserEntitlementsQueryParams;
+        }) => Promise<BaseResponse<AppGetAppUserEntitlementsResponse>>;
+        getUsersAppRequests: (_: {
+            path: AppGetUsersAppRequestsPathParams;
+        } & object & {
+            query?: AppGetUsersAppRequestsQueryParams;
+        }) => Promise<BaseResponse<AppGetUsersAppRequestsResponse>>;
+        getUsersEntitlements: (_: {
+            path: AppGetUsersEntitlementsPathParams;
+        } & object) => Promise<BaseResponse<AppGetUsersEntitlementsResponse>>;
+    };
+    readonly apps: {
+        generateAppDeeplink: (_: object & {
+            body?: AppsGenerateAppDeeplinkRequestBody;
+        }) => Promise<BaseResponse<AppsGenerateAppDeeplinkResponse>>;
+    };
+    readonly manifest: {
+        validateAppManifest: (_: object & {
+            body: ManifestValidateAppManifestRequestBody;
+        }) => Promise<BaseResponse<ManifestValidateAppManifestResponse>>;
+        exportAppManifestFromExistingApp: (_: {
+            path: ManifestExportAppManifestFromExistingAppPathParams;
+        } & object) => Promise<BaseResponse<ManifestExportAppManifestFromExistingAppResponse>>;
+        updateAppByManifest: (_: {
+            path: ManifestUpdateAppByManifestPathParams;
+        } & {
+            body: ManifestUpdateAppByManifestRequestBody;
         } & object) => Promise<BaseResponse<unknown>>;
     };
 }
 
-interface BotInstalledEvent extends Event<"bot_installed"> {
-    payload: {
-        accountId: string;
-        robotJid: string;
-        timestamp: number;
-        userId: string;
-        userJid: string;
-        userName: string;
+type AppDeauthorizedEvent = Event<"app_deauthorized"> & {
+    event?: string;
+    payload?: {
+        user_id?: string;
+        account_id?: string;
+        client_id?: string;
+        deauthorization_time?: string;
+        signature?: string;
+        event_ts?: number;
     };
-}
-interface BotNotification extends Event<"bot_notification"> {
-    payload: {
-        accountId: string;
-        channelName: string;
-        cmd: string;
-        robotJid: string;
-        timestamp: number;
-        toJid: string;
-        triggerId: string;
-        userId: string;
-        userJid: string;
-        userName: string;
-    };
-}
-interface InteractiveMessageActions extends Event<"interactive_message_actions"> {
-    payload: {
-        accountId: string;
-        actionItem: {
-            text: string;
-            value: string;
-        };
-        channelName: string;
-        messageId: string;
-        original: CardContent;
-        robotJid: string;
-        timestamp: number;
-        toJid: string;
-        userId: string;
-        userJid: string;
-        userName: string;
-    };
-}
-interface InteractiveMessageEditable extends Event<"interactive_message_editable"> {
-    payload: {
-        accountId: string;
-        channelName: string;
-        editItem: {
-            origin: string;
-            target: string;
-        };
-        messageId: string;
-        original: CardContent;
-        robotJid: string;
-        timestamp: number;
-        toJid: string;
-        userId: string;
-        userJid: string;
-        userName: string;
-    };
-}
-interface InteractiveMessageFieldsEditable extends Event<"interactive_message_fields_editable"> {
-    payload: {
-        accountId: string;
-        channelName: string;
-        fieldEditItem: {
-            currentValue: string;
-            key: string;
-            newValue: string;
-        };
-        messageId: string;
-        original: CardContent;
-        robotJid: string;
-        timestamp: number;
-        toJid: string;
-        userId: string;
-        userJid: string;
-        userName: string;
-    };
-}
-interface InteractiveMessageSelect extends Event<"interactive_message_select"> {
-    payload: {
-        accountId: string;
-        channelName: string;
-        messageId: string;
-        original: CardContent;
-        robotJid: string;
-        selectedItems: {
-            value: string;
-        }[];
-        timestamp: number;
-        toJid: string;
-        userId: string;
-        userJid: string;
-        userName: string;
-    };
-}
-interface TeamChatLinkShared extends Event<"team_chat.link_shared"> {
-    event_ts: number;
-    response_url: string;
-    payload: {
-        account_id: string;
-        operator_id: string;
-        operator: string;
-        operator_member_id: string;
-        by_external_user: boolean;
-        object: {
-            message_id: string;
-            type: "to_contact" | "to_channel";
-            channel_id: string;
-            channel_name: string;
-            contact_id: string;
-            contact_member_id: string;
-            trigger_id: string;
-            link: string;
-            reply_main_message_id: string;
-            date_time: Date;
-            timestamp: number;
-        };
-    };
-}
-type ChatbotEvents = BotInstalledEvent | BotNotification | InteractiveMessageActions | InteractiveMessageEditable | InteractiveMessageFieldsEditable | InteractiveMessageSelect | TeamChatLinkShared;
-type CommandReplyContext = {
-    say: (msg: string | CardContent) => Promise<Awaited<ReturnType<ChatbotEndpoints["messages"]["sendChatbotMessage"]>>>;
 };
-declare class ChatbotEventProcessor extends EventManager<ChatbotEndpoints, ChatbotEvents> {
-    onSlashCommand(commandName: string | RegExp, listener: ReturnType<typeof this.withContext<"bot_notification", CommandReplyContext>>): void;
-    onButtonClick(actionId: string, listener: ReturnType<typeof this.withContext<"interactive_message_actions", CommandReplyContext>>): void;
+type AppAuthorizationRequestCreatedEvent = Event<"app.authorization_request_created"> & {
+    event?: string;
+    event_ts?: number;
+    payload?: {
+        app_name?: string;
+        app_type?: string;
+        app_status?: string;
+        app_description?: string;
+        app_link?: {
+            developer_documentation?: string;
+            developer_privacy_policy?: string;
+            developer_support?: string;
+            developer_terms_of_use?: string;
+        };
+    };
+};
+type MarketplaceEvents = AppDeauthorizedEvent | AppAuthorizationRequestCreatedEvent;
+declare class MarketplaceEventProcessor extends EventManager<MarketplaceEndpoints, MarketplaceEvents> {
 }
 
-type ChatbotOptions<R extends Receiver> = CommonClientOptions<ClientCredentialsAuth, R>;
-declare class ChatbotClient<ReceiverType extends Receiver = HttpReceiver, OptionsType extends CommonClientOptions<ClientCredentialsAuth, ReceiverType> = ChatbotOptions<ReceiverType>> extends ProductClient<ClientCredentialsAuth, ChatbotEndpoints, ChatbotEventProcessor, OptionsType, ReceiverType> {
-    protected initAuth({ clientId, clientSecret, tokenStore }: OptionsType): ClientCredentialsAuth;
-    protected initEndpoints(auth: ClientCredentialsAuth, options: OptionsType): ChatbotEndpoints;
-    protected initEventProcessor(endpoints: ChatbotEndpoints): ChatbotEventProcessor;
+type MarketplaceOAuthOptions<R extends Receiver> = CommonClientOptions<OAuth, R>;
+declare class MarketplaceOAuthClient<ReceiverType extends Receiver = HttpReceiver, OptionsType extends CommonClientOptions<OAuth, ReceiverType> = MarketplaceOAuthOptions<ReceiverType>> extends ProductClient<OAuth, MarketplaceEndpoints, MarketplaceEventProcessor, OptionsType, ReceiverType> {
+    protected initAuth({ clientId, clientSecret, tokenStore, ...restOptions }: OptionsType): OAuth;
+    protected initEndpoints(auth: OAuth, options: OptionsType): MarketplaceEndpoints;
+    protected initEventProcessor(endpoints: MarketplaceEndpoints): MarketplaceEventProcessor;
 }
 
-export { type Actions, type Alert, ApiResponseError, type Attachment, AwsLambdaReceiver, AwsReceiverRequestError, type BotInstalledEvent, type BotNotification, type CardContent, type ChannelSelect, ChatbotClient, ChatbotEventProcessor, type ChatbotOptions, type CheckboxGroup, ClientCredentialsRawResponseError, type ClientCredentialsToken, type CommandReplyContext, CommonHttpRequestError, ConsoleLogger, type DatePicker, type DeleteChatbotMessagePathParams, type DeleteChatbotMessageQueryParams, type DeleteChatbotMessageResponse, type Divider, type EditChatbotMessagePathParams, type EditChatbotMessageRequestBody, type EditChatbotMessageResponse, type Fields, type File, type Footer, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, type Header, HttpReceiver, type HttpReceiverOptions, type Input, type InteractiveMessageActions, type InteractiveMessageEditable, type InteractiveMessageFieldsEditable, type InteractiveMessageSelect, type JwtToken, type LinkUnfurlsPathParams, type LinkUnfurlsRequestBody, LogLevel, type Logger, type MemberSelect, type Message, type MultipleImage, type MultiplePages, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, type OAuthToken, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Progress, type RadioGroup, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, type S2SAuthToken, S2SRawResponseError, type Sections, type SendChatbotMessagesRequestBody, type SendChatbotMessagesResponse, type StateStore, type StaticSelect, StatusCode, type Style, type SubHeader, type SwitchGroup, type TeamChatLinkShared, type Textarea, type TimePicker, type TokenStore, type VideoPlayer, isCoreError, isStateStore };
+type MarketplaceS2SAuthOptions<R extends Receiver> = CommonClientOptions<S2SAuth, R>;
+declare class MarketplaceS2SAuthClient<ReceiverType extends Receiver = HttpReceiver, OptionsType extends CommonClientOptions<S2SAuth, ReceiverType> = MarketplaceS2SAuthOptions<ReceiverType>> extends ProductClient<S2SAuth, MarketplaceEndpoints, MarketplaceEventProcessor, OptionsType, ReceiverType> {
+    protected initAuth({ clientId, clientSecret, tokenStore, accountId }: OptionsType): S2SAuth;
+    protected initEndpoints(auth: S2SAuth, options: OptionsType): MarketplaceEndpoints;
+    protected initEventProcessor(endpoints: MarketplaceEndpoints): MarketplaceEventProcessor;
+}
+
+export { ApiResponseError, type AppAddAppAllowRequestsForUsersPathParams, type AppAddAppAllowRequestsForUsersRequestBody, type AppAddAppAllowRequestsForUsersResponse, type AppAuthorizationRequestCreatedEvent, type AppCreateAppsRequestBody, type AppCreateAppsResponse, type AppCreateEventSubscriptionRequestBody, type AppCreateEventSubscriptionResponse, type AppDeauthorizedEvent, type AppDeleteEventSubscriptionPathParams, type AppGetAppUserEntitlementsQueryParams, type AppGetAppUserEntitlementsResponse, type AppGetAppsUserRequestsPathParams, type AppGetAppsUserRequestsQueryParams, type AppGetAppsUserRequestsResponse, type AppGetInformationAboutAppPathParams, type AppGetInformationAboutAppResponse, type AppGetUserOrAccountEventSubscriptionQueryParams, type AppGetUserOrAccountEventSubscriptionResponse, type AppGetUsersAppRequestsPathParams, type AppGetUsersAppRequestsQueryParams, type AppGetUsersAppRequestsResponse, type AppGetUsersEntitlementsPathParams, type AppGetUsersEntitlementsResponse, type AppGetWebhookLogsPathParams, type AppGetWebhookLogsQueryParams, type AppGetWebhookLogsResponse, type AppListAppsQueryParams, type AppListAppsResponse, type AppSendAppNotificationsRequestBody, type AppSubscribeEventSubscriptionPathParams, type AppSubscribeEventSubscriptionRequestBody, type AppUnsubscribeAppEventSubscriptionQueryParams, type AppUpdateAppsRequestStatusPathParams, type AppUpdateAppsRequestStatusRequestBody, type AppsGenerateAppDeeplinkRequestBody, type AppsGenerateAppDeeplinkResponse, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, type ClientCredentialsToken, CommonHttpRequestError, ConsoleLogger, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, type JwtToken, LogLevel, type Logger, type ManifestExportAppManifestFromExistingAppPathParams, type ManifestExportAppManifestFromExistingAppResponse, type ManifestUpdateAppByManifestPathParams, type ManifestUpdateAppByManifestRequestBody, type ManifestValidateAppManifestRequestBody, type ManifestValidateAppManifestResponse, MarketplaceEndpoints, MarketplaceEventProcessor, MarketplaceOAuthClient, type MarketplaceOAuthOptions, MarketplaceS2SAuthClient, type MarketplaceS2SAuthOptions, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, type OAuthToken, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, type S2SAuthToken, S2SRawResponseError, type StateStore, StatusCode, type TokenStore, isCoreError, isStateStore };

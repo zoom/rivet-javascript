@@ -424,6 +424,9 @@ class JwtStateStore {
 
 const DEFAULT_INSTALL_PATH = "/zoom/oauth/install";
 const DEFAULT_CALLBACK_PATH = "/zoom/oauth/callback";
+const DEFAULT_STATE_COOKIE_NAME = "zoom-oauth-state";
+const DEFAULT_STATE_COOKIE_MAX_AGE = 600; // 10 minutes in seconds
+const MAXIMUM_STATE_MAX_AGE = 3600; // 1 hour in seconds
 const OAUTH_AUTHORIZE_PATH = "/oauth/authorize";
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
@@ -448,7 +451,10 @@ class InteractiveAuth extends Auth {
         searchParams.set("redirect_uri", this.getFullRedirectUri());
         searchParams.set("response_type", "code");
         searchParams.set("state", generatedState);
-        return authUrl.toString();
+        return {
+            fullUrl: authUrl.toString(),
+            generatedState
+        };
     }
     getFullRedirectUri() {
         if (!this.installerOptions?.redirectUri || !this.installerOptions.redirectUriPath) {
@@ -458,14 +464,20 @@ class InteractiveAuth extends Auth {
     }
     // Don't return a type; we want it to be as narrow as possible (used for ReturnType).
     // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore }) {
+    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore, stateCookieName, stateCookieMaxAge }) {
         const updatedOptions = {
             directInstall: Boolean(directInstall),
             installPath: installPath ? prependSlashes(installPath) : DEFAULT_INSTALL_PATH,
             redirectUri,
             redirectUriPath: redirectUriPath ? prependSlashes(redirectUriPath) : DEFAULT_CALLBACK_PATH,
-            stateStore: isStateStore(stateStore) ? stateStore : new JwtStateStore({ stateSecret: stateStore })
+            stateStore: isStateStore(stateStore) ? stateStore : new JwtStateStore({ stateSecret: stateStore }),
+            stateCookieName: stateCookieName ?? DEFAULT_STATE_COOKIE_NAME,
+            stateCookieMaxAge: stateCookieMaxAge ?? DEFAULT_STATE_COOKIE_MAX_AGE
         };
+        if (updatedOptions.stateCookieMaxAge > MAXIMUM_STATE_MAX_AGE) {
+            // This method is always called from ProductClient, so this should be fine.
+            throw new ProductClientConstructionError(`stateCookieMaxAge cannot be greater than ${MAXIMUM_STATE_MAX_AGE.toString()} seconds.`);
+        }
         this.installerOptions = updatedOptions;
         return updatedOptions;
     }
@@ -577,9 +589,6 @@ class HttpReceiver {
     server;
     logger;
     constructor(options) {
-        if (!options.webhooksSecretToken) {
-            throw new HTTPReceiverConstructionError("webhooksSecretToken is a required constructor option.");
-        }
         this.options = mergeDefaultOptions(options, { endpoints: HttpReceiver.DEFAULT_ENDPOINT });
         this.options.endpoints = prependSlashes(this.options.endpoints);
         this.logger =
@@ -592,6 +601,19 @@ class HttpReceiver {
     }
     canInstall() {
         return true;
+    }
+    buildDeletedStateCookieHeader(name) {
+        return `${name}=deleted; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Path=/; Secure;`;
+    }
+    buildStateCookieHeader(name, value, maxAge) {
+        return `${name}=${value}; HttpOnly; Max-Age=${maxAge.toString()}; Path=/; Secure;`;
+    }
+    getRequestCookie(req, name) {
+        return req.headers.cookie
+            ?.split(";")
+            .find((cookie) => cookie.trim().startsWith(name))
+            ?.split("=")[1]
+            ?.trim();
     }
     getServerCreator() {
         return this.hasSecureOptions() ? createServer : createServer$1;
@@ -607,8 +629,20 @@ class HttpReceiver {
         this.eventEmitter = eventEmitter;
         this.interactiveAuth = interactiveAuth;
     }
+    setResponseCookie(res, cookie) {
+        const existingCookies = res.getHeader("Set-Cookie") ?? [];
+        const cookiesArray = Array.isArray(existingCookies) ? existingCookies
+            : typeof existingCookies === "string" ? [existingCookies]
+                : [existingCookies.toString()];
+        res.setHeader("Set-Cookie", [...cookiesArray, cookie]);
+    }
+    areNormalizedUrlsEqual(firstUrl, secondUrl) {
+        const normalizedFirstUrl = firstUrl.endsWith("/") ? firstUrl.slice(0, -1) : firstUrl;
+        const normalizedSecondUrl = secondUrl.endsWith("/") ? secondUrl.slice(0, -1) : secondUrl;
+        return normalizedFirstUrl == normalizedSecondUrl;
+    }
     start(port) {
-        if (typeof port !== "number" && isNaN(Number(port)) && !this.options.port) {
+        if (typeof port !== "number" && isNaN(Number(port)) && !this.options.port && this.options.port !== 0) {
             const errorMessage = "HTTP receiver must have number-coercible port found in constructor option or method call.";
             this.logger.error(errorMessage);
             throw new HTTPReceiverPortNotNumberError(errorMessage);
@@ -625,69 +659,84 @@ class HttpReceiver {
                 // Handle interactive OAuth flow, if user is going to installPath or redirectUriPath
                 if (interactiveAuth && interactiveAuth instanceof InteractiveAuth && interactiveAuth.installerOptions) {
                     const { installerOptions } = interactiveAuth;
-                    if (pathname == installerOptions.installPath) {
-                        const authUrl = await Promise.resolve(interactiveAuth.getAuthorizationUrl());
+                    if (this.areNormalizedUrlsEqual(pathname, installerOptions.installPath)) {
+                        const { fullUrl, generatedState } = await interactiveAuth.getAuthorizationUrl();
+                        const stateCookie = this.buildStateCookieHeader(installerOptions.stateCookieName, generatedState, installerOptions.stateCookieMaxAge);
                         await (installerOptions.directInstall ?
-                            this.writeTemporaryRedirect(res, authUrl)
-                            : this.writeResponse(res, StatusCode.OK, defaultInstallTemplate(authUrl)));
+                            this.writeTemporaryRedirect(res, fullUrl, stateCookie)
+                            : this.writeResponse(res, StatusCode.OK, defaultInstallTemplate(fullUrl), stateCookie));
                         return;
                     }
                     // The user has navigated to the redirect page; init the code
-                    if (pathname === installerOptions.redirectUriPath) {
-                        const authCode = searchParams.get("code");
-                        const stateCode = searchParams.get("state");
+                    if (this.areNormalizedUrlsEqual(pathname, installerOptions.redirectUriPath)) {
+                        const authCodeParam = searchParams.get("code");
+                        const stateCodeParam = searchParams.get("state");
+                        const stateCodeCookie = this.getRequestCookie(req, installerOptions.stateCookieName);
                         try {
-                            if (!authCode || !stateCode) {
+                            // Can't proceed if no auth code or state code in search parameters
+                            if (!authCodeParam || !stateCodeParam) {
                                 const errorMessage = "OAuth callback did not include code and/or state in request.";
                                 this.logger.error(errorMessage);
                                 throw new ReceiverOAuthFlowError(errorMessage);
                             }
-                            // Wrapped in `await Promise.resolve(...)`, as method may return a `Promise` or may not.
-                            await Promise.resolve(installerOptions.stateStore.verifyState(stateCode));
-                            await Promise.resolve(interactiveAuth.initRedirectCode(authCode));
-                            await this.writeResponse(res, StatusCode.OK, defaultCallbackSuccessTemplate());
+                            // Ensure that the state token is verified, according to our state store
+                            await installerOptions.stateStore.verifyState(stateCodeParam);
+                            // Ensure that the state token we received (in search parameters) IS THE SAME as the state cookie
+                            if (!stateCodeCookie || stateCodeCookie !== stateCodeParam) {
+                                const errorMessage = "The state parameter is not from this browser session.";
+                                this.logger.error(errorMessage);
+                                throw new ReceiverOAuthFlowError(errorMessage);
+                            }
+                            await interactiveAuth.initRedirectCode(authCodeParam);
+                            const deletionStateCookie = this.buildDeletedStateCookieHeader(installerOptions.stateCookieName);
+                            await this.writeResponse(res, StatusCode.OK, defaultCallbackSuccessTemplate(), deletionStateCookie);
                             return;
                         }
                         catch (err) {
                             const htmlTemplate = isCoreError(err) ?
                                 defaultCallbackKnownErrorTemplate(err.name, err.message)
                                 : defaultCallbackUnknownErrorTemplate();
-                            await this.writeResponse(res, StatusCode.INTERNAL_SERVER_ERROR, htmlTemplate);
+                            const deletionStateCookie = this.buildDeletedStateCookieHeader(installerOptions.stateCookieName);
+                            await this.writeResponse(res, StatusCode.INTERNAL_SERVER_ERROR, htmlTemplate, deletionStateCookie);
                             return;
                         }
                     }
                 }
-                // We currently only support a single endpoint, though this will change in the future.
-                if (!this.hasEndpoint(pathname)) {
-                    await this.writeResponse(res, StatusCode.NOT_FOUND);
-                    return;
-                }
-                // We currently only support POST requests, as that's what Zoom sends.
-                if (req.method !== "post" && req.method !== "POST") {
-                    await this.writeResponse(res, StatusCode.METHOD_NOT_ALLOWED);
-                    return;
-                }
-                try {
-                    const { webhooksSecretToken } = this.options;
-                    const request = await CommonHttpRequest.buildFromIncomingMessage(req, webhooksSecretToken);
-                    const processedEvent = request.processEvent();
-                    if (isHashedUrlValidation(processedEvent)) {
-                        await this.writeResponse(res, StatusCode.OK, processedEvent);
+                // This section is only applicable if we have a webhooks secret token—if we don't, then this
+                // receiver is, in effect, just for OAuth usage, meaning installing and validating.
+                if (this.options.webhooksSecretToken) {
+                    // We currently only support a single endpoint, though this will change in the future.
+                    if (!this.hasEndpoint(pathname)) {
+                        await this.writeResponse(res, StatusCode.NOT_FOUND);
+                        return;
                     }
-                    else {
-                        await this.eventEmitter?.emit(processedEvent.event, processedEvent);
-                        await this.writeResponse(res, StatusCode.OK, { message: "Zoom event processed successfully." });
+                    // We currently only support POST requests, as that's what Zoom sends.
+                    if (req.method !== "post" && req.method !== "POST") {
+                        await this.writeResponse(res, StatusCode.METHOD_NOT_ALLOWED);
+                        return;
                     }
-                }
-                catch (err) {
-                    if (isCoreError(err, "CommonHttpRequestError")) {
-                        await this.writeResponse(res, StatusCode.BAD_REQUEST, { error: err.message });
+                    try {
+                        const { webhooksSecretToken } = this.options;
+                        const request = await CommonHttpRequest.buildFromIncomingMessage(req, webhooksSecretToken);
+                        const processedEvent = request.processEvent();
+                        if (isHashedUrlValidation(processedEvent)) {
+                            await this.writeResponse(res, StatusCode.OK, processedEvent);
+                        }
+                        else {
+                            await this.eventEmitter?.emit(processedEvent.event, processedEvent);
+                            await this.writeResponse(res, StatusCode.OK, { message: "Zoom event processed successfully." });
+                        }
                     }
-                    else {
-                        console.error(err);
-                        await this.writeResponse(res, StatusCode.INTERNAL_SERVER_ERROR, {
-                            error: "An unknown error occurred. Please try again later."
-                        });
+                    catch (err) {
+                        if (isCoreError(err, "CommonHttpRequestError")) {
+                            await this.writeResponse(res, StatusCode.BAD_REQUEST, { error: err.message });
+                        }
+                        else {
+                            console.error(err);
+                            await this.writeResponse(res, StatusCode.INTERNAL_SERVER_ERROR, {
+                                error: "An unknown error occurred. Please try again later."
+                            });
+                        }
                     }
                 }
             })());
@@ -721,18 +770,24 @@ class HttpReceiver {
             resolve();
         });
     }
-    writeTemporaryRedirect(res, location) {
+    writeTemporaryRedirect(res, location, setCookie) {
         return new Promise((resolve) => {
+            if (setCookie) {
+                this.setResponseCookie(res, setCookie);
+            }
             res.writeHead(StatusCode.TEMPORARY_REDIRECT, { Location: location });
             res.end(() => {
                 resolve();
             });
         });
     }
-    writeResponse(res, statusCode, bodyContent) {
+    writeResponse(res, statusCode, bodyContent, setCookie) {
         return new Promise((resolve) => {
             const mimeType = typeof bodyContent === "object" ? "application/json" : "text/html";
             bodyContent = typeof bodyContent === "object" ? JSON.stringify(bodyContent) : bodyContent;
+            if (setCookie) {
+                this.setResponseCookie(res, setCookie);
+            }
             res.writeHead(statusCode, { "Content-Type": mimeType });
             res.end(bodyContent, () => {
                 resolve();
@@ -789,7 +844,9 @@ class ProductClient {
         // Only create an instance of `this.receiver` if the developer did not explicitly disable it.
         if (!isReceiverDisabled(options)) {
             // Throw error if receiver enabled, but no explicit receiver or a webhooks secret token provided.
-            if (!hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
+            // This is mainly applicable for products where we expect webhooks to be used; in events where webhooks are not
+            // expected, then it's perfectly fine for the developer to not provide a receiver of a webhooks secret token.
+            if (this.webEventConsumer && !hasExplicitReceiver(options) && !hasWebhooksSecretToken(options)) {
                 throw new ProductClientConstructionError("Options must include a custom receiver, or a webhooks secret token.");
             }
             this.receiver = (hasExplicitReceiver(options) ?
@@ -810,7 +867,7 @@ class ProductClient {
     }
     async start() {
         if (!this.receiver) {
-            throw new ReceiverInconsistentStateError("Receiver not constructed. Was disableReceiver set to true?");
+            throw new ReceiverInconsistentStateError("Receiver failed to construct. Was disableReceiver set to true?");
         }
         // Method call is wrapped in `await` and `Promise.resolve()`, as the call
         // may or may not return a promise. This is not required when implementing `Receiver`.
@@ -818,86 +875,7 @@ class ProductClient {
     }
 }
 
-const type = "module";
-const name = "@zoom/rivet";
-const author = "Zoom Communications, Inc.";
-const contributors = [
-  {
-    name: "James Coon",
-    email: "james.coon@zoom.us",
-    url: "https://www.npmjs.com/~jcoon97"
-  },
-  {
-    name: "Will Ezrine",
-    email: "will.ezrine@zoom.us",
-    url: "https://www.npmjs.com/~wezrine"
-  },
-  {
-    name: "Tommy Gaessler",
-    email: "tommy.gaessler@zoom.us",
-    url: "https://www.npmjs.com/~tommygaessler"
-  }
-];
-const packageManager = "pnpm@9.9.0";
-const version = "0.2.2";
-const scripts = {
-  test: "vitest",
-  "test:coverage": "vitest --coverage",
-  "export": "rollup --config ./rollup.config.mjs",
-  prepare: "husky",
-  lint: "eslint './packages/**/*.ts' --ignore-pattern '**/*{Endpoints,EventProcessor}.ts' --ignore-pattern '**/*.{spec,test,test-d}.ts'"
-};
-const devDependencies = {
-  "@eslint/js": "^9.12.0",
-  "@rollup/plugin-commonjs": "^28.0.0",
-  "@rollup/plugin-json": "^6.1.0",
-  "@rollup/plugin-node-resolve": "^15.3.0",
-  "@rollup/plugin-typescript": "^12.1.0",
-  "@tsconfig/recommended": "^1.0.7",
-  "@tsconfig/strictest": "^2.0.5",
-  "@types/eslint__js": "^8.42.3",
-  "@types/node": "^22.7.5",
-  "@types/semver": "^7.5.8",
-  "@types/supertest": "^6.0.2",
-  "@vitest/coverage-v8": "2.1.3",
-  dotenv: "^16.4.5",
-  eslint: "^9.12.0",
-  "eslint-plugin-n": "^17.11.1",
-  "eslint-plugin-promise": "^7.1.0",
-  "get-port": "^7.1.0",
-  husky: "^9.1.6",
-  "lint-staged": "^15.2.10",
-  nock: "^13.5.5",
-  prettier: "^3.3.3",
-  "prettier-plugin-organize-imports": "^4.1.0",
-  rollup: "^4.24.0",
-  "rollup-plugin-copy": "^3.5.0",
-  "rollup-plugin-dts": "^6.1.1",
-  semver: "^7.6.3",
-  supertest: "^7.0.0",
-  "ts-node": "^10.9.2",
-  tslib: "^2.7.0",
-  typescript: "^5.6.3",
-  "typescript-eslint": "^8.8.1",
-  vitest: "2.1.3"
-};
-var packageJson = {
-  type: type,
-  name: name,
-  author: author,
-  contributors: contributors,
-  packageManager: packageManager,
-  version: version,
-  scripts: scripts,
-  devDependencies: devDependencies,
-  "lint-staged": {
-  "*": "prettier --ignore-unknown --write",
-  "*.ts !*{Endpoints,EventProcessor}.ts !*.{spec,test,test-d}.ts": [
-    "eslint --fix",
-    "eslint"
-  ]
-}
-};
+const version = "0.3.0";
 
 class WebEndpoints {
     /** @internal */
@@ -927,7 +905,7 @@ class WebEndpoints {
         return (async ({ path, body, query }) => await this.makeRequest(method, baseUrlOverride, urlPathBuilder(path), requestMimeType ?? WebEndpoints.DEFAULT_MIME_TYPE, body, query)).bind(this);
     }
     buildUserAgent() {
-        return (`rivet/${packageJson.version} ` +
+        return (`rivet/${version} ` +
             `${basename(process.title)}/${process.version.replace("v", "")} ` +
             `${os.platform()}/${os.release()}`);
     }

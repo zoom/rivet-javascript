@@ -1,95 +1,8 @@
-import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { AxiosResponse } from 'axios';
+import { LambdaFunctionURLResult, LambdaFunctionURLHandler } from 'aws-lambda';
 import { Server } from 'node:http';
 import { ServerOptions } from 'node:https';
 import { ReadStream } from 'node:fs';
-
-type AllKeysOf<T> = T extends any ? keyof T : never;
-type AllPropsOptional<T, True, False> = Exclude<{
-    [P in keyof T]: undefined extends T[P] ? True : False;
-}[keyof T], undefined> extends True ? True : False;
-type Constructor<T> = new (...args: any[]) => T;
-type ExactlyOneOf<T extends any[]> = {
-    [K in keyof T]: T[K] & ProhibitKeys<Exclude<AllKeysOf<T[number]>, keyof T[K]>>;
-}[number];
-type MaybeArray<T> = T | T[];
-type MaybePromise<T> = T | Promise<T>;
-type ProhibitKeys<K extends keyof any> = {
-    [P in K]?: never;
-};
-type StringIndexed<V = any> = Record<string, V>;
-
-/**
- * {@link StateStore} defines methods for generating and verifying OAuth state.
- *
- * This interface is implemented internally for the default state store; however,
- * it can also be implemented and passed to an OAuth client as well.
- */
-interface StateStore {
-    /**
-     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
-     */
-    generateState(): MaybePromise<string>;
-    /**
-     * Verify that the state received during OAuth callback is valid and not forged.
-     *
-     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
-     *
-     * @param state The state parameter that was received during OAuth callback
-     */
-    verifyState(state: string): MaybePromise<void>;
-}
-/**
- * Guard if an object implements the {@link StateStore} interface — most notably,
- * `generateState()` and `verifyState(state: string)`.
- */
-declare const isStateStore: (obj: unknown) => obj is StateStore;
-
-interface TokenStore<Token> {
-    getLatestToken(): MaybePromise<Token | null | undefined>;
-    storeToken(token: Token): MaybePromise<void>;
-}
-
-interface RivetError<ErrorCode extends string = string> extends Error {
-    readonly errorCode: ErrorCode;
-}
-
-declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
-    readonly ApiResponseError: "zoom_rivet_api_response_error";
-    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
-    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
-    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
-    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
-    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
-    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
-    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
-    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
-    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
-    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
-    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
-    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
-    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
-    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
-    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
-    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
-}[K]>;
-declare const ApiResponseError: Constructor<Error>;
-declare const AwsReceiverRequestError: Constructor<Error>;
-declare const ClientCredentialsRawResponseError: Constructor<Error>;
-declare const S2SRawResponseError: Constructor<Error>;
-declare const CommonHttpRequestError: Constructor<Error>;
-declare const ReceiverInconsistentStateError: Constructor<Error>;
-declare const ReceiverOAuthFlowError: Constructor<Error>;
-declare const HTTPReceiverConstructionError: Constructor<Error>;
-declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
-declare const HTTPReceiverRequestError: Constructor<Error>;
-declare const OAuthInstallerNotInitializedError: Constructor<Error>;
-declare const OAuthTokenDoesNotExistError: Constructor<Error>;
-declare const OAuthTokenFetchFailedError: Constructor<Error>;
-declare const OAuthTokenRawResponseError: Constructor<Error>;
-declare const OAuthTokenRefreshFailedError: Constructor<Error>;
-declare const OAuthStateVerificationFailedError: Constructor<Error>;
-declare const ProductClientConstructionError: Constructor<Error>;
 
 declare enum LogLevel {
     ERROR = "error",
@@ -150,6 +63,26 @@ declare class ConsoleLogger implements Logger {
     private static isMoreOrEqualSevere;
 }
 
+type AllKeysOf<T> = T extends any ? keyof T : never;
+type AllPropsOptional<T, True, False> = Exclude<{
+    [P in keyof T]: undefined extends T[P] ? True : False;
+}[keyof T], undefined> extends True ? True : False;
+type Constructor<T> = new (...args: any[]) => T;
+type ExactlyOneOf<T extends any[]> = {
+    [K in keyof T]: T[K] & ProhibitKeys<Exclude<AllKeysOf<T[number]>, keyof T[K]>>;
+}[number];
+type MaybeArray<T> = T | T[];
+type MaybePromise<T> = T | Promise<T>;
+type ProhibitKeys<K extends keyof any> = {
+    [P in K]?: never;
+};
+type StringIndexed<V = any> = Record<string, V>;
+
+interface TokenStore<Token> {
+    getLatestToken(): MaybePromise<Token | null | undefined>;
+    storeToken(token: Token): MaybePromise<void>;
+}
+
 interface AuthOptions<Token> {
     clientId: string;
     clientSecret: string;
@@ -195,6 +128,17 @@ declare abstract class Auth<Token = unknown> {
     }>, "grant_type">): Promise<AxiosResponse>;
 }
 
+interface ClientCredentialsToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    scopes: string[];
+}
+
+interface JwtToken {
+    token: string;
+    expirationTimeIso: string;
+}
+
 interface S2SAuthToken {
     accessToken: string;
     expirationTimeIso: string;
@@ -233,12 +177,31 @@ declare class EventManager<Endpoints, Events> {
     protected withContext<EventName extends EventKeys<Events>, Context>(): ContextListener<Events, EventName, Context>;
 }
 
+declare enum StatusCode {
+    OK = 200,
+    TEMPORARY_REDIRECT = 302,
+    BAD_REQUEST = 400,
+    NOT_FOUND = 404,
+    METHOD_NOT_ALLOWED = 405,
+    INTERNAL_SERVER_ERROR = 500
+}
+interface ReceiverInitOptions {
+    eventEmitter?: GenericEventManager | undefined;
+    interactiveAuth?: InteractiveAuth | undefined;
+}
+interface Receiver {
+    canInstall(): true | false;
+    init(options: ReceiverInitOptions): void;
+    start(...args: any[]): MaybePromise<unknown>;
+    stop(...args: any[]): MaybePromise<unknown>;
+}
+
 interface HttpReceiverOptions extends Partial<SecureServerOptions> {
     endpoints?: MaybeArray<string> | undefined;
+    logger?: Logger | undefined;
+    logLevel?: LogLevel | undefined;
     port?: number | string | undefined;
-    webhooksSecretToken: string;
-    logger?: Logger;
-    logLevel?: LogLevel;
+    webhooksSecretToken?: string | undefined;
 }
 type SecureServerOptions = {
     [K in (typeof secureServerOptionKeys)[number]]: ServerOptions[K];
@@ -251,10 +214,15 @@ declare class HttpReceiver implements Receiver {
     private logger;
     constructor(options: HttpReceiverOptions);
     canInstall(): true;
+    private buildDeletedStateCookieHeader;
+    private buildStateCookieHeader;
+    private getRequestCookie;
     private getServerCreator;
     private hasEndpoint;
     private hasSecureOptions;
     init({ eventEmitter, interactiveAuth }: ReceiverInitOptions): void;
+    private setResponseCookie;
+    private areNormalizedUrlsEqual;
     start(port?: number | string): Promise<Server>;
     stop(): Promise<void>;
     private writeTemporaryRedirect;
@@ -313,38 +281,68 @@ type CommonClientOptions<A extends Auth, R extends Receiver> = GetAuthOptions<A>
 interface ClientReceiverOptions<R extends Receiver> {
     receiver: R;
 }
-type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = IsReceiverDisabled<O> extends true ? O : O & (ClientReceiverOptions<R> | HttpReceiverOptions);
+type ClientConstructorOptions<A extends Auth, O extends CommonClientOptions<A, R>, R extends Receiver> = (O & {
+    disableReceiver: true;
+}) | (O & (ClientReceiverOptions<R> | HttpReceiverOptions));
 type ExtractInstallerOptions<A extends Auth, R extends Receiver> = A extends InteractiveAuth ? [
     ReturnType<R["canInstall"]>
 ] extends [true] ? WideInstallerOptions : object : object;
 type ExtractAuthTokenType<A> = A extends Auth<infer T> ? T : never;
-type GenericClientOptions = CommonClientOptions<any, any>;
 type GetAuthOptions<A extends Auth> = AuthOptions<ExtractAuthTokenType<A>> & (A extends S2SAuth ? S2SAuthOptions : object);
-type IsReceiverDisabled<O extends Pick<GenericClientOptions, "disableReceiver">> = [
-    O["disableReceiver"]
-] extends [true] ? true : false;
 type WideInstallerOptions = {
     installerOptions: InstallerOptions;
 };
 declare abstract class ProductClient<AuthType extends Auth, EndpointsType extends WebEndpoints, EventProcessorType extends GenericEventManager, OptionsType extends CommonClientOptions<AuthType, ReceiverType>, ReceiverType extends Receiver> {
     private readonly auth;
     readonly endpoints: EndpointsType;
-    readonly webEventConsumer: EventProcessorType;
+    readonly webEventConsumer?: EventProcessorType | undefined;
     private readonly receiver?;
     constructor(options: ClientConstructorOptions<AuthType, OptionsType, ReceiverType>);
     protected abstract initAuth(options: OptionsType): AuthType;
     protected abstract initEndpoints(auth: AuthType, options: OptionsType): EndpointsType;
-    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType;
+    protected abstract initEventProcessor(endpoints: EndpointsType, options: OptionsType): EventProcessorType | undefined;
     private initDefaultReceiver;
-    start(this: IsReceiverDisabled<OptionsType> extends true ? never : this): Promise<ReturnType<ReceiverType["start"]>>;
+    start(): Promise<ReturnType<ReceiverType["start"]>>;
 }
 
+/**
+ * {@link StateStore} defines methods for generating and verifying OAuth state.
+ *
+ * This interface is implemented internally for the default state store; however,
+ * it can also be implemented and passed to an OAuth client as well.
+ */
+interface StateStore {
+    /**
+     * Generate a new state string, which is directly appended to the OAuth `state` parameter.
+     */
+    generateState(): MaybePromise<string>;
+    /**
+     * Verify that the state received during OAuth callback is valid and not forged.
+     *
+     * If state verification fails, {@link OAuthStateVerificationFailedError} should be thrown.
+     *
+     * @param state The state parameter that was received during OAuth callback
+     */
+    verifyState(state: string): MaybePromise<void>;
+}
+/**
+ * Guard if an object implements the {@link StateStore} interface — most notably,
+ * `generateState()` and `verifyState(state: string)`.
+ */
+declare const isStateStore: (obj: unknown) => obj is StateStore;
+
+interface AuthorizationUrlResult {
+    fullUrl: string;
+    generatedState: string;
+}
 interface InstallerOptions {
     directInstall?: boolean | undefined;
     installPath?: string | undefined;
     redirectUri: string;
     redirectUriPath?: string | undefined;
     stateStore: StateStore | string;
+    stateCookieName?: string | undefined;
+    stateCookieMaxAge?: number | undefined;
 }
 /**
  * {@link InteractiveAuth}, an extension of {@link Auth}, is designed for use cases where authentication
@@ -358,35 +356,86 @@ interface InstallerOptions {
  */
 declare abstract class InteractiveAuth<Token = unknown> extends Auth<Token> {
     installerOptions?: ReturnType<typeof this.setInstallerOptions>;
-    getAuthorizationUrl(): Promise<string>;
+    getAuthorizationUrl(): Promise<AuthorizationUrlResult>;
     getFullRedirectUri(): string;
-    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore }: InstallerOptions): {
+    setInstallerOptions({ directInstall, installPath, redirectUri, redirectUriPath, stateStore, stateCookieName, stateCookieMaxAge }: InstallerOptions): {
         directInstall: boolean;
         installPath: string;
         redirectUri: string;
         redirectUriPath: string;
         stateStore: StateStore;
+        stateCookieName: string;
+        stateCookieMaxAge: number;
     };
 }
 
-declare enum StatusCode {
-    OK = 200,
-    TEMPORARY_REDIRECT = 302,
-    BAD_REQUEST = 400,
-    NOT_FOUND = 404,
-    METHOD_NOT_ALLOWED = 405,
-    INTERNAL_SERVER_ERROR = 500
+/**
+ * Credentials for access token & refresh token, which are used to access Zoom's APIs.
+ *
+ * As access token is short-lived (usually a single hour), its expiration time is checked
+ * first. If it's possible to use the access token, it's used; however, if it has expired
+ * or is close to expiring, the refresh token should be used to generate a new access token
+ * before the API call is made. Refresh tokens are generally valid for 90 days.
+ *
+ * If neither the access token nor the refresh token is available, {@link OAuthTokenRefreshFailedError}
+ * shall be thrown, informing the developer that neither value can be used, and the user must re-authorize.
+ * It's likely that this error will be rare, but it _can_ be thrown.
+ */
+interface OAuthToken {
+    accessToken: string;
+    expirationTimeIso: string;
+    refreshToken: string;
+    scopes: string[];
 }
-interface ReceiverInitOptions {
-    eventEmitter: GenericEventManager;
-    interactiveAuth?: InteractiveAuth | undefined;
+declare class OAuth extends InteractiveAuth<OAuthToken> {
+    private assertResponseAccessToken;
+    private fetchAccessToken;
+    getToken(): Promise<string>;
+    initRedirectCode(code: string): Promise<void>;
+    private mapOAuthToken;
+    private refreshAccessToken;
 }
-interface Receiver {
-    canInstall(): true | false;
-    init(options: ReceiverInitOptions): void;
-    start(...args: any[]): MaybePromise<unknown>;
-    stop(...args: any[]): MaybePromise<unknown>;
+
+interface RivetError<ErrorCode extends string = string> extends Error {
+    readonly errorCode: ErrorCode;
 }
+
+declare const isCoreError: <K extends "ApiResponseError" | "AwsReceiverRequestError" | "ClientCredentialsRawResponseError" | "S2SRawResponseError" | "CommonHttpRequestError" | "ReceiverInconsistentStateError" | "ReceiverOAuthFlowError" | "HTTPReceiverConstructionError" | "HTTPReceiverPortNotNumberError" | "HTTPReceiverRequestError" | "OAuthInstallerNotInitializedError" | "OAuthTokenDoesNotExistError" | "OAuthTokenFetchFailedError" | "OAuthTokenRawResponseError" | "OAuthTokenRefreshFailedError" | "OAuthStateVerificationFailedError" | "ProductClientConstructionError">(obj: unknown, key?: K | undefined) => obj is RivetError<{
+    readonly ApiResponseError: "zoom_rivet_api_response_error";
+    readonly AwsReceiverRequestError: "zoom_rivet_aws_receiver_request_error";
+    readonly ClientCredentialsRawResponseError: "zoom_rivet_client_credentials_raw_response_error";
+    readonly S2SRawResponseError: "zoom_rivet_s2s_raw_response_error";
+    readonly CommonHttpRequestError: "zoom_rivet_common_http_request_error";
+    readonly ReceiverInconsistentStateError: "zoom_rivet_receiver_inconsistent_state_error";
+    readonly ReceiverOAuthFlowError: "zoom_rivet_receiver_oauth_flow_error";
+    readonly HTTPReceiverConstructionError: "zoom_rivet_http_receiver_construction_error";
+    readonly HTTPReceiverPortNotNumberError: "zoom_rivet_http_receiver_port_not_number_error";
+    readonly HTTPReceiverRequestError: "zoom_rivet_http_receiver_request_error";
+    readonly OAuthInstallerNotInitializedError: "zoom_rivet_oauth_installer_not_initialized_error";
+    readonly OAuthTokenDoesNotExistError: "zoom_rivet_oauth_does_not_exist_error";
+    readonly OAuthTokenFetchFailedError: "zoom_rivet_oauth_token_fetch_failed_error";
+    readonly OAuthTokenRawResponseError: "zoom_rivet_oauth_token_raw_response_error";
+    readonly OAuthTokenRefreshFailedError: "zoom_rivet_oauth_token_refresh_failed_error";
+    readonly OAuthStateVerificationFailedError: "zoom_rivet_oauth_state_verification_failed_error";
+    readonly ProductClientConstructionError: "zoom_rivet_product_client_construction_error";
+}[K]>;
+declare const ApiResponseError: Constructor<Error>;
+declare const AwsReceiverRequestError: Constructor<Error>;
+declare const ClientCredentialsRawResponseError: Constructor<Error>;
+declare const S2SRawResponseError: Constructor<Error>;
+declare const CommonHttpRequestError: Constructor<Error>;
+declare const ReceiverInconsistentStateError: Constructor<Error>;
+declare const ReceiverOAuthFlowError: Constructor<Error>;
+declare const HTTPReceiverConstructionError: Constructor<Error>;
+declare const HTTPReceiverPortNotNumberError: Constructor<Error>;
+declare const HTTPReceiverRequestError: Constructor<Error>;
+declare const OAuthInstallerNotInitializedError: Constructor<Error>;
+declare const OAuthTokenDoesNotExistError: Constructor<Error>;
+declare const OAuthTokenFetchFailedError: Constructor<Error>;
+declare const OAuthTokenRawResponseError: Constructor<Error>;
+declare const OAuthTokenRefreshFailedError: Constructor<Error>;
+declare const OAuthStateVerificationFailedError: Constructor<Error>;
+declare const ProductClientConstructionError: Constructor<Error>;
 
 interface AwsLambdaReceiverOptions {
     webhooksSecretToken: string;
@@ -8045,33 +8094,6 @@ type MeetingsEvents = WebinarSharingStartedEvent | MeetingParticipantJbhWaitingE
 declare class MeetingsEventProcessor extends EventManager<MeetingsEndpoints, MeetingsEvents> {
 }
 
-/**
- * Credentials for access token & refresh token, which are used to access Zoom's APIs.
- *
- * As access token is short-lived (usually a single hour), its expiration time is checked
- * first. If it's possible to use the access token, it's used; however, if it has expired
- * or is close to expiring, the refresh token should be used to generate a new access token
- * before the API call is made. Refresh tokens are generally valid for 90 days.
- *
- * If neither the access token nor the refresh token is available, {@link OAuthTokenRefreshFailedError}
- * shall be thrown, informing the developer that neither value can be used, and the user must re-authorize.
- * It's likely that this error will be rare, but it _can_ be thrown.
- */
-interface OAuthToken {
-    accessToken: string;
-    expirationTimeIso: string;
-    refreshToken: string;
-    scopes: string[];
-}
-declare class OAuth extends InteractiveAuth<OAuthToken> {
-    private assertResponseAccessToken;
-    private fetchAccessToken;
-    getToken(): Promise<string>;
-    initRedirectCode(code: string): Promise<void>;
-    private mapOAuthToken;
-    private refreshAccessToken;
-}
-
 type MeetingsOptions<R extends Receiver> = CommonClientOptions<OAuth, R>;
 declare class MeetingsOAuthClient<ReceiverType extends Receiver = HttpReceiver, OptionsType extends CommonClientOptions<OAuth, ReceiverType> = MeetingsOptions<ReceiverType>> extends ProductClient<OAuth, MeetingsEndpoints, MeetingsEventProcessor, OptionsType, ReceiverType> {
     protected initAuth({ clientId, clientSecret, tokenStore, ...restOptions }: OptionsType): OAuth;
@@ -8086,4 +8108,4 @@ declare class MeetingsS2SAuthClient<ReceiverType extends Receiver = HttpReceiver
     protected initEventProcessor(endpoints: MeetingsEndpoints): MeetingsEventProcessor;
 }
 
-export { ApiResponseError, type ArchivingDeleteMeetingsArchivedFilesPathParams, type ArchivingGetArchivedFileStatisticsQueryParams, type ArchivingGetArchivedFileStatisticsResponse, type ArchivingGetMeetingsArchivedFilesPathParams, type ArchivingGetMeetingsArchivedFilesResponse, type ArchivingListArchivedFilesQueryParams, type ArchivingListArchivedFilesResponse, type ArchivingUpdateArchivedFilesAutoDeleteStatusPathParams, type ArchivingUpdateArchivedFilesAutoDeleteStatusRequestBody, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, type CloudRecordingCreateRecordingRegistrantPathParams, type CloudRecordingCreateRecordingRegistrantRequestBody, type CloudRecordingCreateRecordingRegistrantResponse, type CloudRecordingDeleteMeetingOrWebinarRecordingsPathParams, type CloudRecordingDeleteMeetingOrWebinarRecordingsQueryParams, type CloudRecordingDeleteRecordingFileForMeetingOrWebinarPathParams, type CloudRecordingDeleteRecordingFileForMeetingOrWebinarQueryParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsPathParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsQueryParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsResponse, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryPathParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryQueryParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryResponse, type CloudRecordingGetMeetingRecordingSettingsPathParams, type CloudRecordingGetMeetingRecordingSettingsResponse, type CloudRecordingGetMeetingRecordingsPathParams, type CloudRecordingGetMeetingRecordingsQueryParams, type CloudRecordingGetMeetingRecordingsResponse, type CloudRecordingGetRegistrationQuestionsPathParams, type CloudRecordingGetRegistrationQuestionsResponse, type CloudRecordingListAllRecordingsPathParams, type CloudRecordingListAllRecordingsQueryParams, type CloudRecordingListAllRecordingsResponse, type CloudRecordingListRecordingRegistrantsPathParams, type CloudRecordingListRecordingRegistrantsQueryParams, type CloudRecordingListRecordingRegistrantsResponse, type CloudRecordingRecoverMeetingRecordingsPathParams, type CloudRecordingRecoverMeetingRecordingsRequestBody, type CloudRecordingRecoverSingleRecordingPathParams, type CloudRecordingRecoverSingleRecordingRequestBody, type CloudRecordingUpdateMeetingRecordingSettingsPathParams, type CloudRecordingUpdateMeetingRecordingSettingsRequestBody, type CloudRecordingUpdateRegistrantsStatusPathParams, type CloudRecordingUpdateRegistrantsStatusRequestBody, type CloudRecordingUpdateRegistrationQuestionsPathParams, type CloudRecordingUpdateRegistrationQuestionsRequestBody, CommonHttpRequestError, ConsoleLogger, type DevicesAddNewDeviceRequestBody, type DevicesAssignDeviceToUserOrCommonareaRequestBody, type DevicesChangeDeviceAssociationPathParams, type DevicesChangeDeviceAssociationRequestBody, type DevicesChangeDevicePathParams, type DevicesChangeDeviceRequestBody, type DevicesDeleteDevicePathParams, type DevicesDeleteZPADeviceByVendorAndMacAddressPathParams, type DevicesGetDeviceDetailPathParams, type DevicesGetDeviceDetailResponse, type DevicesGetZDMGroupInfoQueryParams, type DevicesGetZDMGroupInfoResponse, type DevicesGetZPAVersionInfoPathParams, type DevicesGetZPAVersionInfoResponse, type DevicesListDevicesQueryParams, type DevicesListDevicesResponse, type DevicesUpgradeZpaOsAppRequestBody, type H323DevicesCreateHSIPDeviceRequestBody, type H323DevicesCreateHSIPDeviceResponse, type H323DevicesDeleteHSIPDevicePathParams, type H323DevicesListHSIPDevicesQueryParams, type H323DevicesListHSIPDevicesResponse, type H323DevicesUpdateHSIPDevicePathParams, type H323DevicesUpdateHSIPDeviceRequestBody, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, LogLevel, type Logger, type MeetingAlertEvent, type MeetingBreakoutRoomSharingEndedEvent, type MeetingBreakoutRoomSharingStartedEvent, type MeetingChatMessageFileSentEvent, type MeetingChatMessageSentEvent, type MeetingCreatedEvent, type MeetingDeletedEvent, type MeetingDeviceTestedEvent, type MeetingEndedEvent, type MeetingLiveStreamingStartedEvent, type MeetingLiveStreamingStoppedEvent, type MeetingParticipantAdmittedEvent, type MeetingParticipantBindEvent, type MeetingParticipantFeedbackEvent, type MeetingParticipantJbhJoinedEvent, type MeetingParticipantJbhWaitingEvent, type MeetingParticipantJbhWaitingLeftEvent, type MeetingParticipantJoinedBreakoutRoomEvent, type MeetingParticipantJoinedEvent, type MeetingParticipantJoinedWaitingRoomEvent, type MeetingParticipantLeftBreakoutRoomEvent, type MeetingParticipantLeftEvent, type MeetingParticipantLeftWaitingRoomEvent, type MeetingParticipantPhoneCalloutAcceptedEvent, type MeetingParticipantPhoneCalloutMissedEvent, type MeetingParticipantPhoneCalloutRejectedEvent, type MeetingParticipantPhoneCalloutRingingEvent, type MeetingParticipantPutInWaitingRoomEvent, type MeetingParticipantRoleChangedEvent, type MeetingParticipantRoomSystemCalloutAcceptedEvent, type MeetingParticipantRoomSystemCalloutFailedEvent, type MeetingParticipantRoomSystemCalloutMissedEvent, type MeetingParticipantRoomSystemCalloutRejectedEvent, type MeetingParticipantRoomSystemCalloutRingingEvent, type MeetingPermanentlyDeletedEvent, type MeetingRecoveredEvent, type MeetingRegistrationApprovedEvent, type MeetingRegistrationCancelledEvent, type MeetingRegistrationCreatedEvent, type MeetingRegistrationDeniedEvent, type MeetingRiskAlertEvent, type MeetingSharingEndedEvent, type MeetingSharingStartedEvent, type MeetingStartedEvent, type MeetingSummaryCompletedEvent, type MeetingSummaryDeletedEvent, type MeetingSummaryRecoveredEvent, type MeetingSummarySharedEvent, type MeetingSummaryTrashedEvent, type MeetingSummaryUpdatedEvent, type MeetingUpdatedEvent, type MeetingsAddMeetingAppPathParams, type MeetingsAddMeetingAppResponse, type MeetingsAddMeetingRegistrantPathParams, type MeetingsAddMeetingRegistrantQueryParams, type MeetingsAddMeetingRegistrantRequestBody, type MeetingsAddMeetingRegistrantResponse, type MeetingsCreateMeetingPathParams, type MeetingsCreateMeetingPollPathParams, type MeetingsCreateMeetingPollRequestBody, type MeetingsCreateMeetingPollResponse, type MeetingsCreateMeetingRequestBody, type MeetingsCreateMeetingResponse, type MeetingsCreateMeetingTemplateFromExistingMeetingPathParams, type MeetingsCreateMeetingTemplateFromExistingMeetingRequestBody, type MeetingsCreateMeetingTemplateFromExistingMeetingResponse, type MeetingsCreateMeetingsInviteLinksPathParams, type MeetingsCreateMeetingsInviteLinksRequestBody, type MeetingsCreateMeetingsInviteLinksResponse, type MeetingsDeleteLiveMeetingMessagePathParams, type MeetingsDeleteLiveMeetingMessageQueryParams, type MeetingsDeleteMeetingAppPathParams, type MeetingsDeleteMeetingPathParams, type MeetingsDeleteMeetingPollPathParams, type MeetingsDeleteMeetingQueryParams, type MeetingsDeleteMeetingRegistrantPathParams, type MeetingsDeleteMeetingRegistrantQueryParams, type MeetingsDeleteMeetingSurveyPathParams, MeetingsEndpoints, MeetingsEventProcessor, type MeetingsGetLivestreamDetailsPathParams, type MeetingsGetLivestreamDetailsResponse, type MeetingsGetMeetingInvitationPathParams, type MeetingsGetMeetingInvitationResponse, type MeetingsGetMeetingPathParams, type MeetingsGetMeetingPollPathParams, type MeetingsGetMeetingPollResponse, type MeetingsGetMeetingQueryParams, type MeetingsGetMeetingRegistrantPathParams, type MeetingsGetMeetingRegistrantResponse, type MeetingsGetMeetingResponse, type MeetingsGetMeetingSIPURIWithPasscodePathParams, type MeetingsGetMeetingSIPURIWithPasscodeRequestBody, type MeetingsGetMeetingSIPURIWithPasscodeResponse, type MeetingsGetMeetingSummaryPathParams, type MeetingsGetMeetingSummaryResponse, type MeetingsGetMeetingSurveyPathParams, type MeetingsGetMeetingSurveyResponse, type MeetingsGetMeetingsArchiveTokenForLocalArchivingPathParams, type MeetingsGetMeetingsArchiveTokenForLocalArchivingResponse, type MeetingsGetMeetingsJoinTokenForLiveStreamingPathParams, type MeetingsGetMeetingsJoinTokenForLiveStreamingResponse, type MeetingsGetMeetingsJoinTokenForLocalRecordingPathParams, type MeetingsGetMeetingsJoinTokenForLocalRecordingQueryParams, type MeetingsGetMeetingsJoinTokenForLocalRecordingResponse, type MeetingsGetMeetingsTokenPathParams, type MeetingsGetMeetingsTokenQueryParams, type MeetingsGetMeetingsTokenResponse, type MeetingsGetPastMeetingDetailsPathParams, type MeetingsGetPastMeetingDetailsResponse, type MeetingsGetPastMeetingParticipantsPathParams, type MeetingsGetPastMeetingParticipantsQueryParams, type MeetingsGetPastMeetingParticipantsResponse, type MeetingsListMeetingPollsPathParams, type MeetingsListMeetingPollsQueryParams, type MeetingsListMeetingPollsResponse, type MeetingsListMeetingRegistrantsPathParams, type MeetingsListMeetingRegistrantsQueryParams, type MeetingsListMeetingRegistrantsResponse, type MeetingsListMeetingSummariesOfAccountQueryParams, type MeetingsListMeetingSummariesOfAccountResponse, type MeetingsListMeetingTemplatesPathParams, type MeetingsListMeetingTemplatesResponse, type MeetingsListMeetingsPathParams, type MeetingsListMeetingsQueryParams, type MeetingsListMeetingsResponse, type MeetingsListPastMeetingInstancesPathParams, type MeetingsListPastMeetingInstancesResponse, type MeetingsListPastMeetingsPollResultsPathParams, type MeetingsListPastMeetingsPollResultsResponse, type MeetingsListPastMeetingsQAPathParams, type MeetingsListPastMeetingsQAResponse, type MeetingsListRegistrationQuestionsPathParams, type MeetingsListRegistrationQuestionsResponse, type MeetingsListUpcomingMeetingsPathParams, type MeetingsListUpcomingMeetingsResponse, MeetingsOAuthClient, type MeetingsOptions, type MeetingsPerformBatchPollCreationPathParams, type MeetingsPerformBatchPollCreationRequestBody, type MeetingsPerformBatchPollCreationResponse, type MeetingsPerformBatchRegistrationPathParams, type MeetingsPerformBatchRegistrationRequestBody, type MeetingsPerformBatchRegistrationResponse, MeetingsS2SAuthClient, type MeetingsS2SAuthOptions, type MeetingsUpdateLiveMeetingMessagePathParams, type MeetingsUpdateLiveMeetingMessageRequestBody, type MeetingsUpdateLivestreamPathParams, type MeetingsUpdateLivestreamRequestBody, type MeetingsUpdateLivestreamStatusPathParams, type MeetingsUpdateLivestreamStatusRequestBody, type MeetingsUpdateMeetingPathParams, type MeetingsUpdateMeetingPollPathParams, type MeetingsUpdateMeetingPollRequestBody, type MeetingsUpdateMeetingQueryParams, type MeetingsUpdateMeetingRequestBody, type MeetingsUpdateMeetingStatusPathParams, type MeetingsUpdateMeetingStatusRequestBody, type MeetingsUpdateMeetingSurveyPathParams, type MeetingsUpdateMeetingSurveyRequestBody, type MeetingsUpdateRegistrantsStatusPathParams, type MeetingsUpdateRegistrantsStatusQueryParams, type MeetingsUpdateRegistrantsStatusRequestBody, type MeetingsUpdateRegistrationQuestionsPathParams, type MeetingsUpdateRegistrationQuestionsRequestBody, type MeetingsUseInMeetingControlsPathParams, type MeetingsUseInMeetingControlsRequestBody, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, type PACListUsersPACAccountsPathParams, type PACListUsersPACAccountsResponse, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, type RecordingArchiveFilesCompletedEvent, type RecordingBatchDeletedEvent, type RecordingBatchRecoveredEvent, type RecordingBatchTrashedEvent, type RecordingCloudStorageUsageUpdatedEvent, type RecordingCompletedEvent, type RecordingDeletedEvent, type RecordingPausedEvent, type RecordingRecoveredEvent, type RecordingRegistrationApprovedEvent, type RecordingRegistrationCreatedEvent, type RecordingRegistrationDeniedEvent, type RecordingRenamedEvent, type RecordingResumedEvent, type RecordingStartedEvent, type RecordingStoppedEvent, type RecordingTranscriptCompletedEvent, type RecordingTrashedEvent, type ReportsGetActiveOrInactiveHostReportsQueryParams, type ReportsGetActiveOrInactiveHostReportsResponse, type ReportsGetBillingInvoiceReportsQueryParams, type ReportsGetBillingInvoiceReportsResponse, type ReportsGetBillingReportsResponse, type ReportsGetCloudRecordingUsageReportQueryParams, type ReportsGetCloudRecordingUsageReportResponse, type ReportsGetDailyUsageReportQueryParams, type ReportsGetDailyUsageReportResponse, type ReportsGetMeetingActivitiesReportQueryParams, type ReportsGetMeetingActivitiesReportResponse, type ReportsGetMeetingDetailReportsPathParams, type ReportsGetMeetingDetailReportsResponse, type ReportsGetMeetingParticipantReportsPathParams, type ReportsGetMeetingParticipantReportsQueryParams, type ReportsGetMeetingParticipantReportsResponse, type ReportsGetMeetingPollReportsPathParams, type ReportsGetMeetingPollReportsResponse, type ReportsGetMeetingQAReportPathParams, type ReportsGetMeetingQAReportResponse, type ReportsGetMeetingReportsPathParams, type ReportsGetMeetingReportsQueryParams, type ReportsGetMeetingReportsResponse, type ReportsGetMeetingSurveyReportPathParams, type ReportsGetMeetingSurveyReportResponse, type ReportsGetOperationLogsReportQueryParams, type ReportsGetOperationLogsReportResponse, type ReportsGetSignInSignOutActivityReportQueryParams, type ReportsGetSignInSignOutActivityReportResponse, type ReportsGetTelephoneReportsQueryParams, type ReportsGetTelephoneReportsResponse, type ReportsGetUpcomingEventsReportQueryParams, type ReportsGetUpcomingEventsReportResponse, type ReportsGetWebinarDetailReportsPathParams, type ReportsGetWebinarDetailReportsResponse, type ReportsGetWebinarParticipantReportsPathParams, type ReportsGetWebinarParticipantReportsQueryParams, type ReportsGetWebinarParticipantReportsResponse, type ReportsGetWebinarPollReportsPathParams, type ReportsGetWebinarPollReportsResponse, type ReportsGetWebinarQAReportPathParams, type ReportsGetWebinarQAReportResponse, type ReportsGetWebinarSurveyReportPathParams, type ReportsGetWebinarSurveyReportResponse, S2SRawResponseError, type SIPPhoneDeleteSIPPhonePathParams, type SIPPhoneEnableSIPPhoneRequestBody, type SIPPhoneEnableSIPPhoneResponse, type SIPPhoneListSIPPhonesQueryParams, type SIPPhoneListSIPPhonesResponse, type SIPPhoneUpdateSIPPhonePathParams, type SIPPhoneUpdateSIPPhoneRequestBody, type StateStore, StatusCode, type TSPAddUsersTSPAccountPathParams, type TSPAddUsersTSPAccountRequestBody, type TSPAddUsersTSPAccountResponse, type TSPDeleteUsersTSPAccountPathParams, type TSPGetAccountsTSPInformationResponse, type TSPGetUsersTSPAccountPathParams, type TSPGetUsersTSPAccountResponse, type TSPListUsersTSPAccountsPathParams, type TSPListUsersTSPAccountsResponse, type TSPSetGlobalDialInURLForTSPUserPathParams, type TSPSetGlobalDialInURLForTSPUserRequestBody, type TSPUpdateAccountsTSPInformationRequestBody, type TSPUpdateTSPAccountPathParams, type TSPUpdateTSPAccountRequestBody, type TokenStore, type TrackingFieldCreateTrackingFieldRequestBody, type TrackingFieldCreateTrackingFieldResponse, type TrackingFieldDeleteTrackingFieldPathParams, type TrackingFieldGetTrackingFieldPathParams, type TrackingFieldGetTrackingFieldResponse, type TrackingFieldListTrackingFieldsResponse, type TrackingFieldUpdateTrackingFieldPathParams, type TrackingFieldUpdateTrackingFieldRequestBody, type UserTspCreatedEvent, type UserTspDeletedEvent, type UserTspUpdatedEvent, type WebinarAlertEvent, type WebinarChatMessageFileSentEvent, type WebinarChatMessageSentEvent, type WebinarCreatedEvent, type WebinarDeletedEvent, type WebinarEndedEvent, type WebinarParticipantBindEvent, type WebinarParticipantFeedbackEvent, type WebinarParticipantJoinedEvent, type WebinarParticipantLeftEvent, type WebinarParticipantRoleChangedEvent, type WebinarPermanentlyDeletedEvent, type WebinarRecoveredEvent, type WebinarRegistrationApprovedEvent, type WebinarRegistrationCancelledEvent, type WebinarRegistrationCreatedEvent, type WebinarRegistrationDeniedEvent, type WebinarSharingEndedEvent, type WebinarSharingStartedEvent, type WebinarStartedEvent, type WebinarUpdatedEvent, type WebinarsAddPanelistsPathParams, type WebinarsAddPanelistsRequestBody, type WebinarsAddPanelistsResponse, type WebinarsAddWebinarRegistrantPathParams, type WebinarsAddWebinarRegistrantQueryParams, type WebinarsAddWebinarRegistrantRequestBody, type WebinarsAddWebinarRegistrantResponse, type WebinarsCreateWebinarPathParams, type WebinarsCreateWebinarRequestBody, type WebinarsCreateWebinarResponse, type WebinarsCreateWebinarTemplatePathParams, type WebinarsCreateWebinarTemplateRequestBody, type WebinarsCreateWebinarTemplateResponse, type WebinarsCreateWebinarsBrandingNameTagPathParams, type WebinarsCreateWebinarsBrandingNameTagRequestBody, type WebinarsCreateWebinarsBrandingNameTagResponse, type WebinarsCreateWebinarsInviteLinksPathParams, type WebinarsCreateWebinarsInviteLinksRequestBody, type WebinarsCreateWebinarsInviteLinksResponse, type WebinarsCreateWebinarsPollPathParams, type WebinarsCreateWebinarsPollRequestBody, type WebinarsCreateWebinarsPollResponse, type WebinarsDeleteLiveWebinarMessagePathParams, type WebinarsDeleteLiveWebinarMessageQueryParams, type WebinarsDeleteWebinarPathParams, type WebinarsDeleteWebinarPollPathParams, type WebinarsDeleteWebinarQueryParams, type WebinarsDeleteWebinarRegistrantPathParams, type WebinarsDeleteWebinarRegistrantQueryParams, type WebinarsDeleteWebinarSurveyPathParams, type WebinarsDeleteWebinarsBrandingNameTagPathParams, type WebinarsDeleteWebinarsBrandingNameTagQueryParams, type WebinarsDeleteWebinarsBrandingVirtualBackgroundsPathParams, type WebinarsDeleteWebinarsBrandingVirtualBackgroundsQueryParams, type WebinarsDeleteWebinarsBrandingWallpaperPathParams, type WebinarsGetLiveStreamDetailsPathParams, type WebinarsGetLiveStreamDetailsResponse, type WebinarsGetWebinarAbsenteesPathParams, type WebinarsGetWebinarAbsenteesQueryParams, type WebinarsGetWebinarAbsenteesResponse, type WebinarsGetWebinarPathParams, type WebinarsGetWebinarPollPathParams, type WebinarsGetWebinarPollResponse, type WebinarsGetWebinarQueryParams, type WebinarsGetWebinarRegistrantPathParams, type WebinarsGetWebinarRegistrantQueryParams, type WebinarsGetWebinarRegistrantResponse, type WebinarsGetWebinarResponse, type WebinarsGetWebinarSIPURIWithPasscodePathParams, type WebinarsGetWebinarSIPURIWithPasscodeRequestBody, type WebinarsGetWebinarSIPURIWithPasscodeResponse, type WebinarsGetWebinarSurveyPathParams, type WebinarsGetWebinarSurveyResponse, type WebinarsGetWebinarTrackingSourcesPathParams, type WebinarsGetWebinarTrackingSourcesResponse, type WebinarsGetWebinarsArchiveTokenForLocalArchivingPathParams, type WebinarsGetWebinarsArchiveTokenForLocalArchivingResponse, type WebinarsGetWebinarsJoinTokenForLiveStreamingPathParams, type WebinarsGetWebinarsJoinTokenForLiveStreamingResponse, type WebinarsGetWebinarsJoinTokenForLocalRecordingPathParams, type WebinarsGetWebinarsJoinTokenForLocalRecordingResponse, type WebinarsGetWebinarsSessionBrandingPathParams, type WebinarsGetWebinarsSessionBrandingResponse, type WebinarsGetWebinarsTokenPathParams, type WebinarsGetWebinarsTokenQueryParams, type WebinarsGetWebinarsTokenResponse, type WebinarsListPanelistsPathParams, type WebinarsListPanelistsResponse, type WebinarsListPastWebinarInstancesPathParams, type WebinarsListPastWebinarInstancesResponse, type WebinarsListPastWebinarPollResultsPathParams, type WebinarsListPastWebinarPollResultsResponse, type WebinarsListQAsOfPastWebinarPathParams, type WebinarsListQAsOfPastWebinarResponse, type WebinarsListRegistrationQuestionsPathParams, type WebinarsListRegistrationQuestionsResponse, type WebinarsListWebinarParticipantsPathParams, type WebinarsListWebinarParticipantsQueryParams, type WebinarsListWebinarParticipantsResponse, type WebinarsListWebinarRegistrantsPathParams, type WebinarsListWebinarRegistrantsQueryParams, type WebinarsListWebinarRegistrantsResponse, type WebinarsListWebinarTemplatesPathParams, type WebinarsListWebinarTemplatesResponse, type WebinarsListWebinarsPathParams, type WebinarsListWebinarsPollsPathParams, type WebinarsListWebinarsPollsQueryParams, type WebinarsListWebinarsPollsResponse, type WebinarsListWebinarsQueryParams, type WebinarsListWebinarsResponse, type WebinarsPerformBatchRegistrationPathParams, type WebinarsPerformBatchRegistrationRequestBody, type WebinarsPerformBatchRegistrationResponse, type WebinarsRemoveAllPanelistsPathParams, type WebinarsRemovePanelistPathParams, type WebinarsSetWebinarsDefaultBrandingVirtualBackgroundPathParams, type WebinarsSetWebinarsDefaultBrandingVirtualBackgroundQueryParams, type WebinarsUpdateLiveStreamPathParams, type WebinarsUpdateLiveStreamRequestBody, type WebinarsUpdateLiveStreamStatusPathParams, type WebinarsUpdateLiveStreamStatusRequestBody, type WebinarsUpdateRegistrantsStatusPathParams, type WebinarsUpdateRegistrantsStatusQueryParams, type WebinarsUpdateRegistrantsStatusRequestBody, type WebinarsUpdateRegistrationQuestionsPathParams, type WebinarsUpdateRegistrationQuestionsRequestBody, type WebinarsUpdateWebinarPathParams, type WebinarsUpdateWebinarPollPathParams, type WebinarsUpdateWebinarPollRequestBody, type WebinarsUpdateWebinarQueryParams, type WebinarsUpdateWebinarRequestBody, type WebinarsUpdateWebinarStatusPathParams, type WebinarsUpdateWebinarStatusRequestBody, type WebinarsUpdateWebinarSurveyPathParams, type WebinarsUpdateWebinarSurveyRequestBody, type WebinarsUpdateWebinarsBrandingNameTagPathParams, type WebinarsUpdateWebinarsBrandingNameTagRequestBody, type WebinarsUploadWebinarsBrandingVirtualBackgroundPathParams, type WebinarsUploadWebinarsBrandingVirtualBackgroundRequestBody, type WebinarsUploadWebinarsBrandingVirtualBackgroundResponse, type WebinarsUploadWebinarsBrandingWallpaperPathParams, type WebinarsUploadWebinarsBrandingWallpaperRequestBody, type WebinarsUploadWebinarsBrandingWallpaperResponse, isCoreError, isStateStore };
+export { ApiResponseError, type ArchivingDeleteMeetingsArchivedFilesPathParams, type ArchivingGetArchivedFileStatisticsQueryParams, type ArchivingGetArchivedFileStatisticsResponse, type ArchivingGetMeetingsArchivedFilesPathParams, type ArchivingGetMeetingsArchivedFilesResponse, type ArchivingListArchivedFilesQueryParams, type ArchivingListArchivedFilesResponse, type ArchivingUpdateArchivedFilesAutoDeleteStatusPathParams, type ArchivingUpdateArchivedFilesAutoDeleteStatusRequestBody, AwsLambdaReceiver, AwsReceiverRequestError, ClientCredentialsRawResponseError, type ClientCredentialsToken, type CloudRecordingCreateRecordingRegistrantPathParams, type CloudRecordingCreateRecordingRegistrantRequestBody, type CloudRecordingCreateRecordingRegistrantResponse, type CloudRecordingDeleteMeetingOrWebinarRecordingsPathParams, type CloudRecordingDeleteMeetingOrWebinarRecordingsQueryParams, type CloudRecordingDeleteRecordingFileForMeetingOrWebinarPathParams, type CloudRecordingDeleteRecordingFileForMeetingOrWebinarQueryParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsPathParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsQueryParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsDetailsResponse, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryPathParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryQueryParams, type CloudRecordingGetMeetingOrWebinarRecordingsAnalyticsSummaryResponse, type CloudRecordingGetMeetingRecordingSettingsPathParams, type CloudRecordingGetMeetingRecordingSettingsResponse, type CloudRecordingGetMeetingRecordingsPathParams, type CloudRecordingGetMeetingRecordingsQueryParams, type CloudRecordingGetMeetingRecordingsResponse, type CloudRecordingGetRegistrationQuestionsPathParams, type CloudRecordingGetRegistrationQuestionsResponse, type CloudRecordingListAllRecordingsPathParams, type CloudRecordingListAllRecordingsQueryParams, type CloudRecordingListAllRecordingsResponse, type CloudRecordingListRecordingRegistrantsPathParams, type CloudRecordingListRecordingRegistrantsQueryParams, type CloudRecordingListRecordingRegistrantsResponse, type CloudRecordingRecoverMeetingRecordingsPathParams, type CloudRecordingRecoverMeetingRecordingsRequestBody, type CloudRecordingRecoverSingleRecordingPathParams, type CloudRecordingRecoverSingleRecordingRequestBody, type CloudRecordingUpdateMeetingRecordingSettingsPathParams, type CloudRecordingUpdateMeetingRecordingSettingsRequestBody, type CloudRecordingUpdateRegistrantsStatusPathParams, type CloudRecordingUpdateRegistrantsStatusRequestBody, type CloudRecordingUpdateRegistrationQuestionsPathParams, type CloudRecordingUpdateRegistrationQuestionsRequestBody, CommonHttpRequestError, ConsoleLogger, type DevicesAddNewDeviceRequestBody, type DevicesAssignDeviceToUserOrCommonareaRequestBody, type DevicesChangeDeviceAssociationPathParams, type DevicesChangeDeviceAssociationRequestBody, type DevicesChangeDevicePathParams, type DevicesChangeDeviceRequestBody, type DevicesDeleteDevicePathParams, type DevicesDeleteZPADeviceByVendorAndMacAddressPathParams, type DevicesGetDeviceDetailPathParams, type DevicesGetDeviceDetailResponse, type DevicesGetZDMGroupInfoQueryParams, type DevicesGetZDMGroupInfoResponse, type DevicesGetZPAVersionInfoPathParams, type DevicesGetZPAVersionInfoResponse, type DevicesListDevicesQueryParams, type DevicesListDevicesResponse, type DevicesUpgradeZpaOsAppRequestBody, type H323DevicesCreateHSIPDeviceRequestBody, type H323DevicesCreateHSIPDeviceResponse, type H323DevicesDeleteHSIPDevicePathParams, type H323DevicesListHSIPDevicesQueryParams, type H323DevicesListHSIPDevicesResponse, type H323DevicesUpdateHSIPDevicePathParams, type H323DevicesUpdateHSIPDeviceRequestBody, HTTPReceiverConstructionError, HTTPReceiverPortNotNumberError, HTTPReceiverRequestError, HttpReceiver, type HttpReceiverOptions, type JwtToken, LogLevel, type Logger, type MeetingAlertEvent, type MeetingBreakoutRoomSharingEndedEvent, type MeetingBreakoutRoomSharingStartedEvent, type MeetingChatMessageFileSentEvent, type MeetingChatMessageSentEvent, type MeetingCreatedEvent, type MeetingDeletedEvent, type MeetingDeviceTestedEvent, type MeetingEndedEvent, type MeetingLiveStreamingStartedEvent, type MeetingLiveStreamingStoppedEvent, type MeetingParticipantAdmittedEvent, type MeetingParticipantBindEvent, type MeetingParticipantFeedbackEvent, type MeetingParticipantJbhJoinedEvent, type MeetingParticipantJbhWaitingEvent, type MeetingParticipantJbhWaitingLeftEvent, type MeetingParticipantJoinedBreakoutRoomEvent, type MeetingParticipantJoinedEvent, type MeetingParticipantJoinedWaitingRoomEvent, type MeetingParticipantLeftBreakoutRoomEvent, type MeetingParticipantLeftEvent, type MeetingParticipantLeftWaitingRoomEvent, type MeetingParticipantPhoneCalloutAcceptedEvent, type MeetingParticipantPhoneCalloutMissedEvent, type MeetingParticipantPhoneCalloutRejectedEvent, type MeetingParticipantPhoneCalloutRingingEvent, type MeetingParticipantPutInWaitingRoomEvent, type MeetingParticipantRoleChangedEvent, type MeetingParticipantRoomSystemCalloutAcceptedEvent, type MeetingParticipantRoomSystemCalloutFailedEvent, type MeetingParticipantRoomSystemCalloutMissedEvent, type MeetingParticipantRoomSystemCalloutRejectedEvent, type MeetingParticipantRoomSystemCalloutRingingEvent, type MeetingPermanentlyDeletedEvent, type MeetingRecoveredEvent, type MeetingRegistrationApprovedEvent, type MeetingRegistrationCancelledEvent, type MeetingRegistrationCreatedEvent, type MeetingRegistrationDeniedEvent, type MeetingRiskAlertEvent, type MeetingSharingEndedEvent, type MeetingSharingStartedEvent, type MeetingStartedEvent, type MeetingSummaryCompletedEvent, type MeetingSummaryDeletedEvent, type MeetingSummaryRecoveredEvent, type MeetingSummarySharedEvent, type MeetingSummaryTrashedEvent, type MeetingSummaryUpdatedEvent, type MeetingUpdatedEvent, type MeetingsAddMeetingAppPathParams, type MeetingsAddMeetingAppResponse, type MeetingsAddMeetingRegistrantPathParams, type MeetingsAddMeetingRegistrantQueryParams, type MeetingsAddMeetingRegistrantRequestBody, type MeetingsAddMeetingRegistrantResponse, type MeetingsCreateMeetingPathParams, type MeetingsCreateMeetingPollPathParams, type MeetingsCreateMeetingPollRequestBody, type MeetingsCreateMeetingPollResponse, type MeetingsCreateMeetingRequestBody, type MeetingsCreateMeetingResponse, type MeetingsCreateMeetingTemplateFromExistingMeetingPathParams, type MeetingsCreateMeetingTemplateFromExistingMeetingRequestBody, type MeetingsCreateMeetingTemplateFromExistingMeetingResponse, type MeetingsCreateMeetingsInviteLinksPathParams, type MeetingsCreateMeetingsInviteLinksRequestBody, type MeetingsCreateMeetingsInviteLinksResponse, type MeetingsDeleteLiveMeetingMessagePathParams, type MeetingsDeleteLiveMeetingMessageQueryParams, type MeetingsDeleteMeetingAppPathParams, type MeetingsDeleteMeetingPathParams, type MeetingsDeleteMeetingPollPathParams, type MeetingsDeleteMeetingQueryParams, type MeetingsDeleteMeetingRegistrantPathParams, type MeetingsDeleteMeetingRegistrantQueryParams, type MeetingsDeleteMeetingSurveyPathParams, MeetingsEndpoints, MeetingsEventProcessor, type MeetingsGetLivestreamDetailsPathParams, type MeetingsGetLivestreamDetailsResponse, type MeetingsGetMeetingInvitationPathParams, type MeetingsGetMeetingInvitationResponse, type MeetingsGetMeetingPathParams, type MeetingsGetMeetingPollPathParams, type MeetingsGetMeetingPollResponse, type MeetingsGetMeetingQueryParams, type MeetingsGetMeetingRegistrantPathParams, type MeetingsGetMeetingRegistrantResponse, type MeetingsGetMeetingResponse, type MeetingsGetMeetingSIPURIWithPasscodePathParams, type MeetingsGetMeetingSIPURIWithPasscodeRequestBody, type MeetingsGetMeetingSIPURIWithPasscodeResponse, type MeetingsGetMeetingSummaryPathParams, type MeetingsGetMeetingSummaryResponse, type MeetingsGetMeetingSurveyPathParams, type MeetingsGetMeetingSurveyResponse, type MeetingsGetMeetingsArchiveTokenForLocalArchivingPathParams, type MeetingsGetMeetingsArchiveTokenForLocalArchivingResponse, type MeetingsGetMeetingsJoinTokenForLiveStreamingPathParams, type MeetingsGetMeetingsJoinTokenForLiveStreamingResponse, type MeetingsGetMeetingsJoinTokenForLocalRecordingPathParams, type MeetingsGetMeetingsJoinTokenForLocalRecordingQueryParams, type MeetingsGetMeetingsJoinTokenForLocalRecordingResponse, type MeetingsGetMeetingsTokenPathParams, type MeetingsGetMeetingsTokenQueryParams, type MeetingsGetMeetingsTokenResponse, type MeetingsGetPastMeetingDetailsPathParams, type MeetingsGetPastMeetingDetailsResponse, type MeetingsGetPastMeetingParticipantsPathParams, type MeetingsGetPastMeetingParticipantsQueryParams, type MeetingsGetPastMeetingParticipantsResponse, type MeetingsListMeetingPollsPathParams, type MeetingsListMeetingPollsQueryParams, type MeetingsListMeetingPollsResponse, type MeetingsListMeetingRegistrantsPathParams, type MeetingsListMeetingRegistrantsQueryParams, type MeetingsListMeetingRegistrantsResponse, type MeetingsListMeetingSummariesOfAccountQueryParams, type MeetingsListMeetingSummariesOfAccountResponse, type MeetingsListMeetingTemplatesPathParams, type MeetingsListMeetingTemplatesResponse, type MeetingsListMeetingsPathParams, type MeetingsListMeetingsQueryParams, type MeetingsListMeetingsResponse, type MeetingsListPastMeetingInstancesPathParams, type MeetingsListPastMeetingInstancesResponse, type MeetingsListPastMeetingsPollResultsPathParams, type MeetingsListPastMeetingsPollResultsResponse, type MeetingsListPastMeetingsQAPathParams, type MeetingsListPastMeetingsQAResponse, type MeetingsListRegistrationQuestionsPathParams, type MeetingsListRegistrationQuestionsResponse, type MeetingsListUpcomingMeetingsPathParams, type MeetingsListUpcomingMeetingsResponse, MeetingsOAuthClient, type MeetingsOptions, type MeetingsPerformBatchPollCreationPathParams, type MeetingsPerformBatchPollCreationRequestBody, type MeetingsPerformBatchPollCreationResponse, type MeetingsPerformBatchRegistrationPathParams, type MeetingsPerformBatchRegistrationRequestBody, type MeetingsPerformBatchRegistrationResponse, MeetingsS2SAuthClient, type MeetingsS2SAuthOptions, type MeetingsUpdateLiveMeetingMessagePathParams, type MeetingsUpdateLiveMeetingMessageRequestBody, type MeetingsUpdateLivestreamPathParams, type MeetingsUpdateLivestreamRequestBody, type MeetingsUpdateLivestreamStatusPathParams, type MeetingsUpdateLivestreamStatusRequestBody, type MeetingsUpdateMeetingPathParams, type MeetingsUpdateMeetingPollPathParams, type MeetingsUpdateMeetingPollRequestBody, type MeetingsUpdateMeetingQueryParams, type MeetingsUpdateMeetingRequestBody, type MeetingsUpdateMeetingStatusPathParams, type MeetingsUpdateMeetingStatusRequestBody, type MeetingsUpdateMeetingSurveyPathParams, type MeetingsUpdateMeetingSurveyRequestBody, type MeetingsUpdateRegistrantsStatusPathParams, type MeetingsUpdateRegistrantsStatusQueryParams, type MeetingsUpdateRegistrantsStatusRequestBody, type MeetingsUpdateRegistrationQuestionsPathParams, type MeetingsUpdateRegistrationQuestionsRequestBody, type MeetingsUseInMeetingControlsPathParams, type MeetingsUseInMeetingControlsRequestBody, OAuthInstallerNotInitializedError, OAuthStateVerificationFailedError, type OAuthToken, OAuthTokenDoesNotExistError, OAuthTokenFetchFailedError, OAuthTokenRawResponseError, OAuthTokenRefreshFailedError, type PACListUsersPACAccountsPathParams, type PACListUsersPACAccountsResponse, ProductClientConstructionError, type Receiver, ReceiverInconsistentStateError, type ReceiverInitOptions, ReceiverOAuthFlowError, type RecordingArchiveFilesCompletedEvent, type RecordingBatchDeletedEvent, type RecordingBatchRecoveredEvent, type RecordingBatchTrashedEvent, type RecordingCloudStorageUsageUpdatedEvent, type RecordingCompletedEvent, type RecordingDeletedEvent, type RecordingPausedEvent, type RecordingRecoveredEvent, type RecordingRegistrationApprovedEvent, type RecordingRegistrationCreatedEvent, type RecordingRegistrationDeniedEvent, type RecordingRenamedEvent, type RecordingResumedEvent, type RecordingStartedEvent, type RecordingStoppedEvent, type RecordingTranscriptCompletedEvent, type RecordingTrashedEvent, type ReportsGetActiveOrInactiveHostReportsQueryParams, type ReportsGetActiveOrInactiveHostReportsResponse, type ReportsGetBillingInvoiceReportsQueryParams, type ReportsGetBillingInvoiceReportsResponse, type ReportsGetBillingReportsResponse, type ReportsGetCloudRecordingUsageReportQueryParams, type ReportsGetCloudRecordingUsageReportResponse, type ReportsGetDailyUsageReportQueryParams, type ReportsGetDailyUsageReportResponse, type ReportsGetMeetingActivitiesReportQueryParams, type ReportsGetMeetingActivitiesReportResponse, type ReportsGetMeetingDetailReportsPathParams, type ReportsGetMeetingDetailReportsResponse, type ReportsGetMeetingParticipantReportsPathParams, type ReportsGetMeetingParticipantReportsQueryParams, type ReportsGetMeetingParticipantReportsResponse, type ReportsGetMeetingPollReportsPathParams, type ReportsGetMeetingPollReportsResponse, type ReportsGetMeetingQAReportPathParams, type ReportsGetMeetingQAReportResponse, type ReportsGetMeetingReportsPathParams, type ReportsGetMeetingReportsQueryParams, type ReportsGetMeetingReportsResponse, type ReportsGetMeetingSurveyReportPathParams, type ReportsGetMeetingSurveyReportResponse, type ReportsGetOperationLogsReportQueryParams, type ReportsGetOperationLogsReportResponse, type ReportsGetSignInSignOutActivityReportQueryParams, type ReportsGetSignInSignOutActivityReportResponse, type ReportsGetTelephoneReportsQueryParams, type ReportsGetTelephoneReportsResponse, type ReportsGetUpcomingEventsReportQueryParams, type ReportsGetUpcomingEventsReportResponse, type ReportsGetWebinarDetailReportsPathParams, type ReportsGetWebinarDetailReportsResponse, type ReportsGetWebinarParticipantReportsPathParams, type ReportsGetWebinarParticipantReportsQueryParams, type ReportsGetWebinarParticipantReportsResponse, type ReportsGetWebinarPollReportsPathParams, type ReportsGetWebinarPollReportsResponse, type ReportsGetWebinarQAReportPathParams, type ReportsGetWebinarQAReportResponse, type ReportsGetWebinarSurveyReportPathParams, type ReportsGetWebinarSurveyReportResponse, type S2SAuthToken, S2SRawResponseError, type SIPPhoneDeleteSIPPhonePathParams, type SIPPhoneEnableSIPPhoneRequestBody, type SIPPhoneEnableSIPPhoneResponse, type SIPPhoneListSIPPhonesQueryParams, type SIPPhoneListSIPPhonesResponse, type SIPPhoneUpdateSIPPhonePathParams, type SIPPhoneUpdateSIPPhoneRequestBody, type StateStore, StatusCode, type TSPAddUsersTSPAccountPathParams, type TSPAddUsersTSPAccountRequestBody, type TSPAddUsersTSPAccountResponse, type TSPDeleteUsersTSPAccountPathParams, type TSPGetAccountsTSPInformationResponse, type TSPGetUsersTSPAccountPathParams, type TSPGetUsersTSPAccountResponse, type TSPListUsersTSPAccountsPathParams, type TSPListUsersTSPAccountsResponse, type TSPSetGlobalDialInURLForTSPUserPathParams, type TSPSetGlobalDialInURLForTSPUserRequestBody, type TSPUpdateAccountsTSPInformationRequestBody, type TSPUpdateTSPAccountPathParams, type TSPUpdateTSPAccountRequestBody, type TokenStore, type TrackingFieldCreateTrackingFieldRequestBody, type TrackingFieldCreateTrackingFieldResponse, type TrackingFieldDeleteTrackingFieldPathParams, type TrackingFieldGetTrackingFieldPathParams, type TrackingFieldGetTrackingFieldResponse, type TrackingFieldListTrackingFieldsResponse, type TrackingFieldUpdateTrackingFieldPathParams, type TrackingFieldUpdateTrackingFieldRequestBody, type UserTspCreatedEvent, type UserTspDeletedEvent, type UserTspUpdatedEvent, type WebinarAlertEvent, type WebinarChatMessageFileSentEvent, type WebinarChatMessageSentEvent, type WebinarCreatedEvent, type WebinarDeletedEvent, type WebinarEndedEvent, type WebinarParticipantBindEvent, type WebinarParticipantFeedbackEvent, type WebinarParticipantJoinedEvent, type WebinarParticipantLeftEvent, type WebinarParticipantRoleChangedEvent, type WebinarPermanentlyDeletedEvent, type WebinarRecoveredEvent, type WebinarRegistrationApprovedEvent, type WebinarRegistrationCancelledEvent, type WebinarRegistrationCreatedEvent, type WebinarRegistrationDeniedEvent, type WebinarSharingEndedEvent, type WebinarSharingStartedEvent, type WebinarStartedEvent, type WebinarUpdatedEvent, type WebinarsAddPanelistsPathParams, type WebinarsAddPanelistsRequestBody, type WebinarsAddPanelistsResponse, type WebinarsAddWebinarRegistrantPathParams, type WebinarsAddWebinarRegistrantQueryParams, type WebinarsAddWebinarRegistrantRequestBody, type WebinarsAddWebinarRegistrantResponse, type WebinarsCreateWebinarPathParams, type WebinarsCreateWebinarRequestBody, type WebinarsCreateWebinarResponse, type WebinarsCreateWebinarTemplatePathParams, type WebinarsCreateWebinarTemplateRequestBody, type WebinarsCreateWebinarTemplateResponse, type WebinarsCreateWebinarsBrandingNameTagPathParams, type WebinarsCreateWebinarsBrandingNameTagRequestBody, type WebinarsCreateWebinarsBrandingNameTagResponse, type WebinarsCreateWebinarsInviteLinksPathParams, type WebinarsCreateWebinarsInviteLinksRequestBody, type WebinarsCreateWebinarsInviteLinksResponse, type WebinarsCreateWebinarsPollPathParams, type WebinarsCreateWebinarsPollRequestBody, type WebinarsCreateWebinarsPollResponse, type WebinarsDeleteLiveWebinarMessagePathParams, type WebinarsDeleteLiveWebinarMessageQueryParams, type WebinarsDeleteWebinarPathParams, type WebinarsDeleteWebinarPollPathParams, type WebinarsDeleteWebinarQueryParams, type WebinarsDeleteWebinarRegistrantPathParams, type WebinarsDeleteWebinarRegistrantQueryParams, type WebinarsDeleteWebinarSurveyPathParams, type WebinarsDeleteWebinarsBrandingNameTagPathParams, type WebinarsDeleteWebinarsBrandingNameTagQueryParams, type WebinarsDeleteWebinarsBrandingVirtualBackgroundsPathParams, type WebinarsDeleteWebinarsBrandingVirtualBackgroundsQueryParams, type WebinarsDeleteWebinarsBrandingWallpaperPathParams, type WebinarsGetLiveStreamDetailsPathParams, type WebinarsGetLiveStreamDetailsResponse, type WebinarsGetWebinarAbsenteesPathParams, type WebinarsGetWebinarAbsenteesQueryParams, type WebinarsGetWebinarAbsenteesResponse, type WebinarsGetWebinarPathParams, type WebinarsGetWebinarPollPathParams, type WebinarsGetWebinarPollResponse, type WebinarsGetWebinarQueryParams, type WebinarsGetWebinarRegistrantPathParams, type WebinarsGetWebinarRegistrantQueryParams, type WebinarsGetWebinarRegistrantResponse, type WebinarsGetWebinarResponse, type WebinarsGetWebinarSIPURIWithPasscodePathParams, type WebinarsGetWebinarSIPURIWithPasscodeRequestBody, type WebinarsGetWebinarSIPURIWithPasscodeResponse, type WebinarsGetWebinarSurveyPathParams, type WebinarsGetWebinarSurveyResponse, type WebinarsGetWebinarTrackingSourcesPathParams, type WebinarsGetWebinarTrackingSourcesResponse, type WebinarsGetWebinarsArchiveTokenForLocalArchivingPathParams, type WebinarsGetWebinarsArchiveTokenForLocalArchivingResponse, type WebinarsGetWebinarsJoinTokenForLiveStreamingPathParams, type WebinarsGetWebinarsJoinTokenForLiveStreamingResponse, type WebinarsGetWebinarsJoinTokenForLocalRecordingPathParams, type WebinarsGetWebinarsJoinTokenForLocalRecordingResponse, type WebinarsGetWebinarsSessionBrandingPathParams, type WebinarsGetWebinarsSessionBrandingResponse, type WebinarsGetWebinarsTokenPathParams, type WebinarsGetWebinarsTokenQueryParams, type WebinarsGetWebinarsTokenResponse, type WebinarsListPanelistsPathParams, type WebinarsListPanelistsResponse, type WebinarsListPastWebinarInstancesPathParams, type WebinarsListPastWebinarInstancesResponse, type WebinarsListPastWebinarPollResultsPathParams, type WebinarsListPastWebinarPollResultsResponse, type WebinarsListQAsOfPastWebinarPathParams, type WebinarsListQAsOfPastWebinarResponse, type WebinarsListRegistrationQuestionsPathParams, type WebinarsListRegistrationQuestionsResponse, type WebinarsListWebinarParticipantsPathParams, type WebinarsListWebinarParticipantsQueryParams, type WebinarsListWebinarParticipantsResponse, type WebinarsListWebinarRegistrantsPathParams, type WebinarsListWebinarRegistrantsQueryParams, type WebinarsListWebinarRegistrantsResponse, type WebinarsListWebinarTemplatesPathParams, type WebinarsListWebinarTemplatesResponse, type WebinarsListWebinarsPathParams, type WebinarsListWebinarsPollsPathParams, type WebinarsListWebinarsPollsQueryParams, type WebinarsListWebinarsPollsResponse, type WebinarsListWebinarsQueryParams, type WebinarsListWebinarsResponse, type WebinarsPerformBatchRegistrationPathParams, type WebinarsPerformBatchRegistrationRequestBody, type WebinarsPerformBatchRegistrationResponse, type WebinarsRemoveAllPanelistsPathParams, type WebinarsRemovePanelistPathParams, type WebinarsSetWebinarsDefaultBrandingVirtualBackgroundPathParams, type WebinarsSetWebinarsDefaultBrandingVirtualBackgroundQueryParams, type WebinarsUpdateLiveStreamPathParams, type WebinarsUpdateLiveStreamRequestBody, type WebinarsUpdateLiveStreamStatusPathParams, type WebinarsUpdateLiveStreamStatusRequestBody, type WebinarsUpdateRegistrantsStatusPathParams, type WebinarsUpdateRegistrantsStatusQueryParams, type WebinarsUpdateRegistrantsStatusRequestBody, type WebinarsUpdateRegistrationQuestionsPathParams, type WebinarsUpdateRegistrationQuestionsRequestBody, type WebinarsUpdateWebinarPathParams, type WebinarsUpdateWebinarPollPathParams, type WebinarsUpdateWebinarPollRequestBody, type WebinarsUpdateWebinarQueryParams, type WebinarsUpdateWebinarRequestBody, type WebinarsUpdateWebinarStatusPathParams, type WebinarsUpdateWebinarStatusRequestBody, type WebinarsUpdateWebinarSurveyPathParams, type WebinarsUpdateWebinarSurveyRequestBody, type WebinarsUpdateWebinarsBrandingNameTagPathParams, type WebinarsUpdateWebinarsBrandingNameTagRequestBody, type WebinarsUploadWebinarsBrandingVirtualBackgroundPathParams, type WebinarsUploadWebinarsBrandingVirtualBackgroundRequestBody, type WebinarsUploadWebinarsBrandingVirtualBackgroundResponse, type WebinarsUploadWebinarsBrandingWallpaperPathParams, type WebinarsUploadWebinarsBrandingWallpaperRequestBody, type WebinarsUploadWebinarsBrandingWallpaperResponse, isCoreError, isStateStore };
